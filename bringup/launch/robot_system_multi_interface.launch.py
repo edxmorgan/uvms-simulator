@@ -373,9 +373,17 @@ def generate_launch_description():
         )
     )
 
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "controllers",
+            default_value="pid",
+            description="Comma-separated list of controllers to be used",
+        )
+    )
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
 
 def launch_setup(context, *args, **kwargs):
+
     # Resolve LaunchConfigurations
     prefix = LaunchConfiguration("prefix").perform(context)
     use_manipulator_hardware = LaunchConfiguration("use_manipulator_hardware").perform(context)
@@ -386,6 +394,16 @@ def launch_setup(context, *args, **kwargs):
     gui = LaunchConfiguration("gui").perform(context)
     sim_robot_count = int(LaunchConfiguration("sim_robot_count").perform(context))
     record_data = LaunchConfiguration("record_data").perform(context)
+
+    # Read the controllers string and split into a list
+    controllers_str = LaunchConfiguration('controllers').perform(context)
+    controllers = [c.strip() for c in controllers_str.split(',')]
+
+    if len(controllers) != sim_robot_count:
+            raise Exception("Configuration Error: The number of controllers does not match the number of simulation robots.")
+    # Now you have a list of controllers to use further in your launch file
+    print('Controller list:', controllers)
+
     # Define the robot description command
     robot_description_content = Command(
         [

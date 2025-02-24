@@ -29,7 +29,8 @@
   <depend>nav_msgs</depend>
   <depend>nav2_msgs</depend>
   <depend>mavros_msgs</depend>
-  
+  <depend>mavlink</depend>
+
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>uvms_controller</exec_depend>
   <exec_depend>joint_state_broadcaster</exec_depend>

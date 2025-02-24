@@ -24,6 +24,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   geometry_msgs
   nav_msgs
   nav2_msgs
+  mavlink
 )
 
 # find dependencies
