@@ -32,7 +32,7 @@ sudo apt-get install ros-<distro>-ros2-control
 sudo apt-get install ros-<distro>-mavros
 sudo apt-get install ros-<distro>-mavros-msgs
 sudo apt-get install ros-<distro>-nav2-msgs
-
+sudo apt-get install ros-<distro>-force-torque-sensor-broadcaster
 # Replace "<distro>" with your distrubution of ros. Tested with humble and jazzy
 
 # Install CasADi (required for dynamics and kinematics calculations)
