@@ -38,10 +38,6 @@ sudo apt-get install ros-<distro>-force-torque-sensor-broadcaster
 # Install CasADi (required for dynamics and kinematics calculations)
 # Follow the installation instructions on the CasADi wiki:
 # https://github.com/casadi/casadi/wiki/InstallationLinux
-
-# Initialize Git LFS and pull the necessary files for dynamics and kinematics
-git lfs install
-git lfs pull
 ```
 
 Clone additional packages to your ROS2 workspace:
