@@ -10,6 +10,10 @@ import yaml, copy
 import random
 from launch.actions import OpaqueFunction
 from launch.substitutions import PythonExpression
+import launch.logging
+
+# Create a logger for the launch file
+logger = launch.logging.get_logger('robot_system_multi_interface_launch')
 
 class NoAliasDumper(yaml.SafeDumper):
     def ignore_aliases(self, data):
@@ -402,8 +406,8 @@ def launch_setup(context, *args, **kwargs):
         controllers = [controllers[0]]*sim_robot_count
     elif len(controllers)!=sim_robot_count:
         raise Exception("Argument Error: The number of controllers does not match the number of simulation robots.")
-    # Now you have a list of controllers to use further in your launch file
-    print('Controller list:', controllers)
+
+    logger.info(f'Controller list: {controllers}')
 
     # Define the robot description command
     robot_description_content = Command(
@@ -562,89 +566,47 @@ def launch_setup(context, *args, **kwargs):
         output='screen',
         shell=True
     )
-    
-    joystick_controller_node = Node(
-        package='simlab',
-        executable='joystick_controller',
-        name='joystick_controller',
-        parameters=[{
-            'robots_prefix': robot_prefixes,
-            'no_robot': len(robot_prefixes) ,
-            'no_efforts': len(dof_efforts),
-            'record_data': record_data_bool
-        }]
-    )
 
-    coverage_node = Node(
-        package='simlab',
-        executable='coverage_node',
-        parameters=[{
-            'robots_prefix': robot_prefixes,
-            'no_robot': len(robot_prefixes) ,
-            'no_efforts': len(dof_efforts),
-            'record_data': record_data_bool,
-            'controllers': controllers
-        }]
-    )
+    mode = OpaqueFunction(function=lambda context: [])
+    if task in ['manual', 'coverage']:
+        try:
+            _ = FindPackageShare("simlab").find("simlab")
+            simlab_exists = True
+        except Exception:
+            simlab_exists = False
 
+        if simlab_exists:
+            if task == 'manual':
+                joystick_controller_node = Node(
+                    package='simlab',
+                    executable='joystick_controller',
+                    name='joystick_controller',
+                    parameters=[{
+                        'robots_prefix': robot_prefixes,
+                        'no_robot': len(robot_prefixes),
+                        'no_efforts': len(dof_efforts),
+                        'record_data': record_data_bool
+                    }]
+                )
+                mode = joystick_controller_node
+            elif task == 'coverage':
+                coverage_node = Node(
+                    package='simlab',
+                    executable='coverage_node',
+                    parameters=[{
+                        'robots_prefix': robot_prefixes,
+                        'no_robot': len(robot_prefixes),
+                        'no_efforts': len(dof_efforts),
+                        'record_data': record_data_bool,
+                        'controllers': controllers
+                    }]
+                )
+                mode = coverage_node
+        else:
+            logger.warning("""Warning: uvms simlab package not found. If you intend to run
+                            the coverage example or manual control via PS4 joystick,
+                            please install uvms_simlab from https://github.com/edxmorgan/uvms_simlab""")
 
-    shape_formation_node = Node(
-        package='simlab',
-        executable='shape_formation_node',
-        parameters=[{
-            'robots_prefix': robot_prefixes,
-            'no_robot': len(robot_prefixes) ,
-            'no_efforts': len(dof_efforts),
-            'record_data': record_data_bool
-        }]
-    )
-    
-    station_node = Node(
-        package='simlab',
-        executable='station_node',
-        parameters=[{
-            'robots_prefix': robot_prefixes,
-            'no_robot': len(robot_prefixes) ,
-            'no_efforts': len(dof_efforts),
-            'record_data': record_data_bool
-        }]
-    )
-
-    ik_solve_node = Node(
-        package='simlab',
-        executable='ik_solve_node',
-        parameters=[{
-            'robots_prefix': robot_prefixes,
-            'no_robot': len(robot_prefixes) ,
-            'no_efforts': len(dof_efforts),
-            'record_data': record_data_bool
-        }]
-    )
-
-    pid_metrics_node = Node(
-        package='simlab',
-        executable='pid_metrics_node',
-        parameters=[{
-            'robots_prefix': robot_prefixes,
-            'no_robot': len(robot_prefixes) ,
-            'no_efforts': len(dof_efforts),
-            'record_data': record_data_bool
-        }]
-    )
-
-    noop = OpaqueFunction(function=lambda context: [])
-    if task == 'cli':
-        mode = noop
-    if task == 'manual':
-        mode = joystick_controller_node
-    elif task == 'coverage':
-        mode = coverage_node
-    elif task == 'station':
-        mode = station_node
-    elif task == 'formation':
-        mode = shape_formation_node
-    elif task == 'ik':
-        mode = ik_solve_node
 
     thruster_forward_pwm_spawner = Node(
         package="controller_manager",
