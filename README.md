@@ -6,12 +6,22 @@ A simulator for the **BlueROV Heavy** equipped with a **Reach Alpha 5** manipula
 
 ## Features
 
-- **Realistic Dynamics:** Accurate simulation of underwater vehicle and manipulator behaviors.
+- **Realistic Dynamics:** Close to real simulation of underwater vehicle and manipulator behaviors.
 - **Multi-Agent Support:** Simulate multiple agents within a shared environment.
 - **Hardware-in-the-Loop Support:** Integrates BlueROV Heavy hardware including A50 DVL, and Reach Alpha 5 manipulator for realistic interaction and testing.
-- **Video Demonstration:** [![Watch the Video](https://img.youtube.com/vi/VRJUbpdvPIM/0.jpg)](https://www.youtube.com/watch?v=VRJUbpdvPIM)
+<!-- - **Video Demonstration:** [![Watch the Video](https://img.youtube.com/vi/VRJUbpdvPIM/0.jpg)](https://www.youtube.com/watch?v=VRJUbpdvPIM) -->
 
 ---
+
+## Dynamics Foundation
+
+This simulator incorporates and extends:
+
+- Vehicle dynamics from [diff_uv](https://github.com/edxmorgan/diff_uv).
+- Unified UVMS dynamics from [diff_uvms](https://github.com/edxmorgan/diff_uvms).
+
+---
+
 
 ## Getting Started
 - [ROS2 installation](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
@@ -47,14 +57,14 @@ Clone additional packages to your ROS2 workspace:
 - [sensor/GPIO transform broadcaster](https://github.com/edxmorgan/tf2_broadcaster)
 
 ### Installation
+1. Change directory to your ros workspace
+    ```bash
+    cd <ros_ws> //replace ros_ws with your ros2 workspace directory name
+    ```
 
-1. Clone the repository:
+2. Clone the repository:
     ```bash
     git clone https://github.com/edxmorgan/uvms-simulator.git
-    ```
-2. Navigate to the project directory:
-    ```bash
-    cd blue-heavy-dynamics-simulator
     ```
 3. Install dependencies:
     ```bash
@@ -68,16 +78,6 @@ Clone additional packages to your ROS2 workspace:
     ```bash
     source install/setup.bash
     ```
-
----
-
-## Dynamics Foundation
-
-This simulator incorporates and extends:
-
-- Vehicle dynamics from [diff_uv](https://github.com/edxmorgan/diff_uv).
-- Unified UVMS dynamics from [diff_uvms](https://github.com/edxmorgan/diff_uvms).
-
 ---
 
 ## Documentation
