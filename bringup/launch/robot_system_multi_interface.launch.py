@@ -397,10 +397,11 @@ def launch_setup(context, *args, **kwargs):
 
     # Read the controllers string and split into a list
     controllers_str = LaunchConfiguration('controllers').perform(context)
-    controllers = [c.strip() for c in controllers_str.split(',')]
-
-    if len(controllers) != sim_robot_count:
-            raise Exception("Configuration Error: The number of controllers does not match the number of simulation robots.")
+    controllers = ['force' if task=='manual' or task=='cli' else c.strip() for c in controllers_str.split(',')]
+    if len(controllers) == 1:
+        controllers = [controllers[0]]*sim_robot_count
+    elif len(controllers)!=sim_robot_count:
+        raise Exception("Argument Error: The number of controllers does not match the number of simulation robots.")
     # Now you have a list of controllers to use further in your launch file
     print('Controller list:', controllers)
 
@@ -439,7 +440,7 @@ def launch_setup(context, *args, **kwargs):
             task,
             " ",
             "sim_robot_count:=",
-            TextSubstitution(text=str(sim_robot_count)),
+            TextSubstitution(text=str(sim_robot_count))
         ]
     )
 
@@ -562,17 +563,6 @@ def launch_setup(context, *args, **kwargs):
         shell=True
     )
     
-    # joystick_control_node = Node(
-    #     package='simlab',
-    #     executable='joystick_control',
-    #     name='joystick_controller',
-    #     parameters=[{
-    #         'robots_prefix': robot_prefixes,
-    #         'no_robot': len(robot_prefixes) ,
-    #         'no_efforts': len(dof_efforts)
-    #     }]
-    # )
-
     joystick_controller_node = Node(
         package='simlab',
         executable='joystick_controller',
@@ -592,7 +582,8 @@ def launch_setup(context, *args, **kwargs):
             'robots_prefix': robot_prefixes,
             'no_robot': len(robot_prefixes) ,
             'no_efforts': len(dof_efforts),
-            'record_data': record_data_bool
+            'record_data': record_data_bool,
+            'controllers': controllers
         }]
     )
 
