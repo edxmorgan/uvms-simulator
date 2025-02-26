@@ -349,7 +349,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "task",
-            default_value="manual",
+            default_value="",
             description="Start simulation with a task",
         )
     )
