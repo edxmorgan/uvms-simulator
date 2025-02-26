@@ -87,8 +87,10 @@ For detailed setup and usage instructions, refer to the [User Documentation](doc
 ---
 
 ## Use Case
+
 If you intend to run the coverage example or manual control via PS4 joystick, please clone [uvms_simlab](https://github.com/edxmorgan/uvms_simlab
 ) into your workspace src from 
+
 ---
 
 ## Online Resources
