@@ -9,6 +9,7 @@ A ros2_control framework for simulating and interfacing with the **BlueROV Heavy
 - **Realistic Dynamics:** Close to real simulation of underwater vehicle and manipulator behavior.
 - **Multi-Agent Support:** Simulate multiple agents in a shared environment.
 - **Hardware-in-the-Loop Support:** Interface with real blueROV heavy robot, including A50 DVL and reach alpha 5 manipulator.
+- **Internal Kalman Filter:** Implements sensor fusion for robust state estimate.
 
 ---
 
