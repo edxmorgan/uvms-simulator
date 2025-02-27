@@ -8,7 +8,7 @@ A simulator for the **BlueROV Heavy** equipped with a **Reach Alpha 5** manipula
 
 - **Realistic Dynamics:** Close to real simulation of underwater vehicle and manipulator behaviors.
 - **Multi-Agent Support:** Simulate multiple agents within a shared environment.
-- **Hardware-in-the-Loop Support:** Integrates BlueROV Heavy hardware including A50 DVL, and Reach Alpha 5 manipulator for realistic interaction and testing.
+- **Hardware-in-the-Loop Support:** Integrates BlueROV Heavy hardware including A50 DVL, and Reach Alpha 5 manipulator for hardware interactions and testing.
 <!-- - **Video Demonstration:** [![Watch the Video](https://img.youtube.com/vi/VRJUbpdvPIM/0.jpg)](https://www.youtube.com/watch?v=VRJUbpdvPIM) -->
 
 ---
