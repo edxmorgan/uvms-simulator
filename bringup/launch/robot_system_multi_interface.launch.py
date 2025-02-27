@@ -19,7 +19,7 @@ class NoAliasDumper(yaml.SafeDumper):
     def ignore_aliases(self, data):
         return True
 
-def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_prefixes, robot_base_links, ix, rviz_config_path,new_rviz_config_path)->None:
+def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_prefixes, robot_base_links, ix, rviz_config_path,new_rviz_config_path, task)->None:
     # Load the RViz configuration file
     with open(rviz_config_path,'r') as file:
         rviz_config = yaml.load(file,yaml.SafeLoader)
@@ -28,6 +28,10 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
     rviz_view_configure(robot_prefixes, robot_base_links, new_rviz_config)
     rviz_states_axes_configure(robot_prefixes, new_rviz_config)
     rviz_robots_path_configure(robot_prefixes, new_rviz_config)
+
+    if task == 'interactive':
+        rviz_interactive_marker('controller_interactiveMarker', '/uvms_interactive_controls', new_rviz_config, True)
+
     if use_vehicle_hardware:
         imu_display("Imu Sensor", "/mavros/imu/data", new_rviz_config, False)
         # rviz_axes_display('imu_frame', "imu_link", new_rviz_config, 0.3, 0.02, False)
@@ -83,6 +87,18 @@ def rviz_axes_display(name, reference_frame, rviz_config, length, radius, enable
         'Reference Frame': reference_frame,
         'Value': True}
     rviz_config['Visualization Manager']['Displays'].append(added_axes)
+
+def rviz_interactive_marker(name, namespace, rviz_config, enabled):
+    added_interactive_marker = {'Class': 'rviz_default_plugins/InteractiveMarkers',
+        'Enable Transparency': True,
+        'Enabled': enabled,
+        'Interactive Markers Namespace': namespace,
+        'Name': name,
+        'Show Axes': True,
+        'Show Descriptions': False,
+        'Show Visual Aids': False,
+        'Value': True}
+    rviz_config['Visualization Manager']['Displays'].append(added_interactive_marker)
 
 def imu_display(name, topic,rviz_config, enabled):
     imu_config = {
@@ -161,8 +177,6 @@ def rviz_states_axes_configure(robot_prefixes, rviz_config):
         for i in range(5):
             rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
 
-
-    
 def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config):
     rviz_config['Visualization Manager']['Views']['Saved'] = []
     original_view = {
@@ -496,7 +510,7 @@ def launch_setup(context, *args, **kwargs):
     rviz_config_read_file = str(rviz_config_read.perform(context))
     rviz_config_modified_file = str(rviz_config_modified.perform(context))
     
-    rviz_file_configure(use_vehicle_hardware_bool, use_manipulator_hardware_bool,robot_prefixes, robot_base_links, ix, rviz_config_read_file, rviz_config_modified_file)
+    rviz_file_configure(use_vehicle_hardware_bool, use_manipulator_hardware_bool,robot_prefixes, robot_base_links, ix, rviz_config_read_file, rviz_config_modified_file, task)
 
     # Nodes Definitions
     robot_state_pub_node = Node(
@@ -568,7 +582,8 @@ def launch_setup(context, *args, **kwargs):
     )
 
     mode = OpaqueFunction(function=lambda context: [])
-    if task in ['manual', 'coverage']:
+
+    if task in ['interactive','manual', 'coverage']:
         try:
             _ = FindPackageShare("simlab").find("simlab")
             simlab_exists = True
@@ -576,6 +591,21 @@ def launch_setup(context, *args, **kwargs):
             simlab_exists = False
 
         if simlab_exists:
+            if task == 'interactive':
+                interactive_marker_node = Node(
+                    package='simlab',
+                    executable='interactive_marker_node',
+                    name='interactive_marker_mode',
+                    parameters=[{
+                        'robots_prefix': robot_prefixes,
+                        'no_robot': len(robot_prefixes),
+                        'no_efforts': len(dof_efforts),
+                        'record_data': record_data_bool,
+                        'controllers': controllers
+                    }]
+                )
+                mode = interactive_marker_node
+
             if task == 'manual':
                 joystick_controller_node = Node(
                     package='simlab',
