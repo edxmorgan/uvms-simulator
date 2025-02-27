@@ -23,50 +23,66 @@ A ROS2-based framework for simulating and interfacing with the **BlueROV Heavy**
 
 ### Prerequisites
 
-1. **ROS2 Installation:**  
-   [ROS2 Installation Guide](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
+1. **Install ROS2:**  
+   Follow the [ROS2 Installation Guide](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html).
 
-2. **Dependencies:**  
+2. **Ensure `$ROS_DISTRO` is Set:**  
+   Confirm that the environment variable `$ROS_DISTRO` is correctly set:
+   ```bash
+   echo $ROS_DISTRO
+   ```
+   If not, set it to your ROS2 distribution (e.g., `humble`):
+   ```bash
+   export ROS_DISTRO=humble
+   ```
+
+3. **Install Required Dependencies:**  
+   Use your package manager to install dependencies:
    ```bash
    sudo apt-get install git-lfs \
-       ros-<distro>-hardware-interface ros-<distro>-xacro \
-       ros-<distro>-controller-manager ros-<distro>-joint-state-broadcaster \
-       ros-<distro>-joint-state-publisher-gui ros-<distro>-forward-command-controller \
-       ros-<distro>-ros2-control ros-<distro>-mavros ros-<distro>-mavros-msgs \
-       ros-<distro>-nav2-msgs ros-<distro>-force-torque-sensor-broadcaster
+       ros-$ROS_DISTRO-hardware-interface ros-$ROS_DISTRO-xacro \
+       ros-$ROS_DISTRO-controller-manager ros-$ROS_DISTRO-joint-state-broadcaster \
+       ros-$ROS_DISTRO-joint-state-publisher-gui ros-$ROS_DISTRO-forward-command-controller \
+       ros-$ROS_DISTRO-ros2-control ros-$ROS_DISTRO-mavros ros-$ROS_DISTRO-mavros-msgs \
+       ros-$ROS_DISTRO-nav2-msgs ros-$ROS_DISTRO-force-torque-sensor-broadcaster
    ```
-   Replace `<distro>` with your ROS distribution (e.g., humble).
 
-3. **CasADi:**  
+4. **Install CasADi:**  
    Follow the [CasADi Installation Instructions](https://github.com/casadi/casadi/wiki/InstallationLinux).
 
-4. **Additional Packages:**  
+5. **Clone Additional Packages:**  
    - [uvms_dynamics_ros2_control](https://github.com/edxmorgan/uvms_dynamics_ros2_control)  
    - [uvms_interfaces](https://github.com/edxmorgan/uvms_interfaces/tree/main)
 
-### Installation
+### Installation Steps
 
-1. Navigate to your ROS2 workspace:
+1. **Clone the Repository:**  
+   In your ROS2 workspace's `src` directory, clone the project:
    ```bash
-   cd <ros_ws>/src
-   ```
-2. Clone the repository:
-   ```bash
+   cd /absolute/path/to/your_ros2_workspace/src
    git clone https://github.com/edxmorgan/uvms-simulator.git
    ```
-3. Install dependencies:
+
+2. **Install Dependencies:**  
+   From the root of your workspace, install any missing dependencies:
    ```bash
-   cd <ros_ws>
+   cd /absolute/path/to/your_ros2_workspace
    rosdep install --from-paths src --ignore-src -r -y
    ```
-4. Build the workspace:
+
+3. **Build the Workspace:**  
+   Compile the project:
    ```bash
    colcon build
    ```
-5. Source the workspace:
+
+4. **Source the Setup File:**  
+   Update your environment:
    ```bash
    source install/setup.bash
    ```
+
+Replace `/absolute/path/to/your_ros2_workspace` with the actual absolute path to your ROS2 workspace.
 
 ---
 
@@ -74,7 +90,7 @@ A ROS2-based framework for simulating and interfacing with the **BlueROV Heavy**
 
 - **User Guide:** [User Documentation](doc/userdoc.rst)
 - **HIL Setup:** [Hardware-in-the-Loop Instructions](doc/hil_setup.rst)
-- **Manual Control:** For PS4 joystick and coverage examples, clone [uvms_simlab](https://github.com/edxmorgan/uvms_simlab).
+- **Manual Control:** For PS4 joystick control and coverage examples, clone [uvms_simlab](https://github.com/edxmorgan/uvms_simlab).
 
 ---
 
