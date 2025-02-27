@@ -135,7 +135,7 @@ namespace ros2_control_blue_reach_5
         rclcpp::Subscription<mavros_msgs::msg::Mavlink>::SharedPtr mavlink_sub_;
 
         inline double pressureToDepth(double press_abs_hpa, double water_density);
- 
+
         // Store the utils function for the robot joints
         casadi_reach_alpha_5::Utils utils_service;
 
@@ -169,8 +169,14 @@ namespace ros2_control_blue_reach_5
         void publishDVLVelocity(const rclcpp::Time &time);
         std::array<double, 36> convert3x3To6x6Covariance(const blue::dynamics::Covariance &linear_cov);
 
-        double delta_seconds;
-        double time_seconds;
+        double delta_seconds = 0.0;
+        double time_seconds = 0.0;
+
+        // --- Kalman Filter state variables ---
+        casadi::DM x_est_; // State vector: e.g. [px, py, pz, roll, pitch, yaw, u, v, w, p, q, r]
+        casadi::DM P_est_; // Covariance: either 12x1 diag or 12x12, depending on your ekf_step function
+        casadi::DM Q_;     // Process noise
+        casadi::DM R_;     // Measurement noise
 
         // DVL driver instance
         a50dvl::driver::DVLDriver dvl_driver_;
@@ -193,10 +199,6 @@ namespace ros2_control_blue_reach_5
         rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_subscriber_;
         bool imu_new_msg_ = false;
 
-        // Subscriber for kalman filtered odometry data
-        rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr filterd_odom_subscriber_;
-        bool filtered_odom_new_msg_ = false;
-
         // Use the base class
         std::shared_ptr<rclcpp::Executor> executor_;
 
@@ -205,7 +207,6 @@ namespace ros2_control_blue_reach_5
 
         // Mutex for thread-safe IMU data access
         std::mutex imu_mutex_;
-        std::mutex filtered_odom_mutex_;
         std::mutex mavlink_mutex_;
 
         std::mutex activate_mutex_;

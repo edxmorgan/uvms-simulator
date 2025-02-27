@@ -64,7 +64,7 @@ namespace ros2_control_blue_reach_5
         utils_service.usage_cplusplus_checks("test", "libtest.so", "vehicle");
         utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
         utils_service.from_pwm_to_thrust = utils_service.load_casadi_fun("getNpwm", "libThrust_PWM.so");
-        utils_service.uv_kalman_update = utils_service.load_casadi_fun("kalman_update", "libUVkalman_update.so");
+        utils_service.uv_kalman_update = utils_service.load_casadi_fun("ekf_step", "libUVkalman_update.so");
         utils_service.pwm2rads = utils_service.load_casadi_fun("pwm_to_rads", "libPWM_RAD.so");
 
         if (info_.hardware_parameters.find("frame_id") == info_.hardware_parameters.cend())
@@ -376,6 +376,32 @@ namespace ros2_control_blue_reach_5
             return CallbackReturn::ERROR;
         }
 
+        // Initialize Kalman state as 12x1
+        x_est_ = casadi::DM::zeros(12, 1);
+
+        // Initialize covariance P_est_ similarly:
+        // this ekf_step uses a diagonal form
+        P_est_ = casadi::DM::ones(12, 1) * 0.001;
+
+        // Process noise Q_, it’s diagonal:
+        Q_ = casadi::DM::ones(12, 1) * 0.01;
+
+        // Measurement noise R_
+        R_ = casadi::DM::zeros(10, 1);
+        R_(0) = 0.05; // pz_pressure
+        R_(1) = 0.05; // IMU roll
+        R_(2) = 0.05; // IMU pitch
+        R_(3) = 0.05; // IMU yaw
+        R_(4) = 1.0;  // DVL roll
+        R_(5) = 1.0;  // DVL pitch
+        R_(6) = 1.0;  // DVL yaw
+        R_(7) = 0.05; // DVL vx
+        R_(8) = 0.05; // DVL vy
+        R_(9) = 0.05; // DVL vz
+
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                    "Initialized x_est_, P_est_, Q_, and R_ for Kalman filter.");
+
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "configure successful");
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -680,13 +706,13 @@ namespace ros2_control_blue_reach_5
         }
 
         std::vector<DM> pwm_inputs = {{hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm,
-                                      hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm,
-                                      hw_vehicle_struct.hw_thrust_structs_[2].command_state_.command_pwm,
-                                      hw_vehicle_struct.hw_thrust_structs_[3].command_state_.command_pwm,
-                                      hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm,
-                                      hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm,
-                                      hw_vehicle_struct.hw_thrust_structs_[6].command_state_.command_pwm,
-                                      hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm}};
+                                       hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm,
+                                       hw_vehicle_struct.hw_thrust_structs_[2].command_state_.command_pwm,
+                                       hw_vehicle_struct.hw_thrust_structs_[3].command_state_.command_pwm,
+                                       hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm,
+                                       hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm,
+                                       hw_vehicle_struct.hw_thrust_structs_[6].command_state_.command_pwm,
+                                       hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm}};
 
         std::vector<DM> rads_output_dm = utils_service.pwm2rads(pwm_inputs);
         std::vector<double> rads_output = rads_output_dm.at(0).nonzeros();
@@ -717,28 +743,77 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.hw_thrust_structs_[6].current_state_.rc_pwm = hw_vehicle_struct.hw_thrust_structs_[6].command_state_.command_pwm;
         hw_vehicle_struct.hw_thrust_structs_[7].current_state_.rc_pwm = hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm;
 
-        // // Lock and check if new data is available
-        // std::lock_guard<std::mutex> lock_odom(filtered_odom_mutex_);
-        // if (filtered_odom_new_msg_)
-        // {
-        //     hw_vehicle_struct.current_state_.position_x = hw_vehicle_struct.async_state_.position_x;
-        //     hw_vehicle_struct.current_state_.position_y = hw_vehicle_struct.async_state_.position_y;
-        //     hw_vehicle_struct.current_state_.position_z = hw_vehicle_struct.async_state_.position_z;
+        // ----------------------------------------------------------------------------
+        //   EKF UPDATE STEP
+        //   gather the measurements from the hardware struct
+        // ----------------------------------------------------------------------------
+        // Prepare the arguments to ekf_step
+        double dt_k = delta_seconds;
+        double press_depth_k = hw_vehicle_struct.depth_from_pressure2;
 
-        //     hw_vehicle_struct.current_state_.setQuaternion(hw_vehicle_struct.async_state_.orientation_w,
-        //                                                    hw_vehicle_struct.async_state_.orientation_x,
-        //                                                    hw_vehicle_struct.async_state_.orientation_y,
-        //                                                    hw_vehicle_struct.async_state_.orientation_z);
+        // IMU roll/pitch/yaw
+        casadi::DM imu_rpy_k = casadi::DM::zeros(3, 1);
+        {
+            std::lock_guard<std::mutex> lock(imu_mutex_);
+            imu_rpy_k(0) = hw_vehicle_struct.imu_state.roll;
+            imu_rpy_k(1) = hw_vehicle_struct.imu_state.pitch;
+            imu_rpy_k(2) = hw_vehicle_struct.imu_state.yaw;
+        }
 
-        //     hw_vehicle_struct.current_state_.u = hw_vehicle_struct.async_state_.u;
-        //     hw_vehicle_struct.current_state_.v = hw_vehicle_struct.async_state_.v;
-        //     hw_vehicle_struct.current_state_.w = hw_vehicle_struct.async_state_.w;
+        // DVL RPY
+        casadi::DM dvl_rpy_k = casadi::DM::zeros(3, 1);
+        dvl_rpy_k(0) = hw_vehicle_struct.dvl_state.roll;
+        dvl_rpy_k(1) = hw_vehicle_struct.dvl_state.pitch;
+        dvl_rpy_k(2) = hw_vehicle_struct.dvl_state.yaw;
 
-        //     hw_vehicle_struct.current_state_.p = hw_vehicle_struct.async_state_.p;
-        //     hw_vehicle_struct.current_state_.q = hw_vehicle_struct.async_state_.q;
-        //     hw_vehicle_struct.current_state_.r = hw_vehicle_struct.async_state_.r;
-        //     filtered_odom_new_msg_ = false;
-        // }
+        // DVL velocity
+        casadi::DM dvl_vk = casadi::DM::zeros(3, 1);
+        dvl_vk(0) = hw_vehicle_struct.dvl_state.vx;
+        dvl_vk(1) = hw_vehicle_struct.dvl_state.vy;
+        dvl_vk(2) = hw_vehicle_struct.dvl_state.vz;
+
+        // Wrap them into a vector for the ekf_step function
+        std::vector<casadi::DM> ekf_inputs = {
+            x_est_,
+            P_est_,
+            casadi::DM(dt_k),
+            casadi::DM(press_depth_k),
+            imu_rpy_k,
+            dvl_rpy_k,
+            dvl_vk,
+            Q_,
+            R_};
+
+        // Call your CasADi function
+        std::vector<casadi::DM> state_est = utils_service.uv_kalman_update(ekf_inputs);
+
+        // Extract result
+        x_est_ = state_est[0];
+        P_est_ = state_est[1];
+
+        // Convert x_est_ to std::vector<double> or just read from DM?
+        std::vector<double> x_est_v = x_est_.nonzeros();
+
+        // Suppose the state is:
+        //    x_est_ = [px, py, pz, roll, pitch, yaw, u, v, w, p, q, r]
+        hw_vehicle_struct.current_state_.position_x = x_est_v[0];
+        hw_vehicle_struct.current_state_.position_y = x_est_v[1];
+        hw_vehicle_struct.current_state_.position_z = x_est_v[2];
+
+        // For orientation, we store roll/pitch/yaw and also convert to quaternion
+        hw_vehicle_struct.current_state_.roll = x_est_v[3];
+        hw_vehicle_struct.current_state_.pitch = x_est_v[4];
+        hw_vehicle_struct.current_state_.yaw = x_est_v[5];
+
+        hw_vehicle_struct.current_state_.setEuler(x_est_v[3], x_est_v[4], x_est_v[5]);
+
+        // The next states are linear (u,v,w) and angular (p,q,r) velocities
+        hw_vehicle_struct.current_state_.u = x_est_v[6];
+        hw_vehicle_struct.current_state_.v = x_est_v[7];
+        hw_vehicle_struct.current_state_.w = x_est_v[8];
+        hw_vehicle_struct.current_state_.p = x_est_v[9];
+        hw_vehicle_struct.current_state_.q = x_est_v[10];
+        hw_vehicle_struct.current_state_.r = x_est_v[11];
 
         // Publish transforms
         publishRealtimePoseTransform(time);
@@ -772,7 +847,7 @@ namespace ros2_control_blue_reach_5
                                {0.06, -0.06, 0.06, -0.06, -0.218, -0.218, 0.218, 0.218},
                                {0.06, 0.06, -0.06, -0.06, 0.12, -0.12, 0.12, -0.12},
                                {-0.1888, 0.1888, 0.1888, -0.1888, 0.0, 0.0, 0.0, 0.0}});
-                               
+
         std::vector<DM> inputs = {thrust_config, user_forces};
         std::vector<DM> thrust_outputs = utils_service.genForces2propThrust(inputs);
         std::vector<double> thrusts = thrust_outputs.at(0).nonzeros();
@@ -895,8 +970,8 @@ namespace ros2_control_blue_reach_5
             StateEstimateTransform.child_frame_id = hw_vehicle_struct.child_frame_id;
             StateEstimateTransform.header.stamp = time;
             StateEstimateTransform.transform.translation.x = hw_vehicle_struct.current_state_.position_x;
-            StateEstimateTransform.transform.translation.y = hw_vehicle_struct.current_state_.position_y;
-            StateEstimateTransform.transform.translation.z = hw_vehicle_struct.current_state_.position_z;
+            StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.current_state_.position_y;
+            StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.current_state_.position_z;
 
             q_orig.setW(hw_vehicle_struct.current_state_.orientation_w);
             q_orig.setX(hw_vehicle_struct.current_state_.orientation_x);
