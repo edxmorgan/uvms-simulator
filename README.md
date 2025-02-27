@@ -1,12 +1,12 @@
 # Underwater Vehicle & Manipulator Simulator and Hardware Framework
 
-A ROS2-based framework for simulating and interfacing with the **BlueROV Heavy** and **Reach Alpha 5** manipulator. It combines realistic underwater dynamics with hardware integration for both simulation and real-world testing.
+A ROS2-based framework for simulating and interfacing with the **BlueROV Heavy** and **Reach Alpha 5** manipulator. Underwater dynamics Model and hardware integration support for both simulation and real-world testing.
 
 ---
 
 ## Features
 
-- **Realistic Dynamics:** Authentic simulation of underwater vehicle and manipulator behavior.
+- **Realistic Dynamics:** Close to real simulation of underwater vehicle and manipulator behavior.
 - **Multi-Agent Support:** Simulate multiple agents in a shared environment.
 - **Hardware-in-the-Loop Support:** Integrate BlueROV Heavy hardware, including A50 DVL and Reach Alpha 5 manipulator.
 
