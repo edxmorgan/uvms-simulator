@@ -634,7 +634,7 @@ def launch_setup(context, *args, **kwargs):
                 mode = coverage_node
         else:
             raise Exception("""uvms simlab package not found. If you intend to run
-                            the coverage example or manual control via PS4 joystick,
+                            the coverage example, interactive marker mode or manual control via PS4 joystick,
                             please install uvms_simlab from https://github.com/edxmorgan/uvms_simlab""")
 
 
