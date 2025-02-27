@@ -58,8 +58,9 @@ Clone additional packages to your ROS2 workspace:
 ### Installation
 1. Change directory to your ros workspace
     ```bash
-    cd <ros_ws>/src //replace ros_ws with your ros2 workspace directory name
+    cd <ros_ws>/src
     ```
+//replace ros_ws with your ros2 workspace directory name
 
 2. Clone the repository:
     ```bash
