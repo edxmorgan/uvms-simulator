@@ -1,119 +1,93 @@
-# Underwater Vehicle and Manipulator Simulator
+# Underwater Vehicle & Manipulator Simulator and Hardware Framework
 
-A simulator for the **BlueROV Heavy** equipped with a **Reach Alpha 5** manipulator based on the `ros2_control` framework. Integrates Thor Fossen’s underwater dynamics with Featherstone's manipulator dynamics algorithm for realistic simulations.
+A ROS2-based framework for simulating and interfacing with the **BlueROV Heavy** and **Reach Alpha 5** manipulator. It combines realistic underwater dynamics with hardware integration for both simulation and real-world testing.
 
 ---
 
 ## Features
 
-- **Realistic Dynamics:** Close to real simulation of underwater vehicle and manipulator behaviors.
-- **Multi-Agent Support:** Simulate multiple agents within a shared environment.
-- **Hardware-in-the-Loop Support:** Integrates BlueROV Heavy hardware including A50 DVL, and Reach Alpha 5 manipulator for hardware interactions and testing.
-<!-- - **Video Demonstration:** [![Watch the Video](https://img.youtube.com/vi/VRJUbpdvPIM/0.jpg)](https://www.youtube.com/watch?v=VRJUbpdvPIM) -->
+- **Realistic Dynamics:** Authentic simulation of underwater vehicle and manipulator behavior.
+- **Multi-Agent Support:** Simulate multiple agents in a shared environment.
+- **Hardware-in-the-Loop Support:** Integrate BlueROV Heavy hardware, including A50 DVL and Reach Alpha 5 manipulator.
 
 ---
 
 ## Dynamics Foundation
 
-This simulator incorporates and extends:
-
-- Vehicle dynamics from [diff_uv](https://github.com/edxmorgan/diff_uv).
-- Unified UVMS dynamics from [diff_uvms](https://github.com/edxmorgan/diff_uvms).
+- Extends [diff_uv](https://github.com/edxmorgan/diff_uv)
+- Extends [diff_uvms](https://github.com/edxmorgan/diff_uvms)
 
 ---
 
-
-## Getting Started
-- [ROS2 installation](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
+## Setup
 
 ### Prerequisites
 
-Ensure the following dependencies are installed:
+1. **ROS2 Installation:**  
+   [ROS2 Installation Guide](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html)
 
-```bash
-sudo apt-get install git-lfs
-sudo apt-get install ros-<distro>-hardware-interface
-sudo apt-get install ros-<distro>-xacro
-sudo apt-get install ros-<distro>-controller-manager
-sudo apt-get install ros-<distro>-joint-state-broadcaster
-sudo apt-get install ros-<distro>-joint-state-publisher-gui
-sudo apt-get install ros-<distro>-forward-command-controller
-sudo apt-get install ros-<distro>-ros2-control
-sudo apt-get install ros-<distro>-mavros
-sudo apt-get install ros-<distro>-mavros-msgs
-sudo apt-get install ros-<distro>-nav2-msgs
-sudo apt-get install ros-<distro>-force-torque-sensor-broadcaster
-# Replace "<distro>" with your distrubution of ros. Tested with humble and jazzy
+2. **Dependencies:**  
+   ```bash
+   sudo apt-get install git-lfs \
+       ros-<distro>-hardware-interface ros-<distro>-xacro \
+       ros-<distro>-controller-manager ros-<distro>-joint-state-broadcaster \
+       ros-<distro>-joint-state-publisher-gui ros-<distro>-forward-command-controller \
+       ros-<distro>-ros2-control ros-<distro>-mavros ros-<distro>-mavros-msgs \
+       ros-<distro>-nav2-msgs ros-<distro>-force-torque-sensor-broadcaster
+   ```
+   Replace `<distro>` with your ROS distribution (e.g., humble).
 
-# Install CasADi (required for dynamics and kinematics calculations)
-# Follow the installation instructions on the CasADi wiki:
-# https://github.com/casadi/casadi/wiki/InstallationLinux
-```
+3. **CasADi:**  
+   Follow the [CasADi Installation Instructions](https://github.com/casadi/casadi/wiki/InstallationLinux).
 
-Clone additional packages to your ROS2 workspace:
-
-- [uvms_dynamics_ros2_control](https://github.com/edxmorgan/uvms_dynamics_ros2_control)
-- [uvms_interfaces](https://github.com/edxmorgan/uvms_interfaces/tree/main)
+4. **Additional Packages:**  
+   - [uvms_dynamics_ros2_control](https://github.com/edxmorgan/uvms_dynamics_ros2_control)  
+   - [uvms_interfaces](https://github.com/edxmorgan/uvms_interfaces/tree/main)
 
 ### Installation
-1. Change directory to your ros workspace
-    ```bash
-    cd <ros_ws>/src
-    ```
-//replace ros_ws with your ros2 workspace directory name
 
+1. Navigate to your ROS2 workspace:
+   ```bash
+   cd <ros_ws>/src
+   ```
 2. Clone the repository:
-    ```bash
-    git clone https://github.com/edxmorgan/uvms-simulator.git
-    ```
+   ```bash
+   git clone https://github.com/edxmorgan/uvms-simulator.git
+   ```
 3. Install dependencies:
-    ```bash
-    cd <ros_ws>
-    rosdep install --from-paths src --ignore-src -r -y
-    ```
+   ```bash
+   cd <ros_ws>
+   rosdep install --from-paths src --ignore-src -r -y
+   ```
 4. Build the workspace:
-    ```bash
-    colcon build
-    ```
+   ```bash
+   colcon build
+   ```
 5. Source the workspace:
-    ```bash
-    source install/setup.bash
-    ```
----
-
-## Documentation
-
-For detailed setup and usage instructions, refer to the [User Documentation](doc/userdoc.rst).
+   ```bash
+   source install/setup.bash
+   ```
 
 ---
 
-## Use Case
+## Documentation & Use Cases
 
-If you intend to run the coverage example or manual control via PS4 joystick, please clone [uvms_simlab](https://github.com/edxmorgan/uvms_simlab
-) into your workspace. 
+- **User Guide:** [User Documentation](doc/userdoc.rst)
+- **HIL Setup:** [Hardware-in-the-Loop Instructions](doc/hil_setup.rst)
+- **Manual Control:** For PS4 joystick and coverage examples, clone [uvms_simlab](https://github.com/edxmorgan/uvms_simlab).
 
 ---
 
-## Online Resources
+## Resources & Contributing
 
 - [ROS Control](https://control.ros.org/rolling/index.html)
 - [Reach Robotics SDK](https://github.com/Reach-Robotics/reach_robotics_sdk/tree/master)
 - [Blue Robotics](https://github.com/Bluerobotics)
 
----
-
-For detailed instructions on setting up HIL, refer to the [Hardware-in-the-Loop Documentation](doc/hil_setup.rst).
-
----
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request for enhancements or bug fixes.
+Contributions are welcome! Please open an issue or submit a pull request.
 
 ---
 
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
----
