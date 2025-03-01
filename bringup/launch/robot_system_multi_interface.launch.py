@@ -25,7 +25,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         rviz_config = yaml.load(file,yaml.SafeLoader)
     new_rviz_config = copy.deepcopy(rviz_config)
 
-    rviz_view_configure(robot_prefixes, robot_base_links, new_rviz_config)
+    rviz_view_configure(robot_prefixes, robot_base_links, new_rviz_config, task)
     rviz_states_axes_configure(robot_prefixes, new_rviz_config)
     rviz_robots_path_configure(robot_prefixes, new_rviz_config)
 
@@ -177,7 +177,7 @@ def rviz_states_axes_configure(robot_prefixes, rviz_config):
         for i in range(5):
             rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
 
-def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config):
+def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task):
     rviz_config['Visualization Manager']['Views']['Saved'] = []
     original_view = {
         'Class': 'rviz_default_plugins/Orbit',
@@ -206,6 +206,11 @@ def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config):
         new_view = original_view.copy()
         new_view['Name'] = f'{prefix} view'
         new_view['Target Frame'] = robot_base_links[i]
+        rviz_config['Visualization Manager']['Views']['Saved'].append(new_view)
+    if task == 'interactive':
+        new_view = original_view.copy()
+        new_view['Name'] = f'marker view'
+        new_view['Target Frame'] = 'marker_frame'
         rviz_config['Visualization Manager']['Views']['Saved'].append(new_view)
 
 
