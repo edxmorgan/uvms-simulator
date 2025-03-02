@@ -29,9 +29,10 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
     rviz_states_axes_configure(robot_prefixes, new_rviz_config)
     rviz_robots_path_configure(robot_prefixes, new_rviz_config)
 
+
     if task == 'interactive':
         rviz_interactive_marker('controller_interactiveMarker', '/uvms_interactive_controls', new_rviz_config, True)
-
+        rviz_point_cloud2('workspace',"/workspace_pointcloud",new_rviz_config, True)
     if use_vehicle_hardware:
         imu_display("Imu Sensor", "/mavros/imu/data", new_rviz_config, False)
         # rviz_axes_display('imu_frame', "imu_link", new_rviz_config, 0.3, 0.02, False)
@@ -87,6 +88,47 @@ def rviz_axes_display(name, reference_frame, rviz_config, length, radius, enable
         'Reference Frame': reference_frame,
         'Value': True}
     rviz_config['Visualization Manager']['Displays'].append(added_axes)
+
+def rviz_point_cloud2(name, topic , rviz_config, enabled):
+    added_point_cloud2 = {
+        "Alpha": 1,
+        "Autocompute Intensity Bounds": True,
+        "Autocompute Value Bounds": {
+            "Max Value": 10,
+            "Min Value": -10,
+            "Value": True
+        },
+        "Axis": "Z",
+        "Channel Name": "intensity",
+        "Class": "rviz_default_plugins/PointCloud2",
+        "Color": "255; 255; 255",
+        "Color Transformer": "Intensity",
+        "Decay Time": 0.3,
+        "Enabled": enabled,
+        "Invert Rainbow": False,
+        "Max Color": "255; 255; 255",
+        "Max Intensity": 4096,
+        "Min Color": "0; 0; 0",
+        "Min Intensity": 0,
+        "Name": name,
+        "Position Transformer": "XYZ",
+        "Selectable": True,
+        "Size (Pixels)": 1.5,
+        "Size (m)": 0.009999999776482582,
+        "Style": "Points",
+        "Topic": {
+            "Depth": 5,
+            "Durability Policy": "Volatile",
+            "Filter size": 100,
+            "History Policy": "Keep Last",
+            "Reliability Policy": "Reliable",
+            "Value": topic
+        },
+        "Use Fixed Frame": True,
+        "Use rainbow": True,
+        "Value": True
+    }
+    rviz_config['Visualization Manager']['Displays'].append(added_point_cloud2)
 
 def rviz_interactive_marker(name, namespace, rviz_config, enabled):
     added_interactive_marker = {'Class': 'rviz_default_plugins/InteractiveMarkers',
