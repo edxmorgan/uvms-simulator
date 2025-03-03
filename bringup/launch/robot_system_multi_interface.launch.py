@@ -32,7 +32,12 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
 
     if task == 'interactive':
         rviz_interactive_marker('controller_interactiveMarker', '/uvms_interactive_controls', new_rviz_config, True)
-        rviz_point_cloud2('workspace',"/workspace_pointcloud",new_rviz_config, True)
+        rviz_point_cloud2('uvms_taskspace',"/workspace_pointcloud",new_rviz_config, True, "255; 255; 255",
+                          custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
+        rviz_point_cloud2('uv_vehicle_base',"/base_pointcloud",new_rviz_config, True, "255; 0; 0",
+                          custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
+
+
     if use_vehicle_hardware:
         imu_display("Imu Sensor", "/mavros/imu/data", new_rviz_config, False)
         # rviz_axes_display('imu_frame', "imu_link", new_rviz_config, 0.3, 0.02, False)
@@ -88,8 +93,8 @@ def rviz_axes_display(name, reference_frame, rviz_config, length, radius, enable
         'Reference Frame': reference_frame,
         'Value': True}
     rviz_config['Visualization Manager']['Displays'].append(added_axes)
-
-def rviz_point_cloud2(name, topic , rviz_config, enabled):
+    
+def rviz_point_cloud2(name, topic, rviz_config, enabled, color="255; 255; 255", custom_properties=None):
     added_point_cloud2 = {
         "Alpha": 1,
         "Autocompute Intensity Bounds": True,
@@ -101,9 +106,9 @@ def rviz_point_cloud2(name, topic , rviz_config, enabled):
         "Axis": "Z",
         "Channel Name": "intensity",
         "Class": "rviz_default_plugins/PointCloud2",
-        "Color": "255; 255; 255",
-        "Color Transformer": "Intensity",
-        "Decay Time": 0.3,
+        "Color": color,
+        "Color Transformer": "FlatColor",
+        "Decay Time": 0.30000001192092896,
         "Enabled": enabled,
         "Invert Rainbow": False,
         "Max Color": "255; 255; 255",
@@ -112,7 +117,7 @@ def rviz_point_cloud2(name, topic , rviz_config, enabled):
         "Min Intensity": 0,
         "Name": name,
         "Position Transformer": "XYZ",
-        "Selectable": True,
+        "Selectable": False,
         "Size (Pixels)": 1.5,
         "Size (m)": 0.009999999776482582,
         "Style": "Points",
@@ -121,14 +126,19 @@ def rviz_point_cloud2(name, topic , rviz_config, enabled):
             "Durability Policy": "Volatile",
             "Filter size": 100,
             "History Policy": "Keep Last",
-            "Reliability Policy": "Reliable",
+            "Reliability Policy": "Best Effort",
             "Value": topic
         },
         "Use Fixed Frame": True,
         "Use rainbow": True,
         "Value": True
     }
+    # Override default properties with any custom properties provided
+    if custom_properties:
+        added_point_cloud2.update(custom_properties)
+    
     rviz_config['Visualization Manager']['Displays'].append(added_point_cloud2)
+
 
 def rviz_interactive_marker(name, namespace, rviz_config, enabled):
     added_interactive_marker = {'Class': 'rviz_default_plugins/InteractiveMarkers',
@@ -252,7 +262,7 @@ def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task):
     if task == 'interactive':
         new_view = original_view.copy()
         new_view['Name'] = f'marker view'
-        new_view['Target Frame'] = 'marker_frame'
+        new_view['Target Frame'] = 'vehicle_marker_frame'
         rviz_config['Visualization Manager']['Views']['Saved'].append(new_view)
 
 
