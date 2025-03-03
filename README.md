@@ -2,6 +2,8 @@
 
 A ros2_control framework for simulating and interfacing with the **BlueROV Heavy** and **Reach Alpha 5** manipulator.
 
+[![Demo Video](http://img.youtube.com/vi/euiBjbILtgo/0.jpg)](http://www.youtube.com/watch?v=euiBjbILtgo "Demo Video")
+
 ---
 
 ## Features
