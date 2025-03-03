@@ -14,10 +14,9 @@ A ros2_control framework for simulating and interfacing with the **BlueROV Heavy
 - **Internal Kalman Filter:** Implements sensor fusion for robust state estimate.
 
 ---
-
 ## Dynamics Foundation
-This project derives it dynamic models from [diff_uv](https://github.com/edxmorgan/diff_uv) and [diff_uvms](https://github.com/edxmorgan/diff_uvms). These projects provide essential dynamics matrices for control, stability analysis, and model identification.
 
+This project derives its kinematic and dynamic models from [diff_uv](https://github.com/edxmorgan/diff_uv) and [diff_uvms](https://github.com/edxmorgan/diff_uvms), which provides the essential dynamic matrices used for control, stability analysis, and model identification.
 ---
 
 ## Setup
