@@ -16,9 +16,7 @@ A ros2_control framework for simulating and interfacing with the **BlueROV Heavy
 ---
 
 ## Dynamics Foundation
-
-- Extends [diff_uv](https://github.com/edxmorgan/diff_uv)
-- Extends [diff_uvms](https://github.com/edxmorgan/diff_uvms)
+This project derives it dynamic models from [diff_uv](https://github.com/edxmorgan/diff_uv) and [diff_uvms](https://github.com/edxmorgan/diff_uvms). These projects provide essential dynamics matrices for control, stability analysis, and model identification.
 
 ---
 
