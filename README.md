@@ -53,10 +53,6 @@ A ros2_control framework for simulating and interfacing with the **BlueROV Heavy
 4. **Install CasADi:**  
    Follow the [CasADi Installation Instructions](https://github.com/casadi/casadi/wiki/InstallationLinux).
 
-5. **Clone Additional Packages:**  
-   - [uvms_dynamics_ros2_control](https://github.com/edxmorgan/uvms_dynamics_ros2_control)  
-   - [uvms_interfaces](https://github.com/edxmorgan/uvms_interfaces/tree/main)
-
 ### Installation Steps
 
 1. **Clone the Repository:**  
@@ -64,6 +60,8 @@ A ros2_control framework for simulating and interfacing with the **BlueROV Heavy
    ```bash
    cd /absolute/path/to/your_ros2_workspace/src
    git clone https://github.com/edxmorgan/uvms-simulator.git
+   cd uvms-simulator
+   vcs import < uvms-simulator/dependency_repos.repos
    ```
 
 2. **Install Dependencies:**  
@@ -93,7 +91,7 @@ Replace `/absolute/path/to/your_ros2_workspace` with the actual absolute path to
 
 - **User Guide:** [User Documentation](doc/userdoc.rst)
 - **HIL Setup:** [Hardware-in-the-Loop Instructions](doc/hil_setup.rst)
-- **Manual Control:** For PS4 joystick control and coverage examples, clone [uvms_simlab](https://github.com/edxmorgan/uvms_simlab).
+- **Interactive Control:** For Interactive, manual control and coverage examples, see [uvms_simlab](https://github.com/edxmorgan/uvms_simlab).
 
 ---
 
