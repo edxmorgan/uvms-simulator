@@ -57,7 +57,6 @@ This project derives its kinematic and dynamic models from [diff_uv](https://git
    ```bash
    cd /absolute/path/to/your_ros2_workspace/src
    git clone https://github.com/edxmorgan/uvms-simulator.git
-   cd uvms-simulator
    vcs import < uvms-simulator/dependency_repos.repos
    ```
 
