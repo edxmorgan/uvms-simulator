@@ -15,7 +15,7 @@ A ros2_control framework for simulating and interfacing with the **BlueROV Heavy
 
 ---
 ## Kinematics & Dynamics
-This project derives its kinematic and dynamic models from [diff_uv](https://github.com/edxmorgan/diff_uv) and [diff_uvms](https://github.com/edxmorgan/diff_uvms), which supply the essential dynamic matrices used for control, stability analysis, and model identification.
+This project derives its kinematic and dynamic models from [diff_uv](https://github.com/edxmorgan/diff_uv) and [diff_uvms](https://github.com/edxmorgan/diff_uvms), which provides the essential dynamic matrices used for control, stability analysis, and model identification.
 
 ---
 
