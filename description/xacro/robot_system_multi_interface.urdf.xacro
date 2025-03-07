@@ -8,6 +8,7 @@
   <xacro:arg name="serial_port" default="/dev/ttyUSB0"/>
   <xacro:arg name="state_update_frequency" default="250"/>
   <xacro:arg name="description_package" default="ros2_control_blue_reach_5"/>
+  <xacro:arg name="use_optitrack" default="false"/>
   <!-- Properties -->
   <xacro:property name="description_package" value="$(arg description_package)"/>
   <xacro:property name="sim_robot_count" value="$(arg sim_robot_count)"/>
@@ -15,6 +16,7 @@
   <xacro:property name="state_update_frequency" value="$(arg state_update_frequency)"/>
   <xacro:property name="use_manipulator_hardware" value="$(arg use_manipulator_hardware)"/>
   <xacro:property name="use_vehicle_hardware" value="$(arg use_vehicle_hardware)"/>
+  <xacro:property name="use_optitrack" value="$(arg use_optitrack)"/>
 
   <!-- Define constants -->
   <xacro:property name="d_min" value="1.0"/>
@@ -68,10 +70,11 @@
       serial_port="${serial_port}"
       state_update_frequency="${state_update_frequency}"
       use_hardware="false"
-      frame_id="base_link"
-      child_frame_id="${prefix}base_link"
+      world_frame_id="base_link"
+      body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
-      max_set_param_attempts="5"/>
+      mocap_mast_height="0.5"
+      use_optitrack="${use_optitrack}"/>
       
       <!-- Recursively call the macro for the next robot -->
       <xacro:instantiate_robots index="${index + 1}" count="${count}"/>
@@ -106,10 +109,11 @@
       serial_port="${serial_port}"
       state_update_frequency="${state_update_frequency}"
       use_hardware="${use_vehicle_hardware}"
-      frame_id="base_link"
-      child_frame_id="${prefix}base_link"
+      world_frame_id="base_link"
+      body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
-      max_set_param_attempts="5"/>
+      mocap_mast_height="0.5"
+      use_optitrack="${use_optitrack}"/>
   </xacro:if>
 
 </robot>

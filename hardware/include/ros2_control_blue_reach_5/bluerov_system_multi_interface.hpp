@@ -52,13 +52,15 @@
 #include "tf2_msgs/msg/tf_message.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 
+#include <tf2/LinearMath/Transform.h>
+#include <tf2/LinearMath/Quaternion.h>
 #include <nav_msgs/msg/odometry.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include "geometry_msgs/msg/twist_with_covariance_stamped.hpp"
 #include <nav_msgs/msg/odometry.hpp>
 #include "ros2_control_blue_reach_5/dvldriver.hpp"
 
-#include <sensor_msgs/msg/imu.hpp> // Add this line
+#include <sensor_msgs/msg/imu.hpp> 
 #include "rclcpp/rclcpp.hpp"
 #include <memory>
 #include <mutex>
@@ -67,6 +69,13 @@
 
 #include <mavlink/v2.0/common/mavlink.h>
 #include "mavros_msgs/msg/mavlink.hpp"
+
+#include "mocap4r2_msgs/msg/markers.hpp"
+#include "mocap4r2_msgs/msg/rigid_bodies.hpp"
+
+#include <tf2_ros/buffer.h>
+#include <tf2_ros/transform_listener.h>
+
 
 namespace ros2_control_blue_reach_5
 {
@@ -218,6 +227,17 @@ namespace ros2_control_blue_reach_5
         std::condition_variable deactivate_cv_;
         bool deactivation_complete_ = false;
         bool deactivation_successful_ = false;
+
+        // Subscribers for mocap messages
+        rclcpp::Subscription<mocap4r2_msgs::msg::Markers>::SharedPtr mocap_markers_subscriber_;
+        rclcpp::Subscription<mocap4r2_msgs::msg::RigidBodies>::SharedPtr mocap_rigid_bodies_subscriber_;
+
+        // Callback functions
+        void mocapMarkersCallback(const mocap4r2_msgs::msg::Markers::SharedPtr msg);
+        void mocapRigidBodiesCallback(const mocap4r2_msgs::msg::RigidBodies::SharedPtr msg);
+
+        std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
+        std::unique_ptr<tf2_ros::TransformListener> tfListener_;
     };
 
 } // namespace ros2_control_blue

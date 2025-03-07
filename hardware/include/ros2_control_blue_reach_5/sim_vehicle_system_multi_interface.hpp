@@ -127,7 +127,7 @@ namespace ros2_control_blue_reach_5
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>>
             realtime_transform_publisher_;
 
-        void publishRealtimePoseTransform(const rclcpp::Time& time);
+        void publishRealtimePoseTransform(const rclcpp::Time &time);
         void publishStaticPoseTransform();
         double delta_seconds;
         double time_seconds;

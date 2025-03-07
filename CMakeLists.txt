@@ -25,6 +25,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   nav_msgs
   nav2_msgs
   mavlink
+  mocap4r2_msgs
 )
 
 # find dependencies

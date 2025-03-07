@@ -34,7 +34,6 @@
 #include <variant> // Add this line
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
-
 namespace blue::dynamics
 {
 
@@ -221,10 +220,12 @@ namespace blue::dynamics
   public:
     std::string name;           // Name of the device or component
     uint8_t device_id;          // Unique identifier for the device
-    std::string frame_id;       // origin frame
-    std::string child_frame_id; // body frame
-    std::string map_frame_id;   // body frame
+    std::string world_frame_id;       // origin frame
+    std::string body_frame_id; // body frame
+    std::string map_frame_id;   // map frame
     std::string robot_prefix;   // robot prefix
+    double mocap_mast_height;   // mocap_mast_height when using mocap for groundtruthing
+
     double sim_time = 0;
     double sim_period = 0;
 
@@ -335,12 +336,115 @@ namespace blue::dynamics
       double linear_acceleration_z{0.0};
     };
 
+    struct mocap_info
+    {
+      double x{0.0};
+      double y{0.0};
+      double z{0.0};
+      double roll{0.0};
+      double pitch{0.0};
+      double yaw{0.0};
+      double orientation_w{0.0};
+      double orientation_x{0.0};
+      double orientation_y{0.0};
+      double orientation_z{0.0};
+
+      double gt_x{0.0};
+      double gt_y{0.0};
+      double gt_z{0.0};
+      double gt_roll{0.0};
+      double gt_pitch{0.0};
+      double gt_yaw{0.0};
+      double gt_orientation_w{0.0};
+      double gt_orientation_x{0.0};
+      double gt_orientation_y{0.0};
+      double gt_orientation_z{0.0};
+
+      void updateGTEuler()
+      {
+        tf2::Quaternion q;
+        q.setW(gt_orientation_w);
+        q.setX(gt_orientation_x);
+        q.setY(gt_orientation_y);
+        q.setZ(gt_orientation_z);
+
+        q.normalize();
+
+        // Calculate euler components
+        tf2::Matrix3x3(q).getRPY(gt_roll, gt_pitch, gt_yaw);
+      }
+      // Method to set quaternion angles and update euler
+      void setGTQuaternion(const tf2::Quaternion &q_in)
+      {
+        gt_orientation_w = q_in.w();
+        gt_orientation_x = q_in.x();
+        gt_orientation_y = q_in.y();
+        gt_orientation_z = q_in.z();
+        updateGTEuler();
+      }
+
+      // Method to set quaternion angles and update euler
+      void setGTPosition(const geometry_msgs::msg::Pose &tf_pose)
+      {
+        gt_x = tf_pose.position.x;
+        gt_y = -tf_pose.position.y;
+        gt_z = -tf_pose.position.z;
+      }
+
+      void setPosition(const geometry_msgs::msg::Pose &rb_pose)
+      {
+        // Swap and negate y and z for the NED coordinate frame.
+        x = rb_pose.position.x;
+        y = -rb_pose.position.z;
+        z = -rb_pose.position.y;
+      }
+
+      void setFromQuaternion(const tf2::Quaternion &q_in)
+      {
+        // Define a swap matrix S that exchanges the Y and Z axes.
+        // This matrix is:
+        //   [1  0  0]
+        //   [0  0  1]
+        //   [0  1  0]
+        tf2::Matrix3x3 S(1, 0, 0,
+                         0, 0, 1,
+                         0, 1, 0);
+
+        // Convert the incoming quaternion into a rotation matrix.
+        tf2::Matrix3x3 R_orig(q_in);
+
+        // Apply the transformation: R_corrected = S * R_orig * S^T.
+        // Note: For a permutation matrix, S^T = S⁻¹ = S.
+        tf2::Matrix3x3 R_corrected = S * R_orig * S;
+
+        // Convert the corrected rotation matrix back to a quaternion.
+        tf2::Quaternion q_corrected;
+        R_corrected.getRotation(q_corrected);
+        q_corrected.normalize();
+
+        // Update the stored quaternion components.
+        orientation_w = q_corrected.getW();
+        orientation_x = q_corrected.getX();
+        orientation_y = q_corrected.getY();
+        orientation_z = q_corrected.getZ();
+
+        // Optionally update the Euler angles (for logging or further processing)
+        double r, p, y;
+        tf2::Matrix3x3(q_corrected).getRPY(r, p, y);
+        // Here you might also normalize these angles if needed.
+        roll = r;
+        pitch = p;
+        yaw = y;
+      }
+    };
+
     double depth_from_pressure2{0.0};
     double water_density{1000.0}; // typical freshwater density
 
     Pose_vel default_state_, command_state_, current_state_, async_state_;
     dvl_info dvl_state;
     imu_info imu_state;
+    mocap_info mocap_state;
     std::vector<Thruster> hw_thrust_structs_; // Store the state & commands for the uv thruster
 
     Vehicle() = default;

@@ -67,21 +67,21 @@ namespace ros2_control_blue_reach_5
         utils_service.uv_kalman_update = utils_service.load_casadi_fun("ekf_step", "libUVkalman_update.so");
         utils_service.pwm2rads = utils_service.load_casadi_fun("pwm_to_rads", "libPWM_RAD.so");
 
-        if (info_.hardware_parameters.find("frame_id") == info_.hardware_parameters.cend())
+        if (info_.hardware_parameters.find("world_frame_id") == info_.hardware_parameters.cend())
         {
             RCLCPP_ERROR( // NOLINT
-                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'frame_id' parameter is required.");
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'world_frame_id' parameter is required.");
             return hardware_interface::CallbackReturn::ERROR;
         }
-        hw_vehicle_struct.frame_id = info_.hardware_parameters["frame_id"];
+        hw_vehicle_struct.world_frame_id = info_.hardware_parameters["world_frame_id"];
 
-        if (info_.hardware_parameters.find("child_frame_id") == info_.hardware_parameters.cend())
+        if (info_.hardware_parameters.find("body_frame_id") == info_.hardware_parameters.cend())
         {
             RCLCPP_ERROR( // NOLINT
-                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'child_frame_id' parameter is required.");
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'body_frame_id' parameter is required.");
             return hardware_interface::CallbackReturn::ERROR;
         }
-        hw_vehicle_struct.child_frame_id = info_.hardware_parameters["child_frame_id"];
+        hw_vehicle_struct.body_frame_id = info_.hardware_parameters["body_frame_id"];
 
         if (info_.hardware_parameters.find("map_frame_id") == info_.hardware_parameters.cend())
         {
@@ -99,9 +99,17 @@ namespace ros2_control_blue_reach_5
         }
         hw_vehicle_struct.robot_prefix = info_.hardware_parameters["prefix"];
 
+        if (info_.hardware_parameters.find("mocap_mast_height") == info_.hardware_parameters.cend())
+        {
+            RCLCPP_ERROR( // NOLINT
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'mocap_mast_height' parameter is required.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        hw_vehicle_struct.mocap_mast_height = std::stod(info_.hardware_parameters["mocap_mast_height"]);
+
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************robot prefix: %s", hw_vehicle_struct.robot_prefix.c_str());
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************frame id: %s", hw_vehicle_struct.frame_id.c_str());
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************child frame id: %s", hw_vehicle_struct.child_frame_id.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************frame id: %s", hw_vehicle_struct.world_frame_id.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
 
         map_position_x = 5.0;
@@ -180,8 +188,8 @@ namespace ros2_control_blue_reach_5
 
         for (const hardware_interface::ComponentInfo &gpio : info_.gpios)
         {
-            // RRBotSystemMultiInterface has exactly 50 gpio state interfaces
-            if (gpio.state_interfaces.size() != 50)
+            // RRBotSystemMultiInterface has exactly 60 gpio state interfaces
+            if (gpio.state_interfaces.size() != 60)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
@@ -224,6 +232,15 @@ namespace ros2_control_blue_reach_5
 
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                         "Started executor and spinning node_topics_interface: %s", node_topics_interface_->get_name());
+
+            mocap_markers_subscriber_ = node_topics_interface_->create_subscription<mocap4r2_msgs::msg::Markers>(
+                "markers", 10, std::bind(&BlueRovSystemMultiInterfaceHardware::mocapMarkersCallback, this, std::placeholders::_1));
+
+            mocap_rigid_bodies_subscriber_ = node_topics_interface_->create_subscription<mocap4r2_msgs::msg::RigidBodies>(
+                "rigid_bodies", 10, std::bind(&BlueRovSystemMultiInterfaceHardware::mocapRigidBodiesCallback, this, std::placeholders::_1));
+
+            tfBuffer_ = std::make_unique<tf2_ros::Buffer>(node_topics_interface_->get_clock());
+            tfListener_ = std::make_unique<tf2_ros::TransformListener>(*tfBuffer_);
 
             // Initialize the StaticTransformBroadcaster
             static_tf_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(node_topics_interface_);
@@ -564,6 +581,32 @@ namespace ros2_control_blue_reach_5
             info_.gpios[0].name, info_.gpios[0].state_interfaces[48].name, &hw_vehicle_struct.dvl_state.vy));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             info_.gpios[0].name, info_.gpios[0].state_interfaces[49].name, &hw_vehicle_struct.dvl_state.vz));
+
+        // 50-52: MOCAP position (x, y, z)
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[50].name, &hw_vehicle_struct.mocap_state.x));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[51].name, &hw_vehicle_struct.mocap_state.y));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[52].name, &hw_vehicle_struct.mocap_state.z));
+
+        // 53-55: MOCAP position (roll, pitch, yaw)
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[53].name, &hw_vehicle_struct.mocap_state.roll));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[54].name, &hw_vehicle_struct.mocap_state.pitch));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[55].name, &hw_vehicle_struct.mocap_state.yaw));
+
+        // 56-59: MOCAP orientation (quaternion)
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[56].name, &hw_vehicle_struct.mocap_state.orientation_w));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[57].name, &hw_vehicle_struct.mocap_state.orientation_x));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[58].name, &hw_vehicle_struct.mocap_state.orientation_y));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[59].name, &hw_vehicle_struct.mocap_state.orientation_z));
 
         return state_interfaces;
     }
@@ -914,7 +957,7 @@ namespace ros2_control_blue_reach_5
         geometry_msgs::msg::TransformStamped static_map_transform;
 
         static_map_transform.header.stamp = current_time;
-        static_map_transform.header.frame_id = hw_vehicle_struct.frame_id;
+        static_map_transform.header.frame_id = hw_vehicle_struct.world_frame_id;
         static_map_transform.child_frame_id = hw_vehicle_struct.map_frame_id;
 
         // Set translation based on current state
@@ -934,7 +977,7 @@ namespace ros2_control_blue_reach_5
         geometry_msgs::msg::TransformStamped static_dvl_transform;
 
         static_dvl_transform.header.stamp = current_time;
-        static_dvl_transform.header.frame_id = hw_vehicle_struct.child_frame_id;
+        static_dvl_transform.header.frame_id = hw_vehicle_struct.body_frame_id;
         static_dvl_transform.child_frame_id = hw_vehicle_struct.robot_prefix + "dvl_link";
 
         // Set translation based on current state
@@ -955,6 +998,26 @@ namespace ros2_control_blue_reach_5
         // Publish the static transform
         static_tf_broadcaster_->sendTransform(static_dvl_transform);
 
+        // Create and send the static mocap transform
+        geometry_msgs::msg::TransformStamped static_mocap_transform;
+        static_mocap_transform.header.stamp = current_time;
+        static_mocap_transform.header.frame_id = hw_vehicle_struct.body_frame_id;
+        static_mocap_transform.child_frame_id = hw_vehicle_struct.robot_prefix + "mocap_body";
+
+        // Set translation for the mocap transform
+        static_mocap_transform.transform.translation.x = -0.23;
+        static_mocap_transform.transform.translation.y = -0.17;
+        static_mocap_transform.transform.translation.z = 0.055 + hw_vehicle_struct.mocap_mast_height;
+
+        // Set rotation to identity (no rotation)
+        static_mocap_transform.transform.rotation.x = 0.0;
+        static_mocap_transform.transform.rotation.y = 0.0;
+        static_mocap_transform.transform.rotation.z = 0.0;
+        static_mocap_transform.transform.rotation.w = 1.0;
+
+        // Publish the static mocap transform
+        static_tf_broadcaster_->sendTransform(static_mocap_transform);
+
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
             "Published static odom transform once during activation.");
@@ -967,7 +1030,7 @@ namespace ros2_control_blue_reach_5
             auto &transforms = realtime_transform_publisher_->msg_.transforms;
             auto &StateEstimateTransform = transforms.front();
             StateEstimateTransform.header.frame_id = hw_vehicle_struct.map_frame_id;
-            StateEstimateTransform.child_frame_id = hw_vehicle_struct.child_frame_id;
+            StateEstimateTransform.child_frame_id = hw_vehicle_struct.body_frame_id;
             StateEstimateTransform.header.stamp = time;
             StateEstimateTransform.transform.translation.x = hw_vehicle_struct.current_state_.position_x;
             StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.current_state_.position_y;
@@ -1180,6 +1243,109 @@ namespace ros2_control_blue_reach_5
         }
     }
 
+    void BlueRovSystemMultiInterfaceHardware::mocapMarkersCallback(const mocap4r2_msgs::msg::Markers::SharedPtr msg)
+    {
+        // First, check if the message pointer is null.
+        if (!msg)
+        {
+            RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                         "Mocap markers message pointer is null.");
+            return;
+        }
+
+        if (msg->markers.empty())
+        {
+            RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "No mocap markers received.");
+            return;
+        }
+        RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                     "Received %zu mocap markers.", msg->markers.size());
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::mocapRigidBodiesCallback(const mocap4r2_msgs::msg::RigidBodies::SharedPtr msg)
+    {
+        // Check if the message pointer is null.
+        if (!msg)
+        {
+            RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                         "Mocap rigidbodies message pointer is null.");
+            return;
+        }
+
+        // Check if the rigidbodies vector is empty.
+        if (msg->rigidbodies.empty())
+        {
+            RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                         "No mocap rigidbodies received.");
+            return;
+        }
+
+        const mocap4r2_msgs::msg::RigidBody &rb = msg->rigidbodies[0];
+
+        // Update the mocap state position.
+        hw_vehicle_struct.mocap_state.setPosition(rb.pose);
+
+        // Update the orientation:
+        // Convert the incoming quaternion to a tf2::Quaternion.
+        tf2::Quaternion q_orig;
+        tf2::fromMsg(rb.pose.orientation, q_orig);
+        // Update the mocap state's orientation.
+        hw_vehicle_struct.mocap_state.setFromQuaternion(q_orig);
+
+        // ----- Build the original mocap transform (map -> mocap_body) -----
+        tf2::Transform tf2_mocap;
+        {
+            // Create translation vector with any required sign adjustments.
+            tf2::Vector3 mocap_translation(hw_vehicle_struct.mocap_state.x,
+                                           -hw_vehicle_struct.mocap_state.y,
+                                           -hw_vehicle_struct.mocap_state.z);
+            tf2_mocap.setOrigin(mocap_translation);
+
+            // Build quaternion from the updated mocap state.
+            tf2::Quaternion mocap_q(hw_vehicle_struct.mocap_state.orientation_x,
+                                    hw_vehicle_struct.mocap_state.orientation_y,
+                                    hw_vehicle_struct.mocap_state.orientation_z,
+                                    hw_vehicle_struct.mocap_state.orientation_w);
+            tf2_mocap.setRotation(mocap_q);
+        }
+
+        tf2::Transform tf2_offset;
+        try
+        {
+            geometry_msgs::msg::TransformStamped offset_tf_stamped =
+                tfBuffer_->lookupTransform(hw_vehicle_struct.body_frame_id,
+                                           hw_vehicle_struct.robot_prefix + "mocap_body",
+                                           rclcpp::Time(0)); // use the latest available transform
+            tf2::fromMsg(offset_tf_stamped.transform, tf2_offset);
+        }
+        catch (tf2::TransformException &ex)
+        {
+            RCLCPP_WARN(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Could not lookup offset transform: %s", ex.what());
+        }
+
+        // ----- Compose the transforms -----
+        tf2::Transform tf2_body = tf2_mocap * tf2_offset;
+
+        // ----- Extract ground truth values -----
+        tf2::Quaternion body_q = tf2_body.getRotation();
+
+        // Create a Pose message to hold the composed position and orientation.
+        geometry_msgs::msg::Pose body_pose;
+        body_pose.position.x = tf2_body.getOrigin().x();
+        body_pose.position.y = tf2_body.getOrigin().y();
+        body_pose.position.z = tf2_body.getOrigin().z();
+        body_pose.orientation = tf2::toMsg(body_q);
+
+        // ----- Pass the ground truth (GT) values -----
+        hw_vehicle_struct.mocap_state.setGTQuaternion(body_q);
+        hw_vehicle_struct.mocap_state.setGTPosition(body_pose);
+
+        RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                     "Published mocap transform: position [%.2f, %.2f, %.2f]",
+                     hw_vehicle_struct.mocap_state.roll,
+                     hw_vehicle_struct.mocap_state.pitch,
+                     hw_vehicle_struct.mocap_state.yaw);
+    }
     // Convert 3x3 covariance to 6x6 format
     std::array<double, 36> BlueRovSystemMultiInterfaceHardware::convert3x3To6x6Covariance(const blue::dynamics::Covariance &linear_cov)
     {
