@@ -107,10 +107,21 @@ namespace ros2_control_blue_reach_5
         }
         hw_vehicle_struct.mocap_mast_height = std::stod(info_.hardware_parameters["mocap_mast_height"]);
 
+        if (info_.hardware_parameters.find("use_optitrack") == info_.hardware_parameters.cend())
+        {
+            RCLCPP_ERROR( // NOLINT
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'use_optitrack' parameter is required.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        hw_vehicle_struct.use_optitrack = (info_.hardware_parameters["use_optitrack"] == "True");
+
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************robot prefix: %s", hw_vehicle_struct.robot_prefix.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************frame id: %s", hw_vehicle_struct.world_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                    "*************use_optitrack: %s",
+                    hw_vehicle_struct.use_optitrack ? "true" : "false");
 
         map_position_x = 5.0;
         map_position_y = 5.0;
@@ -183,7 +194,7 @@ namespace ros2_control_blue_reach_5
                 return hardware_interface::CallbackReturn::ERROR;
             };
         };
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************hw_vehicle_struct.hw_thrust_structs_.size()s: %zu",
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************hw_vehicle_struct size: %zu",
                     hw_vehicle_struct.hw_thrust_structs_.size());
 
         for (const hardware_interface::ComponentInfo &gpio : info_.gpios)
@@ -233,11 +244,14 @@ namespace ros2_control_blue_reach_5
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                         "Started executor and spinning node_topics_interface: %s", node_topics_interface_->get_name());
 
-            mocap_markers_subscriber_ = node_topics_interface_->create_subscription<mocap4r2_msgs::msg::Markers>(
-                "markers", 10, std::bind(&BlueRovSystemMultiInterfaceHardware::mocapMarkersCallback, this, std::placeholders::_1));
+            if (hw_vehicle_struct.use_optitrack)
+            {
+                mocap_markers_subscriber_ = node_topics_interface_->create_subscription<mocap4r2_msgs::msg::Markers>(
+                    "markers", 10, std::bind(&BlueRovSystemMultiInterfaceHardware::mocapMarkersCallback, this, std::placeholders::_1));
 
-            mocap_rigid_bodies_subscriber_ = node_topics_interface_->create_subscription<mocap4r2_msgs::msg::RigidBodies>(
-                "rigid_bodies", 10, std::bind(&BlueRovSystemMultiInterfaceHardware::mocapRigidBodiesCallback, this, std::placeholders::_1));
+                mocap_rigid_bodies_subscriber_ = node_topics_interface_->create_subscription<mocap4r2_msgs::msg::RigidBodies>(
+                    "rigid_bodies", 10, std::bind(&BlueRovSystemMultiInterfaceHardware::mocapRigidBodiesCallback, this, std::placeholders::_1));
+            }
 
             tfBuffer_ = std::make_unique<tf2_ros::Buffer>(node_topics_interface_->get_clock());
             tfListener_ = std::make_unique<tf2_ros::TransformListener>(*tfBuffer_);
@@ -1327,7 +1341,8 @@ namespace ros2_control_blue_reach_5
         tf2::Transform tf2_body = tf2_mocap * tf2_offset;
 
         // If this is the first valid reading, store it as the reference origin.
-        if (!initial_body_received_) {
+        if (!initial_body_received_)
+        {
             initial_body_transform_ = tf2_body;
             initial_body_received_ = true;
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
@@ -1352,10 +1367,10 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.mocap_state.setGTPosition(body_pose);
 
         RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                    "Published mocap transform: position [%.2f, %.2f, %.2f]",
-                    hw_vehicle_struct.mocap_state.gt_x,
-                    hw_vehicle_struct.mocap_state.gt_y,
-                    hw_vehicle_struct.mocap_state.gt_z);
+                     "Published mocap transform: position [%.2f, %.2f, %.2f]",
+                     hw_vehicle_struct.mocap_state.gt_x,
+                     hw_vehicle_struct.mocap_state.gt_y,
+                     hw_vehicle_struct.mocap_state.gt_z);
     }
     // Convert 3x3 covariance to 6x6 format
     std::array<double, 36> BlueRovSystemMultiInterfaceHardware::convert3x3To6x6Covariance(const blue::dynamics::Covariance &linear_cov)

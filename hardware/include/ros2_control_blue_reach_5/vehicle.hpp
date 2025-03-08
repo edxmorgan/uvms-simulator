@@ -225,6 +225,7 @@ namespace blue::dynamics
     std::string map_frame_id;   // map frame
     std::string robot_prefix;   // robot prefix
     double mocap_mast_height;   // mocap_mast_height when using mocap for groundtruthing
+    bool use_optitrack;
 
     double sim_time = 0;
     double sim_period = 0;
