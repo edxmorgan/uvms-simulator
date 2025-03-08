@@ -584,29 +584,29 @@ namespace ros2_control_blue_reach_5
 
         // 50-52: MOCAP position (x, y, z)
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[50].name, &hw_vehicle_struct.mocap_state.x));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[50].name, &hw_vehicle_struct.mocap_state.gt_x));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[51].name, &hw_vehicle_struct.mocap_state.y));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[51].name, &hw_vehicle_struct.mocap_state.gt_y));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[52].name, &hw_vehicle_struct.mocap_state.z));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[52].name, &hw_vehicle_struct.mocap_state.gt_z));
 
         // 53-55: MOCAP position (roll, pitch, yaw)
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[53].name, &hw_vehicle_struct.mocap_state.roll));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[53].name, &hw_vehicle_struct.mocap_state.gt_roll));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[54].name, &hw_vehicle_struct.mocap_state.pitch));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[54].name, &hw_vehicle_struct.mocap_state.gt_pitch));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[55].name, &hw_vehicle_struct.mocap_state.yaw));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[55].name, &hw_vehicle_struct.mocap_state.gt_yaw));
 
         // 56-59: MOCAP orientation (quaternion)
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[56].name, &hw_vehicle_struct.mocap_state.orientation_w));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[56].name, &hw_vehicle_struct.mocap_state.gt_orientation_w));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[57].name, &hw_vehicle_struct.mocap_state.orientation_x));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[57].name, &hw_vehicle_struct.mocap_state.gt_orientation_x));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[58].name, &hw_vehicle_struct.mocap_state.orientation_y));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[58].name, &hw_vehicle_struct.mocap_state.gt_orientation_y));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[59].name, &hw_vehicle_struct.mocap_state.orientation_z));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[59].name, &hw_vehicle_struct.mocap_state.gt_orientation_z));
 
         return state_interfaces;
     }
@@ -1326,14 +1326,25 @@ namespace ros2_control_blue_reach_5
         // ----- Compose the transforms -----
         tf2::Transform tf2_body = tf2_mocap * tf2_offset;
 
+        // If this is the first valid reading, store it as the reference origin.
+        if (!initial_body_received_) {
+            initial_body_transform_ = tf2_body;
+            initial_body_received_ = true;
+            RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                        "Initial tf2_body transform set as reference.");
+        }
+
+        // Compute the relative transform with respect to the initial reading.
+        tf2::Transform relative_body_transform = initial_body_transform_.inverse() * tf2_body;
+
         // ----- Extract ground truth values -----
-        tf2::Quaternion body_q = tf2_body.getRotation();
+        tf2::Quaternion body_q = relative_body_transform.getRotation();
 
         // Create a Pose message to hold the composed position and orientation.
         geometry_msgs::msg::Pose body_pose;
-        body_pose.position.x = tf2_body.getOrigin().x();
-        body_pose.position.y = tf2_body.getOrigin().y();
-        body_pose.position.z = tf2_body.getOrigin().z();
+        body_pose.position.x = relative_body_transform.getOrigin().x();
+        body_pose.position.y = relative_body_transform.getOrigin().y();
+        body_pose.position.z = relative_body_transform.getOrigin().z();
         body_pose.orientation = tf2::toMsg(body_q);
 
         // ----- Pass the ground truth (GT) values -----
@@ -1341,10 +1352,10 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.mocap_state.setGTPosition(body_pose);
 
         RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                     "Published mocap transform: position [%.2f, %.2f, %.2f]",
-                     hw_vehicle_struct.mocap_state.roll,
-                     hw_vehicle_struct.mocap_state.pitch,
-                     hw_vehicle_struct.mocap_state.yaw);
+                    "Published mocap transform: position [%.2f, %.2f, %.2f]",
+                    hw_vehicle_struct.mocap_state.gt_x,
+                    hw_vehicle_struct.mocap_state.gt_y,
+                    hw_vehicle_struct.mocap_state.gt_z);
     }
     // Convert 3x3 covariance to 6x6 format
     std::array<double, 36> BlueRovSystemMultiInterfaceHardware::convert3x3To6x6Covariance(const blue::dynamics::Covariance &linear_cov)

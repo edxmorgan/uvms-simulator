@@ -238,6 +238,9 @@ namespace ros2_control_blue_reach_5
 
         std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
         std::unique_ptr<tf2_ros::TransformListener> tfListener_;
+        
+        bool initial_body_received_ = false;
+        tf2::Transform initial_body_transform_;
     };
 
 } // namespace ros2_control_blue

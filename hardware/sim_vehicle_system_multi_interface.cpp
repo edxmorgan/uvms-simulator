@@ -368,29 +368,29 @@ namespace ros2_control_blue_reach_5
 
         // 50-52: MOCAP position (x, y, z)
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[50].name, &hw_vehicle_struct.mocap_state.x));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[50].name, &hw_vehicle_struct.mocap_state.gt_x));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[51].name, &hw_vehicle_struct.mocap_state.y));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[51].name, &hw_vehicle_struct.mocap_state.gt_y));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[52].name, &hw_vehicle_struct.mocap_state.z));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[52].name, &hw_vehicle_struct.mocap_state.gt_z));
 
         // 53-55: MOCAP position (roll, pitch, yaw)
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[53].name, &hw_vehicle_struct.mocap_state.roll));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[53].name, &hw_vehicle_struct.mocap_state.gt_roll));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[54].name, &hw_vehicle_struct.mocap_state.pitch));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[54].name, &hw_vehicle_struct.mocap_state.gt_pitch));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[55].name, &hw_vehicle_struct.mocap_state.yaw));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[55].name, &hw_vehicle_struct.mocap_state.gt_yaw));
 
         // 56-59: MOCAP orientation (quaternion)
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[56].name, &hw_vehicle_struct.mocap_state.orientation_w));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[56].name, &hw_vehicle_struct.mocap_state.gt_orientation_w));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[57].name, &hw_vehicle_struct.mocap_state.orientation_x));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[57].name, &hw_vehicle_struct.mocap_state.gt_orientation_x));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[58].name, &hw_vehicle_struct.mocap_state.orientation_y));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[58].name, &hw_vehicle_struct.mocap_state.gt_orientation_y));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[59].name, &hw_vehicle_struct.mocap_state.orientation_z));
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[59].name, &hw_vehicle_struct.mocap_state.gt_orientation_z));
         return state_interfaces;
     }
 

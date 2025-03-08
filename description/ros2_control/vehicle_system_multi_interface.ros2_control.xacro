@@ -257,18 +257,18 @@
         <state_interface name="dvl_speed_y"/>
         <state_interface name="dvl_speed_z"/>
 
-        <state_interface name="mocap_x"/>
-        <state_interface name="mocap_y"/>
-        <state_interface name="mocap_z"/>
+        <state_interface name="gt_x"/>
+        <state_interface name="gt_y"/>
+        <state_interface name="gt_z"/>
         
-        <state_interface name="mocap_roll"/>
-        <state_interface name="mocap_pitch"/>
-        <state_interface name="mocap_yaw"/>
+        <state_interface name="gt_roll"/>
+        <state_interface name="gt_pitch"/>
+        <state_interface name="gt_yaw"/>
 
-        <state_interface name="mocap_orientation_w"/>
-        <state_interface name="mocap_orientation_x"/>
-        <state_interface name="mocap_orientation_y"/>
-        <state_interface name="mocap_orientation_z"/>
+        <state_interface name="gt_orientation_w"/>
+        <state_interface name="gt_orientation_x"/>
+        <state_interface name="gt_orientation_y"/>
+        <state_interface name="gt_orientation_z"/>
 
       </gpio>
 
