@@ -217,6 +217,7 @@ def rviz_robots_path_configure(robot_prefixes, rviz_config, use_optitrack_bool):
             traj_color = generate_random_color()
         rviz_path_display(f"{prefix}/desiredPath", f"/{prefix}desiredPath", rviz_config, path_color, enabled)
         rviz_path_display(f"{prefix}/robotPath", f"/{prefix}robotPath", rviz_config, traj_color, enabled)
+        rviz_path_display(f"{prefix}/GTPath", f"/{prefix}gtPath", rviz_config, "38; 162; 105", enabled)
 
 def rviz_states_axes_configure(robot_prefixes, rviz_config, use_optitrack_bool):
     for prefix in robot_prefixes:
@@ -484,7 +485,10 @@ def launch_setup(context, *args, **kwargs):
     controllers_str = LaunchConfiguration('controllers').perform(context)
     controllers = ['force' if task=='manual' or task=='cli' else c.strip() for c in controllers_str.split(',')]
     if len(controllers) == 1:
-        controllers = [controllers[0]]*sim_robot_count
+        if sim_robot_count == 0:
+            controllers = [controllers[0]]
+        else:
+            controllers = [controllers[0]]*sim_robot_count
     elif len(controllers)!=sim_robot_count:
         raise Exception("Argument Error: The number of controllers does not match the number of simulation robots.")
 
@@ -654,7 +658,7 @@ def launch_setup(context, *args, **kwargs):
 
     mode = OpaqueFunction(function=lambda context: [])
 
-    if task in ['interactive','manual', 'coverage']:
+    if task in ['interactive','manual', 'coverage','experimental']:
         try:
             _ = FindPackageShare("simlab").find("simlab")
             simlab_exists = True
@@ -703,6 +707,19 @@ def launch_setup(context, *args, **kwargs):
                     }]
                 )
                 mode = coverage_node
+            elif task == 'experimental':
+                experimental_node = Node(
+                    package='simlab',
+                    executable='experimental_node',
+                    parameters=[{
+                        'robots_prefix': robot_prefixes,
+                        'no_robot': len(robot_prefixes),
+                        'no_efforts': len(dof_efforts),
+                        'record_data': record_data_bool,
+                        'controllers': controllers
+                    }]
+                )
+                mode = experimental_node
         else:
             raise Exception("""uvms simlab package not found. If you intend to run
                             the coverage example, interactive marker mode or manual control via PS4 joystick,

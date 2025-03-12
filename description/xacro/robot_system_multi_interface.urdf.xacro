@@ -73,7 +73,7 @@
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
-      mocap_mast_height="0.5"
+      mocap_mast_height="0.0"
       use_optitrack="${use_optitrack}"/>
       
       <!-- Recursively call the macro for the next robot -->
@@ -112,7 +112,7 @@
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
-      mocap_mast_height="0.5"
+      mocap_mast_height="0.0"
       use_optitrack="${use_optitrack}"/>
   </xacro:if>
 

@@ -624,9 +624,9 @@ namespace ros2_control_blue_reach_5
         static_mocap_transform.child_frame_id = hw_vehicle_struct.robot_prefix + "mocap_body";
 
         // Set translation for the mocap transform
-        static_mocap_transform.transform.translation.x = -0.23;
-        static_mocap_transform.transform.translation.y = -0.17;
-        static_mocap_transform.transform.translation.z = 0.055 + hw_vehicle_struct.mocap_mast_height;
+        static_mocap_transform.transform.translation.x = -0.185;
+        static_mocap_transform.transform.translation.y = 0.0;
+        static_mocap_transform.transform.translation.z = 0.07 + hw_vehicle_struct.mocap_mast_height;
 
         // Set rotation to identity (no rotation)
         static_mocap_transform.transform.rotation.x = 0.0;
