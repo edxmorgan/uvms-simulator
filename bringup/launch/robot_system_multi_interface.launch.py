@@ -377,6 +377,28 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
         }
     }
 
+    for axis_i in ['e','d','c','b','a']:
+        gravity_broadcaster_name = f'gravity_broadcaster_{prefix}_axis_{axis_i}'
+        new_param['controller_manager']['ros__parameters'][gravity_broadcaster_name] = {
+            'type': 'force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster'
+        }
+
+        new_param[gravity_broadcaster_name] = {'ros__parameters': {
+            'frame_id': base_link,
+            'interface_names': {
+                'force': {
+                    'x': f'{prefix}_axis_{axis_i}/gravity_force.x',
+                    'y': f'{prefix}_axis_{axis_i}/gravity_force.y',
+                    'z': f'{prefix}_axis_{axis_i}/gravity_force.z'
+                    },
+                'torque': {
+                    'x': f'{prefix}_axis_{axis_i}/gravity_torque.x',
+                    'y': f'{prefix}_axis_{axis_i}/gravity_torque.y',
+                    'z': f'{prefix}_axis_{axis_i}/gravity_torque.z'
+                    }
+                }
+            }
+        }
     return new_param, robot_prefixes, robot_base_links, ix
 
 def generate_launch_description():
@@ -631,7 +653,7 @@ def launch_setup(context, *args, **kwargs):
     # Spawner Nodes
     fts_spawner_nodes = []
     # Spawn fts and imu broadcasters for each robot
-    for i in ix:
+    for k, i in enumerate(ix):
         fts_broadcaster_name = f'fts_broadcaster_{i}'
 
         # FTS Spawner
@@ -641,6 +663,16 @@ def launch_setup(context, *args, **kwargs):
             arguments=[fts_broadcaster_name, "--controller-manager", "/controller_manager"],
         )
         fts_spawner_nodes.append(fts_spawner)
+
+        for axis_i in ['e','d','c','b','a']:
+            gravity_broadcaster_name = f'gravity_broadcaster_{robot_prefixes[k]}_axis_{axis_i}'
+            # gravity visualisation Spawner
+            gravity_fts_spawner = Node(
+                package="controller_manager",
+                executable="spawner",
+                arguments=[gravity_broadcaster_name, "--controller-manager", "/controller_manager"],
+            )
+            fts_spawner_nodes.append(gravity_fts_spawner)
 
     # Delay RViz start after `fts_broadcaster_`
     delay_rviz_after_fts_broadcaster_spawner = RegisterEventHandler(
