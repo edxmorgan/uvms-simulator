@@ -481,19 +481,6 @@ def launch_setup(context, *args, **kwargs):
     record_data = LaunchConfiguration("record_data").perform(context)
     use_optitrack = LaunchConfiguration("use_optitrack").perform(context)
 
-    # Read the controllers string and split into a list
-    controllers_str = LaunchConfiguration('controllers').perform(context)
-    controllers = ['force' if task=='manual' or task=='cli' else c.strip() for c in controllers_str.split(',')]
-    if len(controllers) == 1:
-        if sim_robot_count == 0:
-            controllers = [controllers[0]]
-        else:
-            controllers = [controllers[0]]*sim_robot_count
-    elif len(controllers)!=sim_robot_count:
-        raise Exception("Argument Error: The number of controllers does not match the number of simulation robots.")
-
-    logger.info(f'Controller list: {controllers}')
-
     # Define the robot description command
     robot_description_content = Command(
         [
@@ -567,6 +554,20 @@ def launch_setup(context, *args, **kwargs):
                                                                                     robot_controllers_modified_file,
                                                                                       sim_robot_count)
 
+
+    # Read the controllers string and split into a list
+    controllers_str = LaunchConfiguration('controllers').perform(context)
+    controllers = ['force' if task=='manual' or task=='cli' else c.strip() for c in controllers_str.split(',')]
+    
+    no_robots = len(robot_prefixes)
+    if len(controllers) == 1:
+        controllers = [controllers[0]]*no_robots
+    elif len(controllers) != no_robots:
+        raise Exception("Argument Error: The number of controllers does not match the number of simulation robots.")
+
+    logger.info(f'Controller list: {controllers}')
+
+    
     rviz_config_read = PathJoinSubstitution(
         [
             FindPackageShare("ros2_control_blue_reach_5"),
