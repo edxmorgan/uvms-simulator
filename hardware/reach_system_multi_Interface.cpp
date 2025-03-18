@@ -43,7 +43,7 @@ namespace ros2_control_blue_reach_5
     cfg_.state_update_freq_ = std::stoi(info_.hardware_parameters["state_update_frequency"]);
 
     hw_joint_struct_.reserve(info_.joints.size());
-    
+
     control_level_.resize(info_.joints.size(), mode_level_t::MODE_DISABLE);
     RCLCPP_INFO(
         rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "Hardware update rate is %u Hz", static_cast<int>(cfg_.state_update_freq_));
@@ -86,11 +86,11 @@ namespace ros2_control_blue_reach_5
         return hardware_interface::CallbackReturn::ERROR;
       }
 
-      if (joint.state_interfaces.size() != 21)
+      if (joint.state_interfaces.size() != 27)
       {
         RCLCPP_FATAL(
             rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
-            "Joint '%s'has %zu state interfaces. 21 expected.",
+            "Joint '%s'has %zu state interfaces. 27 expected.",
             joint.name.c_str(),
             joint.state_interfaces.size());
         return hardware_interface::CallbackReturn::ERROR;
@@ -219,6 +219,20 @@ namespace ros2_control_blue_reach_5
 
       state_interfaces.emplace_back(hardware_interface::StateInterface(
           info_.joints[i].name, custom_hardware_interface::HW_IF_SIM_PERIOD, &hw_joint_struct_[i].current_state_.sim_period));
+
+      state_interfaces.emplace_back(hardware_interface::StateInterface(
+          info_.joints[i].name, info_.joints[i].state_interfaces[21].name, &hw_joint_struct_[i].current_state_.gravityF_x));
+      state_interfaces.emplace_back(hardware_interface::StateInterface(
+          info_.joints[i].name, info_.joints[i].state_interfaces[22].name, &hw_joint_struct_[i].current_state_.gravityF_y));
+      state_interfaces.emplace_back(hardware_interface::StateInterface(
+          info_.joints[i].name, info_.joints[i].state_interfaces[23].name, &hw_joint_struct_[i].current_state_.gravityF_z));
+
+      state_interfaces.emplace_back(hardware_interface::StateInterface(
+          info_.joints[i].name, info_.joints[i].state_interfaces[24].name, &hw_joint_struct_[i].current_state_.gravityT_x));
+      state_interfaces.emplace_back(hardware_interface::StateInterface(
+          info_.joints[i].name, info_.joints[i].state_interfaces[25].name, &hw_joint_struct_[i].current_state_.gravityT_y));
+      state_interfaces.emplace_back(hardware_interface::StateInterface(
+          info_.joints[i].name, info_.joints[i].state_interfaces[26].name, &hw_joint_struct_[i].current_state_.gravityT_z));
     };
     return state_interfaces;
   }
@@ -248,8 +262,8 @@ namespace ros2_control_blue_reach_5
   }
 
   hardware_interface::return_type ReachSystemMultiInterfaceHardware::prepare_command_mode_switch(
-      const std::vector<std::string> &/*start_interfaces*/,
-      const std::vector<std::string> &/*stop_interfaces*/)
+      const std::vector<std::string> & /*start_interfaces*/,
+      const std::vector<std::string> & /*stop_interfaces*/)
   {
     RCLCPP_INFO( // NOLINT
         rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "preparing command mode switch");
@@ -303,7 +317,7 @@ namespace ros2_control_blue_reach_5
   }
 
   hardware_interface::return_type ReachSystemMultiInterfaceHardware::read(
-      const rclcpp::Time & time, const rclcpp::Duration &period)
+      const rclcpp::Time &time, const rclcpp::Duration &period)
   {
     delta_seconds = period.seconds();
     time_seconds = time.seconds();

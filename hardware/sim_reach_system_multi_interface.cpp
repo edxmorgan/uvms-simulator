@@ -60,11 +60,11 @@ namespace ros2_control_blue_reach_5
                 return hardware_interface::CallbackReturn::ERROR;
             }
 
-            if (joint.state_interfaces.size() != 21)
+            if (joint.state_interfaces.size() != 27)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
-                    "Joint '%s'has %zu state interfaces. 21 expected.",
+                    "Joint '%s'has %zu state interfaces. 27 expected.",
                     joint.name.c_str(),
                     joint.state_interfaces.size());
                 return hardware_interface::CallbackReturn::ERROR;
@@ -155,6 +155,20 @@ namespace ros2_control_blue_reach_5
                 info_.joints[i].name, custom_hardware_interface::HW_IF_SIM_TIME, &hw_joint_struct_[i].current_state_.sim_time));
             state_interfaces.emplace_back(hardware_interface::StateInterface(
                 info_.joints[i].name, custom_hardware_interface::HW_IF_SIM_PERIOD, &hw_joint_struct_[i].current_state_.sim_period));
+
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                info_.joints[i].name, info_.joints[i].state_interfaces[21].name, &hw_joint_struct_[i].current_state_.gravityF_x));
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                info_.joints[i].name, info_.joints[i].state_interfaces[22].name, &hw_joint_struct_[i].current_state_.gravityF_y));
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                info_.joints[i].name, info_.joints[i].state_interfaces[23].name, &hw_joint_struct_[i].current_state_.gravityF_z));
+
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                info_.joints[i].name, info_.joints[i].state_interfaces[24].name, &hw_joint_struct_[i].current_state_.gravityT_x));
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                info_.joints[i].name, info_.joints[i].state_interfaces[25].name, &hw_joint_struct_[i].current_state_.gravityT_y));
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                info_.joints[i].name, info_.joints[i].state_interfaces[26].name, &hw_joint_struct_[i].current_state_.gravityT_z));
         };
         return state_interfaces;
     }
