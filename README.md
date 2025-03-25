@@ -104,3 +104,7 @@ Contributions are welcome! Please open an issue or submit a pull request.
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
+
+## Citaion
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15085171.svg)](https://doi.org/10.5281/zenodo.15085171)
