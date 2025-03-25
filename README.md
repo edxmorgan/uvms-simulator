@@ -91,7 +91,7 @@ Replace `/absolute/path/to/your_ros2_workspace` with the actual absolute path to
 
 ---
 
-## Citaion
+## Citation
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15085171.svg)](https://doi.org/10.5281/zenodo.15085171)
 
