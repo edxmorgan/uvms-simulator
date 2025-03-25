@@ -91,6 +91,12 @@ Replace `/absolute/path/to/your_ros2_workspace` with the actual absolute path to
 
 ---
 
+## Citaion
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15085171.svg)](https://doi.org/10.5281/zenodo.15085171)
+
+---
+
 ## Resources & Contributing
 
 - [ROS Control](https://control.ros.org/rolling/index.html)
@@ -105,6 +111,4 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 This project is licensed under the [MIT License](LICENSE).
 
-## Citaion
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15085171.svg)](https://doi.org/10.5281/zenodo.15085171)
