@@ -50,13 +50,13 @@ public:
         double adaptive_predicted_velocity = 0;
         double adaptive_predicted_velocity_uncertainty = 0;
 
-        double gravityF_x = 10;
-        double gravityF_y = 20;
-        double gravityF_z = 30;
+        double gravityF_x = 0;
+        double gravityF_y = 0;
+        double gravityF_z = 0;
 
-        double gravityT_x = 40;
-        double gravityT_y = 50;
-        double gravityT_z = 60;
+        double gravityT_x = 0;
+        double gravityT_y = 0;
+        double gravityT_z = 0;
         // Constructors
         State()
         {
