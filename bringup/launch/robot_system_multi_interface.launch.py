@@ -217,7 +217,6 @@ def rviz_robots_path_configure(robot_prefixes, rviz_config):
             traj_color = generate_random_color()
         rviz_path_display(f"{prefix}/desiredPath", f"/{prefix}desiredPath", rviz_config, path_color, enabled)
         rviz_path_display(f"{prefix}/robotPath", f"/{prefix}robotPath", rviz_config, traj_color, enabled)
-        rviz_path_display(f"{prefix}/GTPath", f"/{prefix}gtPath", rviz_config, "38; 162; 105", enabled)
 
 def rviz_states_axes_configure(robot_prefixes, rviz_config):
     for prefix in robot_prefixes:
