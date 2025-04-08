@@ -23,15 +23,15 @@ class NoAliasDumper(yaml.SafeDumper):
 
 def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_prefixes,
                          robot_base_links, ix, rviz_config_path,
-                         new_rviz_config_path, task, use_optitrack_bool)->None:
+                         new_rviz_config_path, task)->None:
     # Load the RViz configuration file
     with open(rviz_config_path,'r') as file:
         rviz_config = yaml.load(file,yaml.SafeLoader)
     new_rviz_config = copy.deepcopy(rviz_config)
 
     rviz_view_configure(robot_prefixes, robot_base_links, new_rviz_config, task)
-    rviz_states_axes_configure(robot_prefixes, new_rviz_config, use_optitrack_bool)
-    rviz_robots_path_configure(robot_prefixes, new_rviz_config, use_optitrack_bool)
+    rviz_states_axes_configure(robot_prefixes, new_rviz_config)
+    rviz_robots_path_configure(robot_prefixes, new_rviz_config)
 
 
     if task == 'interactive':
@@ -206,7 +206,7 @@ def generate_random_color(path_type=None, default=False):
     b = random.randint(0, 255)
     return f"{r}; {g}; {b}"
 
-def rviz_robots_path_configure(robot_prefixes, rviz_config, use_optitrack_bool):
+def rviz_robots_path_configure(robot_prefixes, rviz_config):
     enabled = True
     for idx, prefix in enumerate(robot_prefixes):
         if idx == 0:
@@ -219,7 +219,7 @@ def rviz_robots_path_configure(robot_prefixes, rviz_config, use_optitrack_bool):
         rviz_path_display(f"{prefix}/robotPath", f"/{prefix}robotPath", rviz_config, traj_color, enabled)
         rviz_path_display(f"{prefix}/GTPath", f"/{prefix}gtPath", rviz_config, "38; 162; 105", enabled)
 
-def rviz_states_axes_configure(robot_prefixes, rviz_config, use_optitrack_bool):
+def rviz_states_axes_configure(robot_prefixes, rviz_config):
     for prefix in robot_prefixes:
         base_link = f'{prefix}base_link'
         robot_map_frame = f'{prefix}map'
@@ -228,8 +228,6 @@ def rviz_states_axes_configure(robot_prefixes, rviz_config, use_optitrack_bool):
         for i in range(5):
             rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
             rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, True)
-            if use_optitrack_bool:
-                rviz_axes_display(f'{prefix}groundtruth', f'{prefix}mocap_body', rviz_config, 0.1, 0.01, True)
 
 def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task):
     rviz_config['Visualization Manager']['Views']['Saved'] = []
@@ -480,13 +478,7 @@ def generate_launch_description():
         )
     )
 
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "use_optitrack",
-            default_value="false",
-            description="use optitrack for groundtruthing",
-        )
-    )
+
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
 
 def launch_setup(context, *args, **kwargs):
@@ -501,7 +493,6 @@ def launch_setup(context, *args, **kwargs):
     gui = LaunchConfiguration("gui").perform(context)
     sim_robot_count = int(LaunchConfiguration("sim_robot_count").perform(context))
     record_data = LaunchConfiguration("record_data").perform(context)
-    use_optitrack = LaunchConfiguration("use_optitrack").perform(context)
 
     # Define the robot description command
     robot_description_content = Command(
@@ -538,10 +529,7 @@ def launch_setup(context, *args, **kwargs):
             task,
             " ",
             "sim_robot_count:=",
-            TextSubstitution(text=str(sim_robot_count)),
-            " ",
-            "use_optitrack:=",
-            use_optitrack
+            TextSubstitution(text=str(sim_robot_count))
         ]
     )
 
@@ -568,7 +556,6 @@ def launch_setup(context, *args, **kwargs):
     use_manipulator_hardware_bool = IfCondition(use_manipulator_hardware).evaluate(context)
     use_vehicle_hardware_bool = IfCondition(use_vehicle_hardware).evaluate(context)
     record_data_bool = IfCondition(record_data).evaluate(context)
-    use_optitrack_bool = IfCondition(use_optitrack).evaluate(context)
 
     robot_prefixes, robot_base_links, ix, dof_efforts = modify_controller_config(use_vehicle_hardware_bool,
                                                                                  use_manipulator_hardware_bool,
@@ -608,7 +595,7 @@ def launch_setup(context, *args, **kwargs):
     rviz_config_read_file = str(rviz_config_read.perform(context))
     rviz_config_modified_file = str(rviz_config_modified.perform(context))
     
-    rviz_file_configure(use_vehicle_hardware_bool, use_manipulator_hardware_bool,robot_prefixes, robot_base_links, ix, rviz_config_read_file, rviz_config_modified_file, task, use_optitrack_bool)
+    rviz_file_configure(use_vehicle_hardware_bool, use_manipulator_hardware_bool,robot_prefixes, robot_base_links, ix, rviz_config_read_file, rviz_config_modified_file, task)
 
     # Nodes Definitions
     robot_state_pub_node = Node(
@@ -772,17 +759,6 @@ def launch_setup(context, *args, **kwargs):
         ),
     )
 
-
-    # Include the optitrack launch file from the package
-    optitrack_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([
-            FindPackageShare("mocap4r2_optitrack_driver"), 
-            "/launch/optitrack2.launch.py"
-        ]),
-        condition=IfCondition(use_optitrack)
-    )
-
-
   # Define the simulator actions
     simulator_actions = [
         joint_state_broadcaster_spawner, #important
@@ -802,7 +778,6 @@ def launch_setup(context, *args, **kwargs):
 
     # Launch nodes
     nodes = [
-        optitrack_launch,
         simulator_agent
 
     ]

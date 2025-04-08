@@ -72,9 +72,7 @@
       use_hardware="false"
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
-      map_frame_id="${prefix}map"
-      mocap_mast_height="0.0"
-      use_optitrack="${use_optitrack}"/>
+      map_frame_id="${prefix}map"/>
       
       <!-- Recursively call the macro for the next robot -->
       <xacro:instantiate_robots index="${index + 1}" count="${count}"/>
@@ -111,9 +109,7 @@
       use_hardware="${use_vehicle_hardware}"
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
-      map_frame_id="${prefix}map"
-      mocap_mast_height="0.0"
-      use_optitrack="${use_optitrack}"/>
+      map_frame_id="${prefix}map"/>
   </xacro:if>
 
 </robot>

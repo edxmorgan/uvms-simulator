@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id mocap_mast_height use_optitrack">
+  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id">
 
     <ros2_control name="${name}" type="system">
 
@@ -12,8 +12,6 @@
           <param name="world_frame_id">${world_frame_id}</param>
           <param name="body_frame_id">${body_frame_id}</param>
           <param name="map_frame_id">${map_frame_id}</param>
-          <param name="mocap_mast_height">${mocap_mast_height}</param>
-          <param name="use_optitrack">${use_optitrack}</param>
             
         </xacro:if>
 
@@ -23,8 +21,6 @@
           <param name="world_frame_id">${world_frame_id}</param>
           <param name="body_frame_id">${body_frame_id}</param>
           <param name="map_frame_id">${map_frame_id}</param>
-          <param name="mocap_mast_height">${mocap_mast_height}</param>
-          <param name="use_optitrack">${use_optitrack}</param>
         </xacro:unless>
       </hardware>
 
@@ -256,20 +252,6 @@
         <state_interface name="dvl_speed_x"/>
         <state_interface name="dvl_speed_y"/>
         <state_interface name="dvl_speed_z"/>
-
-        <state_interface name="gt_x"/>
-        <state_interface name="gt_y"/>
-        <state_interface name="gt_z"/>
-        
-        <state_interface name="gt_roll"/>
-        <state_interface name="gt_pitch"/>
-        <state_interface name="gt_yaw"/>
-
-        <state_interface name="gt_orientation_w"/>
-        <state_interface name="gt_orientation_x"/>
-        <state_interface name="gt_orientation_y"/>
-        <state_interface name="gt_orientation_z"/>
-
       </gpio>
 
     </ros2_control>

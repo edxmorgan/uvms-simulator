@@ -228,14 +228,6 @@ namespace ros2_control_blue_reach_5
         bool deactivation_complete_ = false;
         bool deactivation_successful_ = false;
 
-        // Subscribers for mocap messages
-        rclcpp::Subscription<mocap4r2_msgs::msg::Markers>::SharedPtr mocap_markers_subscriber_;
-        rclcpp::Subscription<mocap4r2_msgs::msg::RigidBodies>::SharedPtr mocap_rigid_bodies_subscriber_;
-
-        // Callback functions
-        void mocapMarkersCallback(const mocap4r2_msgs::msg::Markers::SharedPtr msg);
-        void mocapRigidBodiesCallback(const mocap4r2_msgs::msg::RigidBodies::SharedPtr msg);
-
         std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
         std::unique_ptr<tf2_ros::TransformListener> tfListener_;
         

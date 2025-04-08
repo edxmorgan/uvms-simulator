@@ -61,7 +61,6 @@ namespace ros2_control_blue_reach_5
         // Use CasADi's "external" to load the compiled functions
         utils_service.usage_cplusplus_checks("test", "libtest.so", "vehicle");
 
-        hw_vehicle_struct.mocap_mast_height = std::stod(info_.hardware_parameters["mocap_mast_height"]);
         hw_vehicle_struct.world_frame_id = info_.hardware_parameters["world_frame_id"];
         hw_vehicle_struct.body_frame_id = info_.hardware_parameters["body_frame_id"];
         hw_vehicle_struct.map_frame_id = info_.hardware_parameters["map_frame_id"];
@@ -137,8 +136,8 @@ namespace ros2_control_blue_reach_5
 
         for (const hardware_interface::ComponentInfo &gpio : info_.gpios)
         {
-            // RRBotSystemMultiInterface has exactly 60 gpio state interfaces
-            if (gpio.state_interfaces.size() != 60)
+            // RRBotSystemMultiInterface has exactly 50 gpio state interfaces
+            if (gpio.state_interfaces.size() != 50)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
@@ -365,32 +364,6 @@ namespace ros2_control_blue_reach_5
             info_.gpios[0].name, info_.gpios[0].state_interfaces[48].name, &hw_vehicle_struct.dvl_state.vy));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             info_.gpios[0].name, info_.gpios[0].state_interfaces[49].name, &hw_vehicle_struct.dvl_state.vz));
-
-        // 50-52: MOCAP position (x, y, z)
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[50].name, &hw_vehicle_struct.mocap_state.gt_x));
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[51].name, &hw_vehicle_struct.mocap_state.gt_y));
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[52].name, &hw_vehicle_struct.mocap_state.gt_z));
-
-        // 53-55: MOCAP position (roll, pitch, yaw)
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[53].name, &hw_vehicle_struct.mocap_state.gt_roll));
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[54].name, &hw_vehicle_struct.mocap_state.gt_pitch));
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[55].name, &hw_vehicle_struct.mocap_state.gt_yaw));
-
-        // 56-59: MOCAP orientation (quaternion)
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[56].name, &hw_vehicle_struct.mocap_state.gt_orientation_w));
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[57].name, &hw_vehicle_struct.mocap_state.gt_orientation_x));
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[58].name, &hw_vehicle_struct.mocap_state.gt_orientation_y));
-        state_interfaces.emplace_back(hardware_interface::StateInterface(
-            info_.gpios[0].name, info_.gpios[0].state_interfaces[59].name, &hw_vehicle_struct.mocap_state.gt_orientation_z));
         return state_interfaces;
     }
 
@@ -616,26 +589,6 @@ namespace ros2_control_blue_reach_5
 
         // Publish the static transform
         static_tf_broadcaster_->sendTransform(static_dvl_transform);
-
-        // Create and send the static mocap transform
-        geometry_msgs::msg::TransformStamped static_mocap_transform;
-        static_mocap_transform.header.stamp = current_time;
-        static_mocap_transform.header.frame_id = hw_vehicle_struct.body_frame_id;
-        static_mocap_transform.child_frame_id = hw_vehicle_struct.robot_prefix + "mocap_body";
-
-        // Set translation for the mocap transform
-        static_mocap_transform.transform.translation.x = -0.185;
-        static_mocap_transform.transform.translation.y = 0.0;
-        static_mocap_transform.transform.translation.z = 0.07 + hw_vehicle_struct.mocap_mast_height;
-
-        // Set rotation to identity (no rotation)
-        static_mocap_transform.transform.rotation.x = 0.0;
-        static_mocap_transform.transform.rotation.y = 0.0;
-        static_mocap_transform.transform.rotation.z = 0.0;
-        static_mocap_transform.transform.rotation.w = 1.0;
-
-        // Publish the static mocap transform
-        static_tf_broadcaster_->sendTransform(static_mocap_transform);
 
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
