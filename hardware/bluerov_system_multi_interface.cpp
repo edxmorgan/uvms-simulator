@@ -725,7 +725,7 @@ namespace ros2_control_blue_reach_5
                                        hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm,
                                        hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm,
                                        hw_vehicle_struct.hw_thrust_structs_[6].command_state_.command_pwm,
-                                       hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm}};
+                                       hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm}};
 
         std::vector<DM> rads_output_dm = utils_service.pwm2rads(pwm_inputs);
         std::vector<double> rads_output = rads_output_dm.at(0).nonzeros();
@@ -737,12 +737,13 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position += rads_output[i] * delta_seconds;
         }
 
+
         hw_vehicle_struct.current_state_.Fx = hw_vehicle_struct.command_state_.Fx;
         hw_vehicle_struct.current_state_.Fy = -hw_vehicle_struct.command_state_.Fy;
         hw_vehicle_struct.current_state_.Fz = -hw_vehicle_struct.command_state_.Fz;
         hw_vehicle_struct.current_state_.Tx = hw_vehicle_struct.command_state_.Tx;
-        hw_vehicle_struct.current_state_.Ty = hw_vehicle_struct.command_state_.Ty;
-        hw_vehicle_struct.current_state_.Tz = hw_vehicle_struct.command_state_.Tz;
+        hw_vehicle_struct.current_state_.Ty = -hw_vehicle_struct.command_state_.Ty;
+        hw_vehicle_struct.current_state_.Tz = -hw_vehicle_struct.command_state_.Tz;
 
         hw_vehicle_struct.sim_time = time_seconds;
         hw_vehicle_struct.sim_period = delta_seconds;
