@@ -42,7 +42,7 @@ Tutorial Steps
 
    .. code-block:: shell
 
-      ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py use_manipulator_hardware:=true use_vehicle_hardware:=true sim_robot_count:=4
+      ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py use_manipulator_hardware:=false use_vehicle_hardware:=false sim_robot_count:=1
 
    The launch file will load and start the robot hardware, controllers, and open *RViz*. You will see extensive output from the hardware implementation in the terminal, showing its internal states.
 
@@ -58,17 +58,14 @@ Tutorial Steps
 
    .. code-block:: shell
 
+      gravity_broadcaster_robot_1__axis_c[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
+      gravity_broadcaster_robot_1__axis_e[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
       fts_broadcaster_1   [force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
+      gravity_broadcaster_robot_1__axis_a[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
       joint_state_broadcaster[joint_state_broadcaster/JointStateBroadcaster] active    
-      fts_broadcaster_3   [force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
-      imu_broadcaster_2   [imu_sensor_broadcaster/IMUSensorBroadcaster] active    
-      imu_broadcaster_3   [imu_sensor_broadcaster/IMUSensorBroadcaster] active    
-      imu_broadcaster_real[imu_sensor_broadcaster/IMUSensorBroadcaster] active    
-      fts_broadcaster_2   [force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
-      imu_broadcaster_4   [imu_sensor_broadcaster/IMUSensorBroadcaster] active    
-      imu_broadcaster_1   [imu_sensor_broadcaster/IMUSensorBroadcaster] active    
-      fts_broadcaster_4   [force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
-      forward_effort_controller[forward_command_controller/ForwardCommandController] active
+      uvms_controller     [uvms_controller/UvmsController] active    
+      gravity_broadcaster_robot_1__axis_d[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
+      gravity_broadcaster_robot_1__axis_b[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active
 
    Observe how this output changes based on the launch file arguments used.
 
