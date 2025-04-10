@@ -33,6 +33,8 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
     rviz_states_axes_configure(robot_prefixes, new_rviz_config)
     rviz_robots_path_configure(robot_prefixes, new_rviz_config)
 
+    if use_vehicle_hardware:
+        image_stream_display("video feed", "/alpha/image_raw",new_rviz_config, True)
 
     if task == 'interactive':
         rviz_interactive_marker('controller_interactiveMarker', '/uvms_interactive_controls', new_rviz_config, True)
@@ -149,6 +151,26 @@ def rviz_interactive_marker(name, namespace, rviz_config, enabled):
         'Show Visual Aids': False,
         'Value': True}
     rviz_config['Visualization Manager']['Displays'].append(added_interactive_marker)
+
+def image_stream_display(name, topic,rviz_config, enabled):
+    image_config = {
+        "Class": "rviz_default_plugins/Image",
+        "Enabled": enabled,
+        "Max Value": 1,
+        "Median window": 5,
+        "Min Value": 0,
+        "Name": name,
+        "Normalize Range": True,
+        "Topic": {
+            "Depth": 5,
+            "Durability Policy": "Volatile",
+            "History Policy": "Keep Last",
+            "Reliability Policy": "Reliable",
+            "Value": topic
+        },
+        "Value": True
+    }
+    rviz_config['Visualization Manager']['Displays'].append(image_config)
 
 def imu_display(name, topic,rviz_config, enabled):
     imu_config = {

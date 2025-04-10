@@ -220,8 +220,8 @@ namespace blue::dynamics
   public:
     std::string name;           // Name of the device or component
     uint8_t device_id;          // Unique identifier for the device
-    std::string world_frame_id;       // origin frame
-    std::string body_frame_id; // body frame
+    std::string world_frame_id; // origin frame
+    std::string body_frame_id;  // body frame
     std::string map_frame_id;   // map frame
     std::string robot_prefix;   // robot prefix
 
@@ -333,6 +333,52 @@ namespace blue::dynamics
       double linear_acceleration_x{0.0};
       double linear_acceleration_y{0.0};
       double linear_acceleration_z{0.0};
+
+      void updateQuaternion()
+      {
+        tf2::Quaternion q;
+        q.setRPY(roll, pitch, yaw);
+
+        q.normalize();
+
+        // Calculate quaternion components
+        orientation_w = q.getW();
+        orientation_x = q.getX();
+        orientation_y = q.getY();
+        orientation_z = q.getZ();
+      }
+
+      // Method to set Euler angles and update quaternion
+      void setEuler(double new_roll, double new_pitch, double new_yaw)
+      {
+        roll = new_roll;
+        pitch = new_pitch;
+        yaw = new_yaw;
+        updateQuaternion();
+      }
+
+      void updateEuler()
+      {
+        tf2::Quaternion q;
+        q.setW(orientation_w);
+        q.setX(orientation_x);
+        q.setY(orientation_x);
+        q.setZ(orientation_z);
+
+        q.normalize();
+
+        // Calculate euler components
+        tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
+      }
+      // Method to set quaternion angles and update euler
+      void setQuaternion(double new_W, double new_X, double new_Y, double new_Z)
+      {
+        orientation_w = new_W;
+        orientation_x = new_X;
+        orientation_y = new_Y;
+        orientation_z = new_Z;
+        updateEuler();
+      }
     };
 
     double depth_from_pressure2{0.0};

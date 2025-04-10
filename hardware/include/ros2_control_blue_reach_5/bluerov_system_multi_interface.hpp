@@ -27,6 +27,15 @@
 #include <string>
 #include <vector>
 
+#include <gst/gst.h>
+#include <gst/app/gstappsink.h>
+#include <cv_bridge/cv_bridge.h>
+
+#include <sensor_msgs/msg/image.hpp>
+#include <opencv2/opencv.hpp>
+#include <atomic>
+#include <thread>
+
 #include "rclcpp/subscription.hpp"
 
 #include "hardware_interface/handle.hpp"
@@ -60,7 +69,7 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include "ros2_control_blue_reach_5/dvldriver.hpp"
 
-#include <sensor_msgs/msg/imu.hpp> 
+#include <sensor_msgs/msg/imu.hpp>
 #include "rclcpp/rclcpp.hpp"
 #include <memory>
 #include <mutex>
@@ -70,12 +79,8 @@
 #include <mavlink/v2.0/common/mavlink.h>
 #include "mavros_msgs/msg/mavlink.hpp"
 
-#include "mocap4r2_msgs/msg/markers.hpp"
-#include "mocap4r2_msgs/msg/rigid_bodies.hpp"
-
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
-
 
 namespace ros2_control_blue_reach_5
 {
@@ -132,6 +137,24 @@ namespace ros2_control_blue_reach_5
             const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
     private:
+        // GStreamer objects for the camera stream
+        GstElement *gst_pipeline_{nullptr};
+        GstAppSink *gst_appsink_{nullptr};
+
+        // Publisher for sensor_msgs::Image messages
+        std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::Image>> image_pub_;
+        std::shared_ptr<realtime_tools::RealtimePublisher<sensor_msgs::msg::Image>>
+            realtime_image_pub_;
+
+        // Thread for handling the camera stream
+        std::thread camera_thread_;
+        std::atomic<bool> camera_thread_running_{false};
+
+        // Methods to start, run, and stop the camera stream processing
+        void startCameraStream();
+        void cameraLoop();
+        void stopCameraStream();
+
         // --- Declaration of the helper function to rebuild the full MAVLink packet ---
         static std::vector<uint8_t> convertToBytes(const mavros_msgs::msg::Mavlink::SharedPtr &msg);
 
@@ -230,7 +253,7 @@ namespace ros2_control_blue_reach_5
 
         std::unique_ptr<tf2_ros::Buffer> tfBuffer_;
         std::unique_ptr<tf2_ros::TransformListener> tfListener_;
-        
+
         bool initial_body_received_ = false;
         tf2::Transform initial_body_transform_;
     };

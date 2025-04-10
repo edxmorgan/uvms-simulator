@@ -513,6 +513,10 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.current_state_.setEuler(hw_vehicle_struct.command_state_.roll,
                                                   hw_vehicle_struct.command_state_.pitch,
                                                   hw_vehicle_struct.command_state_.yaw);
+        
+        hw_vehicle_struct.imu_state.setEuler(hw_vehicle_struct.command_state_.roll,
+                                             hw_vehicle_struct.command_state_.pitch,
+                                             -hw_vehicle_struct.command_state_.yaw); // imu yaw is a negative of the simulation response
 
         hw_vehicle_struct.current_state_.u = hw_vehicle_struct.command_state_.u;
         hw_vehicle_struct.current_state_.v = hw_vehicle_struct.command_state_.v;
@@ -520,6 +524,10 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.current_state_.p = hw_vehicle_struct.command_state_.p;
         hw_vehicle_struct.current_state_.q = hw_vehicle_struct.command_state_.q;
         hw_vehicle_struct.current_state_.r = hw_vehicle_struct.command_state_.r;
+
+        hw_vehicle_struct.dvl_state.vx = hw_vehicle_struct.command_state_.u;
+        hw_vehicle_struct.dvl_state.vy = hw_vehicle_struct.command_state_.v;
+        hw_vehicle_struct.dvl_state.vz = -hw_vehicle_struct.command_state_.w; // dvl velocity in z is also a negative of the simulation response
 
         hw_vehicle_struct.current_state_.Fx = hw_vehicle_struct.command_state_.Fx;
         hw_vehicle_struct.current_state_.Fy = -hw_vehicle_struct.command_state_.Fy;

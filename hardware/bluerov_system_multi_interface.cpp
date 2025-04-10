@@ -104,7 +104,6 @@ namespace ros2_control_blue_reach_5
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
 
-
         map_position_x = 5.0;
         map_position_y = 5.0;
         map_position_z = 0.0;
@@ -306,6 +305,12 @@ namespace ros2_control_blue_reach_5
                 std::bind(&BlueRovSystemMultiInterfaceHardware::mavlink_data_handler, this, std::placeholders::_1));
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                         "Subscribed to /uas1/mavlink_source for MAVLink messages.");
+
+            // Initialize the ROS publisher for images.
+            image_pub_ = rclcpp::create_publisher<sensor_msgs::msg::Image>(node_topics_interface_, "/alpha/image_raw", rclcpp::SystemDefaultsQoS());
+            realtime_image_pub_ =
+                std::make_shared<realtime_tools::RealtimePublisher<sensor_msgs::msg::Image>>(
+                    image_pub_);
 
             // Initialize the realtime dvl publisher
             dvl_velocity_publisher_ = rclcpp::create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(node_topics_interface_,
@@ -674,6 +679,9 @@ namespace ros2_control_blue_reach_5
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Activating... please wait...");
 
+        // Start the camera stream.
+        startCameraStream();
+        
         publishStaticPoseTransform();
 
         stop_thrusters();
@@ -687,7 +695,8 @@ namespace ros2_control_blue_reach_5
     {
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Deactivating... please wait...");
-
+        // Stop the camera stream.
+        stopCameraStream();
         // Stop the thrusters before switching out of passthrough mode
         stop_thrusters();
 
@@ -753,71 +762,73 @@ namespace ros2_control_blue_reach_5
         // ----------------------------------------------------------------------------
         // Prepare the arguments to ekf_step
         double dt_k = delta_seconds;
-        double press_depth_k = hw_vehicle_struct.depth_from_pressure2 + 0.76;
+        double press_depth_k = hw_vehicle_struct.depth_from_pressure2;
 
-        // IMU roll/pitch/yaw
-        casadi::DM imu_rpy_k = casadi::DM::zeros(3, 1);
-        {
-            std::lock_guard<std::mutex> lock(imu_mutex_);
-            imu_rpy_k(0) = hw_vehicle_struct.imu_state.roll;
-            imu_rpy_k(1) = hw_vehicle_struct.imu_state.pitch;
-            imu_rpy_k(2) = hw_vehicle_struct.imu_state.yaw;
-        }
+        // // IMU roll/pitch/yaw
+        // casadi::DM imu_rpy_k = casadi::DM::zeros(3, 1);
+        // {
+        //     std::lock_guard<std::mutex> lock(imu_mutex_);
+        //     imu_rpy_k(0) = hw_vehicle_struct.imu_state.roll;
+        //     imu_rpy_k(1) = hw_vehicle_struct.imu_state.pitch;
+        //     imu_rpy_k(2) = hw_vehicle_struct.imu_state.yaw;
+        // };
 
-        // DVL RPY
-        casadi::DM dvl_rpy_k = casadi::DM::zeros(3, 1);
-        dvl_rpy_k(0) = hw_vehicle_struct.dvl_state.roll;
-        dvl_rpy_k(1) = hw_vehicle_struct.dvl_state.pitch;
-        dvl_rpy_k(2) = hw_vehicle_struct.dvl_state.yaw;
+        // casadi::DM dvl_rpy_k = casadi::DM::zeros(3, 1);
+        // casadi::DM dvl_vk = casadi::DM::zeros(3, 1);
+        // {
+        //     // DVL RPY
+        //     std::lock_guard<std::mutex> lock(dvl_data_mutex_);
+        //     dvl_rpy_k(0) = hw_vehicle_struct.dvl_state.roll;
+        //     dvl_rpy_k(1) = hw_vehicle_struct.dvl_state.pitch;
+        //     dvl_rpy_k(2) = hw_vehicle_struct.dvl_state.yaw;
+        //     // DVL velocity
+        //     dvl_vk(0) = hw_vehicle_struct.dvl_state.vx;
+        //     dvl_vk(1) = hw_vehicle_struct.dvl_state.vy;
+        //     dvl_vk(2) = hw_vehicle_struct.dvl_state.vz;
+        // }
 
-        // DVL velocity
-        casadi::DM dvl_vk = casadi::DM::zeros(3, 1);
-        dvl_vk(0) = hw_vehicle_struct.dvl_state.vx;
-        dvl_vk(1) = hw_vehicle_struct.dvl_state.vy;
-        dvl_vk(2) = hw_vehicle_struct.dvl_state.vz;
+        // // Wrap them into a vector for the ekf_step function
+        // std::vector<casadi::DM> ekf_inputs = {
+        //     x_est_,
+        //     P_est_,
+        //     casadi::DM(dt_k),
+        //     casadi::DM(press_depth_k),
+        //     imu_rpy_k,
+        //     dvl_rpy_k,
+        //     dvl_vk,
+        //     Q_,
+        //     R_};
 
-        // Wrap them into a vector for the ekf_step function
-        std::vector<casadi::DM> ekf_inputs = {
-            x_est_,
-            P_est_,
-            casadi::DM(dt_k),
-            casadi::DM(press_depth_k),
-            imu_rpy_k,
-            dvl_rpy_k,
-            dvl_vk,
-            Q_,
-            R_};
+        // // Call your CasADi function
+        // std::vector<casadi::DM> state_est = utils_service.uv_kalman_update(ekf_inputs);
 
-        // Call your CasADi function
-        std::vector<casadi::DM> state_est = utils_service.uv_kalman_update(ekf_inputs);
+        // // Extract result
+        // x_est_ = state_est[0];
+        // P_est_ = state_est[1];
 
-        // Extract result
-        x_est_ = state_est[0];
-        P_est_ = state_est[1];
+        // // Convert x_est_ to std::vector<double> or just read from DM?
+        // std::vector<double> x_est_v = x_est_.nonzeros();
 
-        // Convert x_est_ to std::vector<double> or just read from DM?
-        std::vector<double> x_est_v = x_est_.nonzeros();
+        // // Suppose the state is:
+        // //    x_est_ = [px, py, pz, roll, pitch, yaw, u, v, w, p, q, r]
+        // hw_vehicle_struct.current_state_.position_x = x_est_v[0];
+        // hw_vehicle_struct.current_state_.position_y = x_est_v[1];
+        // hw_vehicle_struct.current_state_.position_z = x_est_v[2];
 
-        // Suppose the state is:
-        //    x_est_ = [px, py, pz, roll, pitch, yaw, u, v, w, p, q, r]
-        hw_vehicle_struct.current_state_.position_x = x_est_v[0];
-        hw_vehicle_struct.current_state_.position_y = x_est_v[1];
-        hw_vehicle_struct.current_state_.position_z = x_est_v[2];
+        // // For orientation, we store roll/pitch/yaw and also convert to quaternion
+        // hw_vehicle_struct.current_state_.roll = x_est_v[3];
+        // hw_vehicle_struct.current_state_.pitch = x_est_v[4];
+        // hw_vehicle_struct.current_state_.yaw = x_est_v[5];
 
-        // For orientation, we store roll/pitch/yaw and also convert to quaternion
-        hw_vehicle_struct.current_state_.roll = x_est_v[3];
-        hw_vehicle_struct.current_state_.pitch = x_est_v[4];
-        hw_vehicle_struct.current_state_.yaw = x_est_v[5];
+        // hw_vehicle_struct.current_state_.setEuler(x_est_v[3], x_est_v[4], x_est_v[5]);
 
-        hw_vehicle_struct.current_state_.setEuler(x_est_v[3], x_est_v[4], x_est_v[5]);
-
-        // The next states are linear (u,v,w) and angular (p,q,r) velocities
-        hw_vehicle_struct.current_state_.u = x_est_v[6];
-        hw_vehicle_struct.current_state_.v = x_est_v[7];
-        hw_vehicle_struct.current_state_.w = x_est_v[8];
-        hw_vehicle_struct.current_state_.p = x_est_v[9];
-        hw_vehicle_struct.current_state_.q = x_est_v[10];
-        hw_vehicle_struct.current_state_.r = x_est_v[11];
+        // // The next states are linear (u,v,w) and angular (p,q,r) velocities
+        // hw_vehicle_struct.current_state_.u = x_est_v[6];
+        // hw_vehicle_struct.current_state_.v = x_est_v[7];
+        // hw_vehicle_struct.current_state_.w = x_est_v[8];
+        // hw_vehicle_struct.current_state_.p = x_est_v[9];
+        // hw_vehicle_struct.current_state_.q = x_est_v[10];
+        // hw_vehicle_struct.current_state_.r = x_est_v[11];
 
         // Publish transforms
         publishRealtimePoseTransform(time);
@@ -1181,6 +1192,127 @@ namespace ros2_control_blue_reach_5
             RCLCPP_DEBUG(
                 rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                 "No MAVLink messages parsed in this packet!");
+        }
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::startCameraStream()
+    {
+        // Ensure GStreamer is initialized exactly once.
+        static bool gst_initialized = false;
+        if (!gst_initialized)
+        {
+            gst_init(nullptr, nullptr);
+            gst_initialized = true;
+        }
+
+        // Define the GStreamer pipeline string.
+        // Note: "h264parse" has been removed since it is unavailable.
+        std::string pipeline_str =
+            "udpsrc port=5600 ! application/x-rtp, payload=96 "
+            "! rtph264depay ! avdec_h264 "
+            "! videoconvert ! video/x-raw,format=(string)BGR "
+            "! appsink name=camera_sink emit-signals=true sync=false max-buffers=2 drop=true";
+
+        // Create and start the pipeline.
+        gst_pipeline_ = gst_parse_launch(pipeline_str.c_str(), nullptr);
+        if (!gst_pipeline_)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                         "Failed to create GStreamer pipeline for camera stream");
+            return;
+        }
+        gst_element_set_state(gst_pipeline_, GST_STATE_PLAYING);
+
+        // Retrieve the appsink element by name.
+        GstElement *appsink_elem = gst_bin_get_by_name(GST_BIN(gst_pipeline_), "camera_sink");
+        if (!appsink_elem)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                         "Failed to get appsink element from camera pipeline");
+            return;
+        }
+        gst_appsink_ = GST_APP_SINK(appsink_elem);
+
+        // Start the camera thread.
+        camera_thread_running_ = true;
+        camera_thread_ = std::thread(&BlueRovSystemMultiInterfaceHardware::cameraLoop, this);
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::cameraLoop()
+    {
+        while (camera_thread_running_)
+        {
+            // Pull a sample from the appsink (blocking call).
+            GstSample *sample = gst_app_sink_pull_sample(gst_appsink_);
+            if (!sample)
+            {
+                RCLCPP_WARN(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                            "No sample received from appsink");
+                continue;
+            }
+
+            // Get the buffer and its capabilities.
+            GstBuffer *buffer = gst_sample_get_buffer(sample);
+            GstCaps *caps = gst_sample_get_caps(sample);
+            if (!caps)
+            {
+                gst_sample_unref(sample);
+                continue;
+            }
+
+            // Retrieve width and height from the caps.
+            GstStructure *s = gst_caps_get_structure(caps, 0);
+            int width = 0, height = 0;
+            if (!gst_structure_get_int(s, "width", &width) || !gst_structure_get_int(s, "height", &height))
+            {
+                gst_sample_unref(sample);
+                continue;
+            }
+
+            // Map the buffer to read the image data.
+            GstMapInfo map;
+            if (!gst_buffer_map(buffer, &map, GST_MAP_READ))
+            {
+                gst_sample_unref(sample);
+                continue;
+            }
+
+            // Create an OpenCV Mat from the buffer data (BGR format).
+            cv::Mat frame(height, width, CV_8UC3, reinterpret_cast<char *>(map.data));
+            cv::Mat frame_copy = frame.clone(); // Clone the frame as the underlying data will be unmapped.
+
+            gst_buffer_unmap(buffer, &map);
+            gst_sample_unref(sample);
+
+            // Convert the cv::Mat to a ROS 2 sensor_msgs::Image using cv_bridge.
+            cv_bridge::CvImage cv_image;
+            cv_image.header.stamp = node_topics_interface_->now(); // Use your node's clock
+            cv_image.header.frame_id = "camera_frame";
+            cv_image.encoding = "bgr8";
+            cv_image.image = frame_copy;
+
+            auto image_msg = cv_image.toImageMsg();
+            if (realtime_image_pub_ && realtime_image_pub_->trylock())
+            {
+                realtime_image_pub_->msg_ = *image_msg; // Copy or assign your message.
+                realtime_image_pub_->unlockAndPublish();
+            }
+        }
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::stopCameraStream()
+    {
+        camera_thread_running_ = false;
+        if (camera_thread_.joinable())
+        {
+            camera_thread_.join();
+        }
+        if (gst_pipeline_)
+        {
+            gst_element_set_state(gst_pipeline_, GST_STATE_NULL);
+            gst_object_unref(gst_pipeline_);
+            gst_pipeline_ = nullptr;
+            gst_appsink_ = nullptr;
         }
     }
 
