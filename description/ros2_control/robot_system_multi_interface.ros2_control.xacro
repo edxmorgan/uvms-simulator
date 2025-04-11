@@ -1,0 +1,404 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="robot_system_multi_interface" 
+  params="name prefix serial_port state_update_frequency use_hardware">
+
+    <ros2_control name="${name}" type="system">
+
+      <hardware>
+        <xacro:if value="${use_hardware}">
+          <plugin>ros2_control_blue_reach_5/ReachSystemMultiInterfaceHardware</plugin>
+          <param name="serial_port">${serial_port}</param>
+          <param name="state_update_frequency">${state_update_frequency}</param>
+        </xacro:if>
+
+        <xacro:unless value="${use_hardware}">
+          <plugin>ros2_control_blue_reach_5/SimReachSystemMultiInterfaceHardware</plugin>
+          <param name="state_update_frequency">${state_update_frequency}</param>
+        </xacro:unless>
+      </hardware>
+
+
+      <joint name="${prefix}_axis_e">
+        <param name="device_id">0x05</param>
+        <param name="home">3.1</param>
+
+        <!-- limit constraints -->
+        <param name="max_effort">600</param>
+        <param name="has_position_limits">1</param>
+        <param name="min_position">1.0</param>
+        <param name="max_position">5.5</param>
+        <param name="max_velocity">4.0</param>
+        <param name="soft_k_position">100</param>
+        <param name="soft_k_velocity">10</param>
+        <param name="soft_min_position">1.0</param>
+        <param name="soft_max_position">5.5</param>
+        <param name="kt">90.6</param>  <!-- static friction current -->
+        <param name="forward_I_static">43</param> <!-- static friction torque -->
+        <param name="backward_I_static">43</param> <!-- static friction torque -->
+        <!-- limit constraints -->
+
+          <command_interface name="position">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="velocity">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="acceleration">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="current">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="computed_effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+
+        <state_interface name="position"/>
+        <state_interface name="filtered_position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="filtered_velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="estimated_acceleration"/>
+        <state_interface name="current"/>
+        <state_interface name="effort"/>
+        <state_interface name="computed_effort"/>
+        <state_interface name="computed_effort_uncertainty"/>
+        <state_interface name="predicted_position"/>
+        <state_interface name="predicted_position_uncertainty"/>
+        <state_interface name="predicted_velocity"/>
+        <state_interface name="predicted_velocity_uncertainty"/>
+
+        <state_interface name="adaptive_predicted_position"/>
+        <state_interface name="adaptive_predicted_position_uncertainty"/>
+        <state_interface name="adaptive_predicted_velocity"/>
+        <state_interface name="adaptive_predicted_velocity_uncertainty"/>
+        <state_interface name="stateId"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+
+        <state_interface name="gravity_force.x"/>
+        <state_interface name="gravity_force.y"/>
+        <state_interface name="gravity_force.z"/>
+        <state_interface name="gravity_torque.x"/>
+        <state_interface name="gravity_torque.y"/>
+        <state_interface name="gravity_torque.z"/>
+      </joint>
+
+    <joint name="${prefix}_axis_d">
+        <param name="device_id">0x04</param>
+        <param name="home">0.7</param>
+
+        <!-- limit constraints -->
+        <param name="max_effort">400</param>
+        <param name="has_position_limits">1</param>
+        <param name="min_position">0.01</param>
+        <param name="max_position">3.400</param>
+        <param name="max_velocity">4.0</param>
+        <param name="soft_k_position">100</param>
+        <param name="soft_k_velocity">10</param>
+        <param name="soft_min_position">0.01</param>
+        <param name="soft_max_position">3.400</param>
+        <param name="kt">90.6</param>  <!-- static friction current -->
+        <param name="forward_I_static">43</param> <!-- static friction torque -->
+        <param name="backward_I_static">43</param> <!-- static friction torque -->
+        <!-- limit constraints -->
+
+          <command_interface name="position">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="velocity">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="acceleration">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="current">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="computed_effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+
+        <state_interface name="position"/>
+        <state_interface name="filtered_position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="filtered_velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="estimated_acceleration"/>
+        <state_interface name="current"/>
+        <state_interface name="effort"/>
+        <state_interface name="computed_effort"/>
+        <state_interface name="computed_effort_uncertainty"/>
+        <state_interface name="predicted_position"/>
+        <state_interface name="predicted_position_uncertainty"/>
+        <state_interface name="predicted_velocity"/>
+        <state_interface name="predicted_velocity_uncertainty"/>
+
+        <state_interface name="adaptive_predicted_position"/>
+        <state_interface name="adaptive_predicted_position_uncertainty"/>
+        <state_interface name="adaptive_predicted_velocity"/>
+        <state_interface name="adaptive_predicted_velocity_uncertainty"/>
+        <state_interface name="stateId"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+
+        <state_interface name="gravity_force.x"/>
+        <state_interface name="gravity_force.y"/>
+        <state_interface name="gravity_force.z"/>
+        <state_interface name="gravity_torque.x"/>
+        <state_interface name="gravity_torque.y"/>
+        <state_interface name="gravity_torque.z"/>
+      </joint>     
+
+
+      <joint name="${prefix}_axis_c">
+        <param name="device_id">0x03</param>
+        <param name="home">0.4</param>
+
+        <!-- limit constraints -->
+        <param name="max_effort">400</param>
+        <param name="has_position_limits">1</param>
+        <param name="min_position">0.01</param>
+        <param name="max_position">3.400</param>
+        <param name="max_velocity">4.0</param>
+        <param name="soft_k_position">100</param>
+        <param name="soft_k_velocity">10</param>
+        <param name="soft_min_position">0.01</param>
+        <param name="soft_max_position">3.400</param>
+        <param name="kt">90.6</param>  <!-- static friction current -->
+        <param name="forward_I_static">43</param> <!-- static friction torque -->
+        <param name="backward_I_static">43</param> <!-- static friction torque -->
+        <!-- limit constraints -->
+
+          <command_interface name="position">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="velocity">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="acceleration">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="current">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="computed_effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+
+        <state_interface name="position"/>
+        <state_interface name="filtered_position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="filtered_velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="estimated_acceleration"/>
+        <state_interface name="current"/>
+        <state_interface name="effort"/>
+        <state_interface name="computed_effort"/>
+        <state_interface name="computed_effort_uncertainty"/>
+        <state_interface name="predicted_position"/>
+        <state_interface name="predicted_position_uncertainty"/>
+        <state_interface name="predicted_velocity"/>
+        <state_interface name="predicted_velocity_uncertainty"/>
+
+        <state_interface name="adaptive_predicted_position"/>
+        <state_interface name="adaptive_predicted_position_uncertainty"/>
+        <state_interface name="adaptive_predicted_velocity"/>
+        <state_interface name="adaptive_predicted_velocity_uncertainty"/>
+        <state_interface name="stateId"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+
+        <state_interface name="gravity_force.x"/>
+        <state_interface name="gravity_force.y"/>
+        <state_interface name="gravity_force.z"/>
+        <state_interface name="gravity_torque.x"/>
+        <state_interface name="gravity_torque.y"/>
+        <state_interface name="gravity_torque.z"/>
+      </joint>   
+
+  <joint name="${prefix}_axis_b">
+        <param name="device_id">0x02</param>
+        <param name="home">2.1</param>
+
+        <!-- limit constraints -->
+        <param name="max_effort">400</param>
+        <param name="has_position_limits">1</param>
+        <param name="min_position">0.01</param>
+        <param name="max_position">5.70</param>
+        <param name="max_velocity">4.0</param>
+        <param name="soft_k_position">100</param>
+        <param name="soft_k_velocity">15</param>
+        <param name="soft_min_position">0.01</param>
+        <param name="soft_max_position">5.70</param>
+        <param name="kt">50</param>  <!-- static friction current -->
+        <param name="forward_I_static">10</param> <!-- static friction torque -->
+        <param name="backward_I_static">20</param> <!-- static friction torque -->
+        <!-- limit constraints -->
+
+
+          <command_interface name="position">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="velocity">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="acceleration">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="current">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="computed_effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+
+        <state_interface name="position"/>
+        <state_interface name="filtered_position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="filtered_velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="estimated_acceleration"/>
+        <state_interface name="current"/>
+        <state_interface name="effort"/>
+        <state_interface name="computed_effort"/>
+        <state_interface name="computed_effort_uncertainty"/>
+        <state_interface name="predicted_position"/>
+        <state_interface name="predicted_position_uncertainty"/>
+        <state_interface name="predicted_velocity"/>
+        <state_interface name="predicted_velocity_uncertainty"/>
+
+        <state_interface name="adaptive_predicted_position"/>
+        <state_interface name="adaptive_predicted_position_uncertainty"/>
+        <state_interface name="adaptive_predicted_velocity"/>
+        <state_interface name="adaptive_predicted_velocity_uncertainty"/>
+        <state_interface name="stateId"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+
+        <state_interface name="gravity_force.x"/>
+        <state_interface name="gravity_force.y"/>
+        <state_interface name="gravity_force.z"/>
+        <state_interface name="gravity_torque.x"/>
+        <state_interface name="gravity_torque.y"/>
+        <state_interface name="gravity_torque.z"/>
+      </joint>
+
+
+      <joint name="${prefix}_axis_a">
+        <param name="device_id">0x01</param>
+        <param name="home">0.0</param>
+
+        <!-- limit constraints -->
+        <param name="max_effort">400</param>
+        <param name="has_position_limits">1</param>
+        <param name="min_position">0.0004</param>
+        <param name="max_position">0.0137</param>
+        <param name="max_velocity">3.0</param>
+        <param name="soft_k_position">100</param>
+        <param name="soft_k_velocity">10</param>
+        <param name="soft_min_position">0.0004</param>
+        <param name="soft_max_position">0.0137</param>
+        <param name="kt">50</param>  <!-- static friction current -->
+        <param name="forward_I_static">43</param> <!-- static friction torque -->
+        <param name="backward_I_static">43</param> <!-- static friction torque -->
+        <!-- limit constraints -->
+
+          <command_interface name="position">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="velocity">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="acceleration">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="current">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          <command_interface name="computed_effort">
+            <param name="min">-1</param>
+            <param name="max">1</param>
+          </command_interface>
+          
+        <state_interface name="position"/>
+        <state_interface name="filtered_position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="filtered_velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="estimated_acceleration"/>
+        <state_interface name="current"/>
+        <state_interface name="effort"/>
+        <state_interface name="computed_effort"/>
+        <state_interface name="computed_effort_uncertainty"/>
+        <state_interface name="predicted_position"/>
+        <state_interface name="predicted_position_uncertainty"/>
+        <state_interface name="predicted_velocity"/>
+        <state_interface name="predicted_velocity_uncertainty"/>
+
+        <state_interface name="adaptive_predicted_position"/>
+        <state_interface name="adaptive_predicted_position_uncertainty"/>
+        <state_interface name="adaptive_predicted_velocity"/>
+        <state_interface name="adaptive_predicted_velocity_uncertainty"/>
+        <state_interface name="stateId"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+
+        <state_interface name="gravity_force.x"/>
+        <state_interface name="gravity_force.y"/>
+        <state_interface name="gravity_force.z"/>
+        <state_interface name="gravity_torque.x"/>
+        <state_interface name="gravity_torque.y"/>
+        <state_interface name="gravity_torque.z"/>
+      </joint>
+    </ros2_control>
+
+  </xacro:macro>
+
+</robot>

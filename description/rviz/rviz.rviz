@@ -1,0 +1,436 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 131
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Grid1/Offset1
+        - /TF1/Frames1
+      Splitter Ratio: 0.6844444274902344
+    Tree Height: 734
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Tool Properties
+    Expanded:
+      - /2D Goal Pose1
+      - /Publish Point1
+    Name: Tool Properties
+    Splitter Ratio: 0.5886790156364441
+  - Class: rviz_common/Views
+    Expanded:
+      - /Current View1
+      - /Current View1/Focal Point1
+    Name: Views
+    Splitter Ratio: 0.5
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 255; 255; 255
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 50
+      Reference Frame: world
+      Value: true
+    - Alpha: 1
+      Class: rviz_default_plugins/RobotModel
+      Collision Enabled: false
+      Description File: ""
+      Description Source: Topic
+      Description Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_description
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        bathymetry_shipwreck:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1__base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        robot_1__jaws_base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        robot_1__m1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1__m2_1_1_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1__m2_1_2_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1__m2_joint_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1__m3_inline_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1__push_rod:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        robot_1__standard_jaws_base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1__standard_jaws_rs1_130_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1__standard_jaws_rs1_139_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_ballast_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        robot_1_camera_mount_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        robot_1_manipulator_mount_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_thruster1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_thruster2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_thruster3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_thruster4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_thruster5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_thruster6:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_thruster7:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        robot_1_thruster8:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        world:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        world_bottom:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+      Mass Properties:
+        Inertia: false
+        Mass: false
+      Name: RobotModel
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Alpha: 1
+      Axes Length: 0.10000000149011612
+      Axes Radius: 0.009999999776482582
+      Class: rviz_default_plugins/Pose
+      Color: 255; 25; 0
+      Enabled: true
+      Head Length: 0.30000001192092896
+      Head Radius: 0.10000000149011612
+      Name: EndEffector Pose
+      Shaft Length: 1
+      Shaft Radius: 0.05000000074505806
+      Shape: Axes
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 40
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /end_effector_pose
+      Value: true
+    - Class: rviz_default_plugins/TF
+      Enabled: false
+      Frame Timeout: 15
+      Frames:
+        All Enabled: false
+        base_link:
+          Value: true
+        bathymetry_shipwreck:
+          Value: true
+        robot_1__base_link:
+          Value: true
+        robot_1__jaws_base_link:
+          Value: true
+        robot_1__m1_link:
+          Value: true
+        robot_1__m2_1_1_link:
+          Value: true
+        robot_1__m2_1_2_link:
+          Value: true
+        robot_1__m2_joint_link:
+          Value: true
+        robot_1__m3_inline_link:
+          Value: true
+        robot_1__push_rod:
+          Value: true
+        robot_1__standard_jaws_base_link:
+          Value: true
+        robot_1__standard_jaws_rs1_130_link:
+          Value: true
+        robot_1__standard_jaws_rs1_139_link:
+          Value: true
+        robot_1_ballast_link:
+          Value: true
+        robot_1_base_link:
+          Value: true
+        robot_1_camera_link:
+          Value: true
+        robot_1_camera_mount_link:
+          Value: true
+        robot_1_manipulator_mount_link:
+          Value: true
+        robot_1_thruster1:
+          Value: true
+        robot_1_thruster2:
+          Value: true
+        robot_1_thruster3:
+          Value: true
+        robot_1_thruster4:
+          Value: true
+        robot_1_thruster5:
+          Value: true
+        robot_1_thruster6:
+          Value: true
+        robot_1_thruster7:
+          Value: true
+        robot_1_thruster8:
+          Value: true
+        world:
+          Value: true
+        world_bottom:
+          Value: false
+      Marker Scale: 1
+      Name: TF
+      Show Arrows: false
+      Show Axes: true
+      Show Names: false
+      Tree:
+        world:
+          base_link:
+            robot_1_base_link:
+              robot_1_ballast_link:
+                {}
+              robot_1_camera_mount_link:
+                robot_1_camera_link:
+                  {}
+              robot_1_manipulator_mount_link:
+                robot_1__base_link:
+                  robot_1__m3_inline_link:
+                    robot_1__m2_1_1_link:
+                      robot_1__m2_joint_link:
+                        robot_1__m2_1_2_link:
+                          robot_1__m1_link:
+                            robot_1__jaws_base_link:
+                              robot_1__push_rod:
+                                {}
+                              robot_1__standard_jaws_base_link:
+                                robot_1__standard_jaws_rs1_130_link:
+                                  {}
+                                robot_1__standard_jaws_rs1_139_link:
+                                  {}
+              robot_1_thruster1:
+                {}
+              robot_1_thruster2:
+                {}
+              robot_1_thruster3:
+                {}
+              robot_1_thruster4:
+                {}
+              robot_1_thruster5:
+                {}
+              robot_1_thruster6:
+                {}
+              robot_1_thruster7:
+                {}
+              robot_1_thruster8:
+                {}
+          world_bottom:
+            bathymetry_shipwreck:
+              {}
+      Update Interval: 0
+      Value: true
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 139; 69; 19
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Grid_bottom
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 50
+      Reference Frame: world_bottom
+      Value: true
+
+  Enabled: true
+  Global Options:
+    Background Color: 135; 206; 235
+    Fixed Frame: world
+    Frame Rate: 90
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+      Line color: 128; 128; 0
+    - Class: rviz_default_plugins/SetInitialPose
+      Covariance x: 0.25
+      Covariance y: 0.25
+      Covariance yaw: 0.06853891909122467
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /goal_pose
+    - Class: rviz_default_plugins/PublishPoint
+      Single click: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /clicked_point
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 18.63246726989746
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.625204861164093
+      Target Frame: real_base_link
+      Value: Orbit (rviz)
+      Yaw: 3.707653522491455
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 1016
+  Hide Left Dock: false
+  Hide Right Dock: false
+  QMainWindow State: 000000ff00000000fd0000000200000000000001560000039efc0200000003fb000000100044006900730070006c006100790073010000003d0000039e000000c900fffffffb0000001200530065006c0065006300740069006f006e000000019e000000a80000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007300000001f0000000cf0000005c00ffffff00000001000001000000039efc0200000001fb0000000a00560069006500770073010000003d0000039e000000a400ffffff000004d80000039e00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Selection:
+    collapsed: false
+  Tool Properties:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1850
+  X: 70
+  Y: 27

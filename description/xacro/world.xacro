@@ -1,0 +1,84 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:macro name="sim_world">
+  
+      <!-- world origin -->
+    <link name="world">
+        <visual>
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <geometry>
+            <cylinder radius="0.06" length="0.09"/>
+        </geometry>
+        </visual>
+    </link>
+
+    <link name="world_bottom"/>
+
+    <link name="bathymetry_shipwreck">
+      <visual>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <mesh filename="file://$(find ros2_control_blue_reach_5)/Bathymetry/meshes/manhomansett.stl" scale="5 5 5"/>
+        </geometry>
+        <material name="gray">
+          <color rgba="0.5 0.5 0.5 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+        <geometry>
+          <mesh filename="file://$(find ros2_control_blue_reach_5)/Bathymetry/meshes/manhomansett.stl" scale="5 5 5"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <!-- <link name="bathymetry_seafloor">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="file://$(find ros2_control_blue_reach_5)/Bathymetry/meshes/hawaii.stl" scale="0.4 0.4 0.4"/>
+        </geometry>
+        <material name="gray">
+          <color rgba="0.5 0.5 0.5 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="file://$(find ros2_control_blue_reach_5)/Bathymetry/meshes/hawaii.stl" scale="0.4 0.4 0.4"/>
+        </geometry>
+      </collision>
+    </link> -->
+
+
+    <joint name="world_bottom_joint" type="fixed">
+      <child link="world_bottom" />
+      <parent link="world" />
+      <origin xyz="0.0 0.0 -8.0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- <joint name="bathymetry_seafloor_joint" type="fixed">
+      <child link="bathymetry_seafloor"/>
+      <parent link="world_bottom" />
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+    </joint> -->
+
+   <joint name="bathymetry_shipwreck_joint" type="fixed">
+      <child link="bathymetry_shipwreck" />
+      <parent link="world_bottom" />
+      <origin xyz="15.0 -6.0 -1.0" rpy="0 0 0"/>
+    </joint>
+
+    <!-- Robot world origin -->
+    <link name="base_link"/>    
+
+    <joint name="world_joint" type="fixed">
+      <child link="base_link" />
+      <parent link="world" />
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+    </joint>
+
+  </xacro:macro>
+
+</robot>

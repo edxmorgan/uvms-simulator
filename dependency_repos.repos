@@ -1,0 +1,12 @@
+repositories:
+  uvms_dynamics:
+    type: git
+    url: https://github.com/edxmorgan/uvms_dynamics_ros2_control.git
+
+  uvms_interfaces:
+    type: git
+    url: https://github.com/edxmorgan/uvms_interfaces.git
+
+  uvms_simlab:
+    type: git
+    url: https://github.com/edxmorgan/uvms_simlab.git

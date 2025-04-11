@@ -1,0 +1,33 @@
+<library path="ros2_control_blue_reach_5">
+  <class name="ros2_control_blue_reach_5/SimReachSystemMultiInterfaceHardware"
+         type="ros2_control_blue_reach_5::SimReachSystemMultiInterfaceHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      The ros2_control reach robot simulation using a multi-interface hardware interface-type.
+    </description>
+  </class>
+  <class name="ros2_control_blue_reach_5/ReachSystemMultiInterfaceHardware"
+         type="ros2_control_blue_reach_5::ReachSystemMultiInterfaceHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      The ros2_control real reach robot (reach alpha 5) using a multi-interface hardware interface-type.
+    </description>
+  </class>
+  <class name="ros2_control_blue_reach_5/BlueRovSystemMultiInterfaceHardware"
+         type="ros2_control_blue_reach_5::BlueRovSystemMultiInterfaceHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      The ros2_control blue uv simulation using a multi-interface hardware interface-type.
+    </description>
+  </class>
+  <class name="ros2_control_blue_reach_5/SimVehicleSystemMultiInterfaceHardware"
+         type="ros2_control_blue_reach_5::SimVehicleSystemMultiInterfaceHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      The ros2_control blue sim uv simulation using a multi-interface hardware interface-type.
+    </description>
+  </class>
+</library>
+
+<!-- ros2 bag record -a -o my_bag1 -->
+<!-- python3 ros2bag_convert/main.py ../my_bag1/my_bag1_0.db3 -->

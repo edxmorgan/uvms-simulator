@@ -1,0 +1,281 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id">
+
+    <ros2_control name="${name}" type="system">
+
+      <hardware>
+        <xacro:if value="${use_hardware}">
+          <plugin>ros2_control_blue_reach_5/BlueRovSystemMultiInterfaceHardware</plugin>
+          <param name="prefix">${prefix}</param>
+          <param name="world_frame_id">${world_frame_id}</param>
+          <param name="body_frame_id">${body_frame_id}</param>
+          <param name="map_frame_id">${map_frame_id}</param>
+            
+        </xacro:if>
+
+        <xacro:unless value="${use_hardware}">
+          <plugin>ros2_control_blue_reach_5/SimVehicleSystemMultiInterfaceHardware</plugin>
+          <param name="prefix">${prefix}</param>
+          <param name="world_frame_id">${world_frame_id}</param>
+          <param name="body_frame_id">${body_frame_id}</param>
+          <param name="map_frame_id">${map_frame_id}</param>
+        </xacro:unless>
+      </hardware>
+
+      <joint name="${prefix}thruster1_joint">
+        <param name="param_name">SERVO1_FUNCTION</param>
+        <param name="default_param_value">33</param>
+        <param name="channel">1</param>
+        <param name="neutral_pwm">1500</param>
+        <param name="direction">1</param>
+
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="pwm"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+
+        <command_interface name="pwm"/>
+      </joint>
+
+      <joint name="${prefix}thruster2_joint">
+        <param name="param_name">SERVO2_FUNCTION</param>
+        <param name="default_param_value">34</param>
+        <param name="channel">2</param>
+        <param name="neutral_pwm">1500</param>
+        <param name="direction">1</param>
+        
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="pwm"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+        <command_interface name="pwm"/>
+      </joint>
+
+       <joint name="${prefix}thruster3_joint">
+        <param name="param_name">SERVO3_FUNCTION</param>
+        <param name="default_param_value">35</param>
+        <param name="channel">3</param>
+        <param name="neutral_pwm">1500</param>
+        <param name="direction">-1</param>
+
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="pwm"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+        <command_interface name="pwm"/>
+      </joint>
+
+       <joint name="${prefix}thruster4_joint">
+        <param name="param_name">SERVO4_FUNCTION</param>
+        <param name="default_param_value">36</param>
+        <param name="channel">4</param>
+        <param name="neutral_pwm">1500</param>
+        <param name="direction">-1</param>
+
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="pwm"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+        <command_interface name="pwm"/>
+      </joint>
+
+       <joint name="${prefix}thruster5_joint">
+        <param name="param_name">SERVO5_FUNCTION</param>
+        <param name="default_param_value">37</param>
+        <param name="channel">5</param>
+        <param name="neutral_pwm">1500</param>
+        <param name="direction">1</param>
+
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="pwm"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+        <command_interface name="pwm"/>
+      </joint>
+
+       <joint name="${prefix}thruster6_joint">
+        <param name="param_name">SERVO6_FUNCTION</param>
+        <param name="default_param_value">38</param>
+        <param name="channel">6</param>
+        <param name="neutral_pwm">1500</param>
+        <param name="direction">1</param>
+
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="pwm"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+        <command_interface name="pwm"/>
+      </joint>
+       <joint name="${prefix}thruster7_joint">
+        <param name="param_name">SERVO7_FUNCTION</param>
+        <param name="default_param_value">39</param>
+        <param name="channel">7</param>
+        <param name="neutral_pwm">1500</param>
+        <param name="direction">1</param>
+
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="pwm"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+        <command_interface name="pwm"/>
+      </joint>
+
+       <joint name="${prefix}thruster8_joint">
+        <param name="param_name">SERVO8_FUNCTION</param>
+        <param name="default_param_value">40</param>
+        <param name="channel">8</param>
+        <param name="neutral_pwm">1500</param>
+        <param name="direction">1</param>
+
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="acceleration"/>
+        <state_interface name="pwm"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+        <command_interface name="pwm"/>
+      </joint>
+
+      <gpio name="${prefix}IOs">
+        <command_interface name="position.x"/>
+        <command_interface name="position.y"/>
+        <command_interface name="position.z"/>
+
+        <command_interface name="roll"/>
+        <command_interface name="pitch"/>
+        <command_interface name="yaw"/>
+
+        <command_interface name="orientation.w"/>
+        <command_interface name="orientation.x"/>
+        <command_interface name="orientation.y"/>
+        <command_interface name="orientation.z"/>
+
+        <command_interface name="velocity.x"/>
+        <command_interface name="velocity.y"/>
+        <command_interface name="velocity.z"/>
+        <command_interface name="angular_velocity.x"/>
+        <command_interface name="angular_velocity.y"/>
+        <command_interface name="angular_velocity.z"/>
+
+        <command_interface name="linear_acceleration.x"/>
+        <command_interface name="linear_acceleration.y"/>
+        <command_interface name="linear_acceleration.z"/>
+        <command_interface name="angular_acceleration.x"/>
+        <command_interface name="angular_acceleration.y"/>
+        <command_interface name="angular_acceleration.z"/>
+
+        <command_interface name="force.x"/>
+        <command_interface name="force.y"/>
+        <command_interface name="force.z"/>
+        <command_interface name="torque.x"/>
+        <command_interface name="torque.y"/>
+        <command_interface name="torque.z"/>
+
+        <state_interface name="position.x"/>
+        <state_interface name="position.y"/>
+        <state_interface name="position.z"/>
+
+        <state_interface name="roll"/>
+        <state_interface name="pitch"/>
+        <state_interface name="yaw"/>
+
+        <state_interface name="orientation.w"/>
+        <state_interface name="orientation.x"/>
+        <state_interface name="orientation.y"/>
+        <state_interface name="orientation.z"/>
+
+        <state_interface name="velocity.x"/>
+        <state_interface name="velocity.y"/>
+        <state_interface name="velocity.z"/>
+
+        <state_interface name="angular_velocity.x"/>
+        <state_interface name="angular_velocity.y"/>
+        <state_interface name="angular_velocity.z"/>
+
+        <state_interface name="linear_acceleration.x"/>
+        <state_interface name="linear_acceleration.y"/>
+        <state_interface name="linear_acceleration.z"/>
+
+        <state_interface name="angular_acceleration.x"/>
+        <state_interface name="angular_acceleration.y"/>
+        <state_interface name="angular_acceleration.z"/>
+
+        <state_interface name="force.x"/>
+        <state_interface name="force.y"/>
+        <state_interface name="force.z"/>
+        <state_interface name="torque.x"/>
+        <state_interface name="torque.y"/>
+        <state_interface name="torque.z"/>
+        
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+
+        <state_interface name="imu_roll"/>
+        <state_interface name="imu_pitch"/>
+        <state_interface name="imu_yaw"/>
+
+        <state_interface name="imu_orientation_w"/>
+        <state_interface name="imu_orientation_x"/>
+        <state_interface name="imu_orientation_y"/>
+        <state_interface name="imu_orientation_z"/>
+
+        <state_interface name="imu_angular_vel_x"/>
+        <state_interface name="imu_angular_vel_y"/>
+        <state_interface name="imu_angular_vel_z"/>
+
+        <state_interface name="imu_linear_acceleration_x"/>
+        <state_interface name="imu_linear_acceleration_y"/>
+        <state_interface name="imu_linear_acceleration_z"/>
+
+        <state_interface name="depth_from_pressure2"/>
+
+        <state_interface name="dvl_gyro_roll"/>
+        <state_interface name="dvl_gyro_pitch"/>
+        <state_interface name="dvl_gyro_yaw"/>
+
+        <state_interface name="dvl_speed_x"/>
+        <state_interface name="dvl_speed_y"/>
+        <state_interface name="dvl_speed_z"/>
+
+        <state_interface name="position_estimate.x"/>
+        <state_interface name="position_estimate.y"/>
+        <state_interface name="position_estimate.z"/>
+
+        <state_interface name="roll_estimate"/>
+        <state_interface name="pitch_estimate"/>
+        <state_interface name="yaw_estimate"/>
+
+        <state_interface name="orientation_estimate.w"/>
+        <state_interface name="orientation_estimate.x"/>
+        <state_interface name="orientation_estimate.y"/>
+        <state_interface name="orientation_estimate.z"/>
+
+        <state_interface name="velocity_estimate.x"/>
+        <state_interface name="velocity_estimate.y"/>
+        <state_interface name="velocity_estimate.z"/>
+
+        <state_interface name="angular_velocity_estimate.x"/>
+        <state_interface name="angular_velocity_estimate.y"/>
+        <state_interface name="angular_velocity_estimate.z"/>
+      </gpio>
+
+    </ros2_control>
+  </xacro:macro>
+
+</robot>

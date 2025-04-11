@@ -1,0 +1,109 @@
+controller_manager:
+  ros__parameters:
+    update_rate: 150  #Hz
+    is_async: True
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    uvms_controller:
+      type: uvms_controller/UvmsController
+
+    forward_pwm_controller:
+      type: forward_command_controller/ForwardCommandController
+
+# get vehicle base to manipulator base TF
+# ros2 run tf2_ros tf2_echo base_link alpha_base_link 
+    
+uvms_controller:
+  ros__parameters:
+    joints:
+      - floating_base
+      - joint0
+      - joint1
+      - joint2
+      - joint3 
+      - endeffector
+
+    floating_base:
+      name : "{prefix}IOs"
+      pose_topic_interface: ["position.x", "position.y", "position.z","roll","pitch","yaw"]
+      velocity_topic_interface: ["velocity.x","velocity.y","velocity.z","angular_velocity.x","angular_velocity.y","angular_velocity.z"]
+      acceleration_topic_interface: ["linear_acceleration.x","linear_acceleration.y","linear_acceleration.z","angular_acceleration.x","angular_acceleration.y","angular_acceleration.z"]
+      pose_command_interface: ["position.x", "position.y", "position.z","roll","pitch","yaw"]
+      velocity_command_interface: ["velocity.x","velocity.y","velocity.z","angular_velocity.x","angular_velocity.y","angular_velocity.z"]
+      acceleration_command_interface: ["linear_acceleration.x","linear_acceleration.y","linear_acceleration.z","angular_acceleration.x","angular_acceleration.y","angular_acceleration.z"]
+      effort_command_interface: ["force.x", "force.y", "force.z", "torque.x", "torque.y", "torque.z"]
+
+    joint0:
+      name : "{prefix}_axis_e"
+      pose_topic_interface: ["position"]
+      velocity_topic_interface: ["velocity"]
+      acceleration_topic_interface: ["acceleration"]
+      pose_command_interface: ["position"]
+      velocity_command_interface: ["velocity"]
+      acceleration_command_interface: ["acceleration"]
+      effort_command_interface: ["effort"]
+
+    joint1:
+      name : "{prefix}_axis_d"
+      pose_topic_interface: ["position"]
+      velocity_topic_interface: ["velocity"]
+      acceleration_topic_interface: ["acceleration"]
+      pose_command_interface: ["position"]
+      velocity_command_interface: ["velocity"]
+      acceleration_command_interface: ["acceleration"]
+      effort_command_interface: ["effort"]
+
+    joint2:
+      name : "{prefix}_axis_c"
+      pose_topic_interface: ["position"]
+      velocity_topic_interface: ["velocity"]
+      acceleration_topic_interface: ["acceleration"]
+      pose_command_interface: ["position"]
+      velocity_command_interface: ["velocity"]
+      acceleration_command_interface: ["acceleration"]
+      effort_command_interface: ["effort"]
+
+    joint3:
+      name : "{prefix}_axis_b"
+      pose_topic_interface: ["position"]
+      velocity_topic_interface: ["velocity"]
+      acceleration_topic_interface: ["acceleration"]
+      pose_command_interface: ["position"]
+      velocity_command_interface: ["velocity"]
+      acceleration_command_interface: ["acceleration"]
+      effort_command_interface: ["effort"]
+      
+    endeffector:
+      name : "{prefix}_axis_a"
+      pose_topic_interface: ["position"]
+      velocity_topic_interface: ["velocity"]
+      acceleration_topic_interface: ["acceleration"]
+      pose_command_interface: ["position"]
+      velocity_command_interface: ["velocity"]
+      acceleration_command_interface: ["acceleration"]
+      effort_command_interface: ["effort"]
+
+joint_state_broadcaster:
+  ros__parameters:
+    map_interface_to_joint_state:
+      effort: effort
+      position: position
+      velocity: velocity
+      acceleration: acceleration
+      current: current
+      stateId: stateId
+
+forward_pwm_controller:
+  ros__parameters:
+    joints:
+      - robot_real_thruster1_joint
+      - robot_real_thruster2_joint
+      - robot_real_thruster3_joint
+      - robot_real_thruster4_joint
+      - robot_real_thruster5_joint
+      - robot_real_thruster6_joint
+      - robot_real_thruster7_joint
+      - robot_real_thruster8_joint
+    interface_name: pwm

@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<robot name="alpha_standard_jaws" xmlns:xacro="http://ros.org/wiki/xacro">
+    <xacro:macro name="alpha_standard_jaws" params="parent *origin name:=alpha_standard_jaws axis_a">
+        <material name="${name}_black">
+            <color rgba="0.3 0.3 0.3 1" />
+        </material>
+
+        <joint name="${name}_joint" type="fixed">
+            <xacro:insert_block name="origin" /> 
+            <parent link="${parent}"/>
+            <child link="${name}_base_link" />
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+        </joint>
+
+        <link name="${name}_base_link">
+            <visual>
+                <geometry>
+                    <mesh filename="file://$(find ros2_control_blue_reach_5)/alpha/meshes/end_effectors/RS1-124.stl"/>
+                </geometry>
+                <material name="${name}_black"/>
+            </visual>
+        </link>
+
+        <link name="${name}_rs1_130_link">
+            <visual>
+                <geometry>
+                    <mesh filename="file://$(find ros2_control_blue_reach_5)/alpha/meshes/end_effectors/RS1-130.stl"/>
+                </geometry>
+                <material name="${name}_black"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+            </visual>
+            <collision>
+                <geometry>
+                    <box size="0.012 0.03 0.09"/>
+                </geometry>
+                <origin xyz="0.0 -0.008 0.045" rpy="0 0 0"/>
+            </collision>
+        </link>
+
+        <joint name="${name}_rs1_130_joint" type="revolute">
+          <origin xyz="0 0.0155 0.0069" rpy="0 0 0"/>
+          <parent link="${name}_base_link"/>
+          <child link="${name}_rs1_130_link"/>
+          <axis xyz="-1 0 0"/>
+          <limit lower="0" upper="0.5" effort="10" velocity="10"/>
+          <mimic joint="${axis_a}" multiplier="51" offset="0"/>
+        </joint>
+
+
+
+        <link name="${name}_rs1_139_link">
+            <visual>
+                <geometry>
+                    <mesh filename="file://$(find ros2_control_blue_reach_5)/alpha/meshes/end_effectors/RS1-139.stl"/>
+                </geometry>
+                <material name="${name}_black"/>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+            </visual>
+
+            <collision>
+                <geometry>
+                    <box size="0.012 0.03 0.09"/>
+                </geometry>
+                <origin xyz="0.0 0.008 0.045" rpy="0 0 0"/>
+            </collision>
+        </link>
+
+        <joint name="${name}_rs1_139_joint" type="revolute">
+          <origin xyz="0 -0.0155 0.0069" rpy="0 0 0"/>
+          <parent link="${name}_base_link"/>
+          <child link="${name}_rs1_139_link"/>
+          <axis xyz="1 0 0"/>
+          <limit lower="0" upper="0.5" effort="10" velocity="10"/>
+          <mimic joint="${name}_rs1_130_joint" multiplier="1" offset="0"/>
+        </joint>
+    </xacro:macro>
+</robot>

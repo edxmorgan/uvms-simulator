@@ -1,0 +1,115 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="alpha_5_example">
+
+  <!-- Enable setting arguments from the launch file -->
+  <xacro:arg name="use_manipulator_hardware" default="false"/>
+  <xacro:arg name="use_vehicle_hardware" default="false"/>
+  <xacro:arg name="sim_robot_count" default="1"/>
+  <xacro:arg name="serial_port" default="/dev/ttyUSB0"/>
+  <xacro:arg name="state_update_frequency" default="250"/>
+  <xacro:arg name="description_package" default="ros2_control_blue_reach_5"/>
+  <xacro:arg name="use_optitrack" default="false"/>
+  <!-- Properties -->
+  <xacro:property name="description_package" value="$(arg description_package)"/>
+  <xacro:property name="sim_robot_count" value="$(arg sim_robot_count)"/>
+  <xacro:property name="serial_port" value="$(arg serial_port)"/>
+  <xacro:property name="state_update_frequency" value="$(arg state_update_frequency)"/>
+  <xacro:property name="use_manipulator_hardware" value="$(arg use_manipulator_hardware)"/>
+  <xacro:property name="use_vehicle_hardware" value="$(arg use_vehicle_hardware)"/>
+  <xacro:property name="use_optitrack" value="$(arg use_optitrack)"/>
+
+  <!-- Define constants -->
+  <xacro:property name="d_min" value="1.0"/>
+
+  <!-- Imports -->
+  <xacro:include filename="$(find ros2_control_blue_reach_5)/xacro/world.xacro"/>
+  <xacro:include filename="$(find ${description_package})/xacro/urdf.xacro"/>
+  <!-- Import RRBot ros2_control description -->
+  <xacro:include filename="$(find ${description_package})/ros2_control/robot_system_multi_interface.ros2_control.xacro" />
+  <!-- Import RRBot ros2_control description -->
+  <xacro:include filename="$(find ${description_package})/ros2_control/vehicle_system_multi_interface.ros2_control.xacro" />
+
+  <!-- Instantiate the world -->
+  <xacro:sim_world/>
+
+  <!-- Recursive Macro Definition -->
+  <xacro:macro name="instantiate_robots" params="index count">
+    <xacro:if value="${index &lt; count}">
+      <!-- Generate prefix for the current robot -->
+      <xacro:property name="prefix" value="robot_${index + 1}_"/>
+
+      <!-- Compute positions and orientations -->
+      <xacro:property name="angle" value="${2 * pi * index / count}"/>
+      <!-- Compute circumference and radius -->
+      <xacro:property name="circumference" value="${count * d_min}"/>
+      <xacro:property name="radius" value="${circumference / (2 * pi)}"/>
+      <xacro:property name="x_pos" value="${radius * cos(angle)}"/>
+      <xacro:property name="y_pos" value="${radius * sin(angle)}"/>
+
+      <!-- Instantiate the robot -->
+      <xacro:bluerov2_heavy_alpha_urdf
+        prefix="${prefix}"
+        x="${x_pos}"
+        y="${y_pos}"
+        z="0.0"
+        rot_r="0.0"
+        rot_p="0.0"
+        rot_y="${angle}"/>
+
+
+    <xacro:robot_system_multi_interface
+      name="${prefix}ReachSystemMultiInterface"
+      prefix="${prefix}"
+      serial_port="${serial_port}"
+      state_update_frequency="${state_update_frequency}"
+      use_hardware="false"/>
+
+    <xacro:vehicle_system_multi_interface
+      name="${prefix}BlueSystemMultiInterface"
+      prefix="${prefix}"
+      serial_port="${serial_port}"
+      state_update_frequency="${state_update_frequency}"
+      use_hardware="false"
+      world_frame_id="base_link"
+      body_frame_id="${prefix}base_link"
+      map_frame_id="${prefix}map"/>
+      
+      <!-- Recursively call the macro for the next robot -->
+      <xacro:instantiate_robots index="${index + 1}" count="${count}"/>
+    </xacro:if>
+  </xacro:macro>
+
+  <!-- Start the robot instantiation recursion -->
+  <xacro:instantiate_robots index="0" count="${int(sim_robot_count)}"/>
+
+  <xacro:if value="${use_manipulator_hardware or use_vehicle_hardware}">
+    <xacro:property name="prefix" value="robot_real_"/>
+    <!-- Instantiate the real robot -->
+    <xacro:bluerov2_heavy_alpha_urdf
+      prefix="${prefix}"
+      x="0.0"
+      y="0.0"
+      z="0.0"
+      rot_r="0.0"
+      rot_p="0.0"
+      rot_y="0.0"/>
+
+    <xacro:robot_system_multi_interface
+      name="$real_ReachSystemMultiInterface"
+      prefix="${prefix}"
+      serial_port="${serial_port}"
+      state_update_frequency="${state_update_frequency}"
+      use_hardware="${use_manipulator_hardware}"/>
+
+    <xacro:vehicle_system_multi_interface
+      name="real_BlueSystemMultiInterface"
+      prefix="${prefix}"
+      serial_port="${serial_port}"
+      state_update_frequency="${state_update_frequency}"
+      use_hardware="${use_vehicle_hardware}"
+      world_frame_id="base_link"
+      body_frame_id="${prefix}base_link"
+      map_frame_id="${prefix}map"/>
+  </xacro:if>
+
+</robot>
