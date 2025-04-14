@@ -317,8 +317,11 @@ namespace blue::dynamics
     struct imu_info
     {
       double roll{0.0};
+      double roll_unwrap{0.0};
       double pitch{0.0};
+      double pitch_unwrap{0.0};
       double yaw{0.0};
+      double yaw_unwrap{0.0};
       double orientation_w{0.0};
       double orientation_x{0.0};
       double orientation_y{0.0};

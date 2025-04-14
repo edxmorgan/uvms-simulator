@@ -38,6 +38,7 @@ namespace casadi_reach_alpha_5
         Function uv_Exkalman_update; // sensor fusion update for uv
         Function arm_kalman_update; // sensor fusion update for robotic arm
         Function pwm2rads; // convert pwm to rads
+        Function unwrap; // unwrap angle
 
         Utils() = default;
         // Constructor with member initializer list

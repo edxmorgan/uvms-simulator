@@ -64,7 +64,6 @@
 #include "geometry_msgs/msg/twist_with_covariance_stamped.hpp"
 #include <nav_msgs/msg/odometry.hpp>
 #include "ros2_control_blue_reach_5/dvldriver.hpp"
-#include "ros2_control_blue_reach_5/unwrap.hpp"
 
 #include <sensor_msgs/msg/imu.hpp>
 #include "rclcpp/rclcpp.hpp"
@@ -253,9 +252,15 @@ namespace ros2_control_blue_reach_5
 
         bool initial_body_received_ = false;
         tf2::Transform initial_body_transform_;
+        casadi::DM last_wrapped_roll;
+        casadi::DM unwrap_roll_rt;
 
-        // Create an instance of the angle unwrapper.
-        uvms::AngleUnwrapper unwrapper;
+        casadi::DM last_wrapped_pitch;
+        casadi::DM unwrap_pitch_rt;
+
+        casadi::DM last_wrapped_yaw;
+        casadi::DM unwrap_yaw_rt;
+        bool first_imu_read = true;
         std::vector<casadi::DM> vehicle_parameters;
     };
 

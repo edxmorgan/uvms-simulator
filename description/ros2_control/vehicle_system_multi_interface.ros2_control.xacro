@@ -230,6 +230,10 @@
         <state_interface name="imu_pitch"/>
         <state_interface name="imu_yaw"/>
 
+        <state_interface name="imu_roll_unwrap"/>
+        <state_interface name="imu_pitch_unwrap"/>
+        <state_interface name="imu_yaw_unwrap"/>
+
         <state_interface name="imu_orientation_w"/>
         <state_interface name="imu_orientation_x"/>
         <state_interface name="imu_orientation_y"/>
