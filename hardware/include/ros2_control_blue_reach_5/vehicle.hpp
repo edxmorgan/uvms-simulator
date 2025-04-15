@@ -220,6 +220,12 @@ namespace blue::dynamics
     std::string body_frame_id;  // body frame
     std::string map_frame_id;   // map frame
     std::string robot_prefix;   // robot prefix
+    int light1channel;
+    int light2channel;
+    int cameraMountPitch_channel;
+
+    double light_pwm = 1100;
+    double camera_mountPitch_pwm = 1500;
 
     double sim_time = 0;
     double sim_period = 0;

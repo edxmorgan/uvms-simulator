@@ -153,6 +153,10 @@
       </joint>
 
       <gpio name="${prefix}IOs">
+        <param name="Light1_channel">13</param>
+        <param name="Light2_channel">14</param>
+        <param name="CameraMountPitch_channel">16</param>
+
         <command_interface name="position.x"/>
         <command_interface name="position.y"/>
         <command_interface name="position.z"/>

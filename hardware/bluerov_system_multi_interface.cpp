@@ -116,10 +116,10 @@ namespace ros2_control_blue_reach_5
         }
         hw_vehicle_struct.robot_prefix = info_.hardware_parameters["prefix"];
 
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************robot prefix: %s", hw_vehicle_struct.robot_prefix.c_str());
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************frame id: %s", hw_vehicle_struct.world_frame_id.c_str());
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "robot prefix: %s", hw_vehicle_struct.robot_prefix.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "frame id: %s", hw_vehicle_struct.world_frame_id.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
 
         // map_position_x = 5.0;
         // map_position_y = 5.0;
@@ -196,11 +196,32 @@ namespace ros2_control_blue_reach_5
                 return hardware_interface::CallbackReturn::ERROR;
             };
         };
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "*************hw_vehicle_struct size: %zu",
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "hw_vehicle_struct size: %zu",
                     hw_vehicle_struct.hw_thrust_structs_.size());
 
         for (const hardware_interface::ComponentInfo &gpio : info_.gpios)
         {
+            // Make sure the the gpio-level parameters exist
+            if (
+                gpio.parameters.find("Light1_channel") == gpio.parameters.cend() ||
+                gpio.parameters.find("Light2_channel") == gpio.parameters.cend() ||
+                gpio.parameters.find("CameraMountPitch_channel") == gpio.parameters.cend())
+            {
+                RCLCPP_ERROR( // NOLINT
+                    rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                    "GPIO %s missing required configurations. Ensure that the `Light1_channel`, `Light2_channel` and `CameraMountPitch_channel` "
+                    " are provided for GPIO.",
+                    gpio.name.c_str());
+                return hardware_interface::CallbackReturn::ERROR;
+            };
+            hw_vehicle_struct.light1channel = std::stoi(gpio.parameters.at("Light1_channel"));
+            hw_vehicle_struct.light2channel = std::stoi(gpio.parameters.at("Light2_channel"));
+            hw_vehicle_struct.cameraMountPitch_channel = std::stoi(gpio.parameters.at("CameraMountPitch_channel"));
+
+            RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Light1_channel: %d", hw_vehicle_struct.light1channel);
+            RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Light2_channel: %d", hw_vehicle_struct.light2channel);
+            RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "CameraMountPitch_channel: %d", hw_vehicle_struct.cameraMountPitch_channel);
+
             // RRBotSystemMultiInterface has exactly 69 gpio state interfaces
             if (gpio.state_interfaces.size() != 69)
             {
@@ -312,6 +333,7 @@ namespace ros2_control_blue_reach_5
             };
 
             auto best_effort_qos = rclcpp::QoS(rclcpp::KeepLast(10)).best_effort();
+            auto volatile_qos = rclcpp::QoS(rclcpp::KeepLast(10)).best_effort().durability_volatile();            
 
             imu_subscriber_ =
                 node_topics_interface_->create_subscription<sensor_msgs::msg::Imu>(
@@ -326,6 +348,22 @@ namespace ros2_control_blue_reach_5
                 std::bind(&BlueRovSystemMultiInterfaceHardware::mavlink_data_handler, this, std::placeholders::_1));
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                         "Subscribed to /uas1/mavlink_source for MAVLink messages.");
+
+            // Subscribe to /alpha/lights
+            light_subscriber_ = node_topics_interface_->create_subscription<std_msgs::msg::Float32>(
+                "/alpha/lights",
+                volatile_qos,
+                std::bind(&BlueRovSystemMultiInterfaceHardware::light_callback, this, std::placeholders::_1));
+
+            RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Subscribed to /alpha/lights with Reliable QoS");
+
+            // Subscribe to /alpha/cameraMountPitch
+            camera_mount_pitch_subscriber_ = node_topics_interface_->create_subscription<std_msgs::msg::Float32>(
+                "/alpha/cameraMountPitch",
+                volatile_qos,
+                std::bind(&BlueRovSystemMultiInterfaceHardware::cameraMountPitch_callback, this, std::placeholders::_1));
+
+            RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Subscribed to /alpha/cameraMountPitch with Reliable QoS");
 
             // Initialize the ROS publisher for images.
             image_pub_ = rclcpp::create_publisher<sensor_msgs::msg::Image>(node_topics_interface_, "/alpha/image_raw", rclcpp::SystemDefaultsQoS());
@@ -1017,7 +1055,7 @@ namespace ros2_control_blue_reach_5
 
                 float scaled_diff_pwm = (thruster.command_state_.command_pwm - 1500) * thruster.rc_direction;
 
-                float scaled_pwm = 1500 + scaled_diff_pwm;
+                float scaled_pwm = std::clamp(1500 + scaled_diff_pwm, 1100.0f, 1900.0f);
 
                 // if (scaled_pwm != 1500) {
                 // // Log both the original and scaled PWM values.
@@ -1029,7 +1067,38 @@ namespace ros2_control_blue_reach_5
                 // }
 
                 // update the corresponding channel
-                // rt_override_rc_pub_->msg_.channels[thruster.channel - 1] = static_cast<int>(scaled_pwm);
+                rt_override_rc_pub_->msg_.channels[thruster.channel - 1] = static_cast<int>(scaled_pwm);
+            };
+
+            // Retrieve the light message from the realtime buffer.
+            auto light_msg_ptr_ptr = light_msg_buffer_.readFromRT();
+            if (light_msg_ptr_ptr && *light_msg_ptr_ptr)
+            {
+                std_msgs::msg::Float32::SharedPtr light_msg_ptr = *light_msg_ptr_ptr;
+                float delta_light_value = light_msg_ptr->data;
+                // Update PWM values based on the current command state
+                hw_vehicle_struct.light_pwm += delta_light_value;
+                // RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                //             "delta_light_value: %f",
+                //             delta_light_value);
+
+                // Ensure light_pwm and camera_mountPitch_pwm stays within the range [1100, 1900]
+                hw_vehicle_struct.light_pwm = std::clamp(hw_vehicle_struct.light_pwm, 1100.0, 1900.0);
+                rt_override_rc_pub_->msg_.channels[hw_vehicle_struct.light1channel - 1] = static_cast<int>(hw_vehicle_struct.light_pwm);
+                rt_override_rc_pub_->msg_.channels[hw_vehicle_struct.light2channel - 1] = static_cast<int>(hw_vehicle_struct.light_pwm);
+            }
+            // Retrieve the camera mount pitch message.
+            auto cam_msg_ptr_ptr = camera_mount_pitch_msg_buffer_.readFromRT();
+            if (cam_msg_ptr_ptr && *cam_msg_ptr_ptr)
+            {
+                std_msgs::msg::Float32::SharedPtr cam_msg_ptr = *cam_msg_ptr_ptr;
+                float current_pitch = cam_msg_ptr->data;
+                hw_vehicle_struct.camera_mountPitch_pwm += current_pitch;
+                // RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                //             "current_pitch_value: %f",
+                //             current_pitch);
+                hw_vehicle_struct.camera_mountPitch_pwm = std::clamp(hw_vehicle_struct.camera_mountPitch_pwm, 1100.0, 1900.0);
+                rt_override_rc_pub_->msg_.channels[hw_vehicle_struct.cameraMountPitch_channel - 1] = static_cast<int>(hw_vehicle_struct.camera_mountPitch_pwm);
             }
 
             rt_override_rc_pub_->unlockAndPublish();
@@ -1216,6 +1285,17 @@ namespace ros2_control_blue_reach_5
             }
         }
         return buffer;
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::light_callback(const std_msgs::msg::Float32::SharedPtr msg)
+    {
+        // Write the pointer to the realtime buffer in a thread-safe, nonblocking manner.
+        light_msg_buffer_.writeFromNonRT(msg);
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::cameraMountPitch_callback(const std_msgs::msg::Float32::SharedPtr msg)
+    {
+        camera_mount_pitch_msg_buffer_.writeFromNonRT(msg);
     }
 
     inline double BlueRovSystemMultiInterfaceHardware::pressureToDepth(double press_abs_hpa, double water_density = 997.0)

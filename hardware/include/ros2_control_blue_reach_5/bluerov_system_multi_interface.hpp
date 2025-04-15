@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
 #ifndef ROS2_CONTROL_BLUE_REACH_5__BLUEROV_SYSTEM_MULTI_INTERFACE_HPP_
 #define ROS2_CONTROL_BLUE_REACH_5__BLUEROV_SYSTEM_MULTI_INTERFACE_HPP_
 
@@ -56,7 +55,7 @@
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "tf2_msgs/msg/tf_message.hpp"
 #include "tf2_ros/transform_broadcaster.h"
-
+#include "std_msgs/msg/float32.hpp"
 #include <tf2/LinearMath/Transform.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <nav_msgs/msg/odometry.hpp>
@@ -133,6 +132,14 @@ namespace ros2_control_blue_reach_5
             const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
     private:
+        void light_callback(const std_msgs::msg::Float32::SharedPtr msg);
+        void cameraMountPitch_callback(const std_msgs::msg::Float32::SharedPtr msg);
+        rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr light_subscriber_;
+        realtime_tools::RealtimeBuffer<std_msgs::msg::Float32::SharedPtr> light_msg_buffer_;
+
+        rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr camera_mount_pitch_subscriber_;
+        realtime_tools::RealtimeBuffer<std_msgs::msg::Float32::SharedPtr> camera_mount_pitch_msg_buffer_;
+
         // GStreamer objects for the camera stream
         GstElement *gst_pipeline_{nullptr};
         GstAppSink *gst_appsink_{nullptr};
