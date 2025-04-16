@@ -1067,7 +1067,7 @@ namespace ros2_control_blue_reach_5
                 // }
 
                 // update the corresponding channel
-                // rt_override_rc_pub_->msg_.channels[thruster.channel - 1] = static_cast<int>(scaled_pwm);
+                rt_override_rc_pub_->msg_.channels[thruster.channel - 1] = static_cast<int>(scaled_pwm);
             };
 
             // Retrieve the light message from the realtime buffer.
