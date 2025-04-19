@@ -967,11 +967,11 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.current_state_.r = hw_vehicle_struct.command_state_.r;
 
         hw_vehicle_struct.current_state_.Fx = hw_vehicle_struct.command_state_.Fx;
-        hw_vehicle_struct.current_state_.Fy = -hw_vehicle_struct.command_state_.Fy;
-        hw_vehicle_struct.current_state_.Fz = -hw_vehicle_struct.command_state_.Fz;
+        hw_vehicle_struct.current_state_.Fy = hw_vehicle_struct.command_state_.Fy;
+        hw_vehicle_struct.current_state_.Fz = hw_vehicle_struct.command_state_.Fz;
         hw_vehicle_struct.current_state_.Tx = hw_vehicle_struct.command_state_.Tx;
-        hw_vehicle_struct.current_state_.Ty = -hw_vehicle_struct.command_state_.Ty;
-        hw_vehicle_struct.current_state_.Tz = -hw_vehicle_struct.command_state_.Tz;
+        hw_vehicle_struct.current_state_.Ty = hw_vehicle_struct.command_state_.Ty;
+        hw_vehicle_struct.current_state_.Tz = hw_vehicle_struct.command_state_.Tz;
 
         hw_vehicle_struct.sim_time = time_seconds;
         hw_vehicle_struct.sim_period = delta_seconds;
@@ -1182,7 +1182,7 @@ namespace ros2_control_blue_reach_5
             q_orig.normalize();
 
             StateEstimateTransform.transform.rotation.x = q_orig.x();
-            StateEstimateTransform.transform.rotation.y = -q_orig.y();
+            StateEstimateTransform.transform.rotation.y = q_orig.y();
             StateEstimateTransform.transform.rotation.z = -q_orig.z();
             StateEstimateTransform.transform.rotation.w = q_orig.w();
 
