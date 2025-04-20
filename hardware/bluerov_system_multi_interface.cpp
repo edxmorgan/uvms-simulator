@@ -27,25 +27,25 @@
 #include "rclcpp/rclcpp.hpp"
 #include <random>
 #include <rclcpp/qos.hpp>
-#if __has_include("uvms_controller/dynamics_params.hpp")
+#if __has_include("ros2_control_blue_reach_5/dynamics_params.hpp")
 //   #pragma message("Private parameters enabled (header found)")
 #include "ros2_control_blue_reach_5/dynamics_params.hpp"
 #else
 //   #pragma message("Fallback parameters used")
-const std::vector<casadi::DM> private_vehicle_parameters = {1.15000e+01, 1.12815e+02, 1.14800e+02, 0.00000e+00,
-                                                            0.00000e+00, 2.00000e-02, 0.00000e+00, 0.00000e+00,
-                                                            0.00000e+00, 1.60000e-01, 1.60000e-01, 1.60000e-01,
-                                                            0.00000e+00, -5.50000e+00, -1.27000e+01, -1.45700e+01,
-                                                            -1.20000e-01, -1.20000e-01, -1.20000e-01, 0.00000e+00,
-                                                            0.00000e+00, 0.00000e+00, 0.00000e+00, -4.03000e+00,
-                                                            -6.22000e+00, -5.18000e+00, -7.00000e-02, -7.00000e-02,
-                                                            -7.00000e-02, -1.81800e+01, -2.16600e+01, -3.69900e+01,
-                                                            -1.55000e+00, -1.55000e+00, -1.55000e+00, 3.00000e+00,
-                                                            1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00,
-                                                            1.00000e+00, 1.00000e+00, 0.00000e+00, 0.00000e+00,
-                                                            0.00000e+00, 0.00000e+00, 0.00000e+00, 0.00000e+00,
-                                                            0.00000e+00, 0.00000e+00, 0.00000e+00, 0.00000e+00,
-                                                            0.00000e+00, 0.00000e+00};
+const std::vector<casadi::DM> private_vehicle_parameters = {1.15000000e+01, 1.12815000e+02, 1.14800000e+02, 0.00000000e+00,
+                                                            0.00000000e+00, 2.00000000e-02, 0.00000000e+00, 0.00000000e+00,
+                                                            0.00000000e+00, 1.60000000e-01, 1.60000000e-01, 1.60000000e-01,
+                                                            0.00000000e+00, -5.50000000e+00, -1.27000000e+01, -1.45700000e+01,
+                                                            -1.20000000e-01, -1.20000000e-01, -1.20000000e-01, 0.00000000e+00,
+                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, -4.03000000e+00,
+                                                            -6.22000000e+00, -5.18000000e+00, -7.00000000e-02, -7.00000000e-02,
+                                                            -7.00000000e-02, -1.81800000e+01, -2.16600000e+01, -3.69900000e+01,
+                                                            -1.55000000e+00, -1.55000000e+00, -1.55000000e+00, 0.00000000e+00,
+                                                            1.00421848e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00,
+                                                            1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 0.00000000e+00,
+                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00};
 #endif
 
 using namespace casadi;
@@ -333,7 +333,7 @@ namespace ros2_control_blue_reach_5
             };
 
             auto best_effort_qos = rclcpp::QoS(rclcpp::KeepLast(10)).best_effort();
-            auto volatile_qos = rclcpp::QoS(rclcpp::KeepLast(10)).best_effort().durability_volatile();            
+            auto volatile_qos = rclcpp::QoS(rclcpp::KeepLast(10)).best_effort().durability_volatile();
 
             imu_subscriber_ =
                 node_topics_interface_->create_subscription<sensor_msgs::msg::Imu>(

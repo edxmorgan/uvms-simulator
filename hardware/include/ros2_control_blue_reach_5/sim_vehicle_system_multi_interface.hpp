@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
 #ifndef ROS2_CONTROL_BLUE_REACH_5__SIM_VEHICLE_SYSTEM_MULTI_INTERFACE_HPP_
 #define ROS2_CONTROL_BLUE_REACH_5__SIM_VEHICLE_SYSTEM_MULTI_INTERFACE_HPP_
 
@@ -133,6 +132,13 @@ namespace ros2_control_blue_reach_5
         std::shared_ptr<rclcpp::Node> node_topics_interface_;
 
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
+
+        // --- Kalman Filter state variables ---
+        casadi::DM x_est_; // State vector: e.g. [px, py, pz, roll, pitch, yaw, u, v, w, p, q, r]
+        casadi::DM P_est_; // Covariance: either 12x1 diag or 12x12, depending on your ekf_step function
+        casadi::DM Q_;     // Process noise
+        casadi::DM R_;     // Measurement noise
+        std::vector<casadi::DM> vehicle_parameters;
     };
 
 } // namespace ros2_control_blue

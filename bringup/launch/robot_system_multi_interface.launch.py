@@ -58,7 +58,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         rviz_point_cloud2('uv_vehicle_base',"/base_pointcloud",new_rviz_config, True, "255; 0; 0",
                           custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
 
-    add_wrench_entries(ix, new_rviz_config)
+    add_wrench_entries(ix, new_rviz_config, False)
     with open(new_rviz_config_path,'w') as file:
         yaml.dump(new_rviz_config,file,Dumper=NoAliasDumper)
 
@@ -302,14 +302,14 @@ def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task):
         rviz_config['Visualization Manager']['Views']['Saved'].append(new_view)
 
 
-def add_wrench_entries(ix, rviz_config):
+def add_wrench_entries(ix, rviz_config, enabled= True):
     # The existing wrench configuration you want to replicate
     original_wrench = {
         'Accept NaN Values': False,
         'Alpha': 1,
         'Arrow Width': 0.3,
         'Class': 'rviz_default_plugins/Wrench',
-        'Enabled': True,
+        'Enabled': enabled,
         'Force Arrow Scale': 0.7,
         'Force Color': '204; 51; 51',
         'History Length': 1,

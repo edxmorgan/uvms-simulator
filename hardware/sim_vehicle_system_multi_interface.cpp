@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
 #include "ros2_control_blue_reach_5/sim_vehicle_system_multi_interface.hpp"
 
 #include <chrono>
@@ -26,6 +25,26 @@
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include <random>
+#if __has_include("ros2_control_blue_reach_5/dynamics_params.hpp")
+//   #pragma message("Private parameters enabled (header found)")
+#include "ros2_control_blue_reach_5/dynamics_params.hpp"
+#else
+//   #pragma message("Fallback parameters used")
+const std::vector<casadi::DM> private_vehicle_parameters = {1.15000000e+01, 1.12815000e+02, 1.14800000e+02, 0.00000000e+00,
+                                                            0.00000000e+00, 2.00000000e-02, 0.00000000e+00, 0.00000000e+00,
+                                                            0.00000000e+00, 1.60000000e-01, 1.60000000e-01, 1.60000000e-01,
+                                                            0.00000000e+00, -5.50000000e+00, -1.27000000e+01, -1.45700000e+01,
+                                                            -1.20000000e-01, -1.20000000e-01, -1.20000000e-01, 0.00000000e+00,
+                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, -4.03000000e+00,
+                                                            -6.22000000e+00, -5.18000000e+00, -7.00000000e-02, -7.00000000e-02,
+                                                            -7.00000000e-02, -1.81800000e+01, -2.16600000e+01, -3.69900000e+01,
+                                                            -1.55000000e+00, -1.55000000e+00, -1.55000000e+00, 0.00000000e+00,
+                                                            1.00421848e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00,
+                                                            1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 0.00000000e+00,
+                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00};
+#endif
 
 using namespace casadi;
 
@@ -39,6 +58,7 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn SimVehicleSystemMultiInterfaceHardware::on_init(
         const hardware_interface::HardwareInfo &info)
     {
+        vehicle_parameters = private_vehicle_parameters;
         if (
             hardware_interface::SystemInterface::on_init(info) !=
             hardware_interface::CallbackReturn::SUCCESS)
@@ -56,6 +76,7 @@ namespace ros2_control_blue_reach_5
 
         // Use CasADi's "external" to load the compiled functions
         utils_service.usage_cplusplus_checks("test", "libtest.so", "vehicle");
+        utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
 
         hw_vehicle_struct.world_frame_id = info_.hardware_parameters["world_frame_id"];
         hw_vehicle_struct.body_frame_id = info_.hardware_parameters["body_frame_id"];
@@ -93,8 +114,8 @@ namespace ros2_control_blue_reach_5
         // std::uniform_real_distribution<> robot_dis_z(0.0, 0.0);
 
         blue::dynamics::Vehicle::Pose_vel initial_state{
-            0.0, 0.0, 0.0, // position: x, y, z
-            0.0, 0.0, 0.0, // Orientation: r, p, y
+            0.0, 0.0, 0.0,      // position: x, y, z
+            0.0, 0.0, 0.0,      // Orientation: r, p, y
             1.0, 0.0, 0.0, 0.0, // Orientation: qw, qx, qy, qz
             0.0, 0.0, 0.0,      // Linear velocities: vx, vy, vz
             0.0, 0.0, 0.0,      // Angular velocities: wx, wy, wz
@@ -197,7 +218,40 @@ namespace ros2_control_blue_reach_5
                 e.what());
             return CallbackReturn::ERROR;
         }
+        // Initialize state estimate vector (12x1)
+        x_est_ = casadi::DM::zeros(12, 1);
+        // Initialize state covariance as a 12x12 identity scaled by a small value.
+        P_est_ = casadi::DM::eye(12) * 0.001;
 
+        // Process noise covariance: 12x12, scaled by 0.01
+        casadi::DM Q_vector = casadi::DM::zeros(12, 1);
+        Q_vector(0) = 0.001;
+        Q_vector(1) = 0.001;
+        Q_vector(2) = 0.001;
+        Q_vector(3) = 0.001;
+        Q_vector(4) = 0.001;
+        Q_vector(5) = 0.001;
+        Q_vector(6) = 0.001;
+        Q_vector(7) = 0.001;
+        Q_vector(8) = 0.001;
+        Q_vector(9) = 0.001;
+        Q_vector(10) = 0.001;
+        Q_vector(11) = 0.001;
+        Q_ = casadi::DM::diag(Q_vector);
+
+        // Measurement noise R_
+        casadi::DM R_vector = casadi::DM::zeros(7, 1); // 7x1 vector
+        R_vector(0) = 0.01;                            // z_pressure noise variance
+        R_vector(1) = 0.005;                           // IMU roll noise variance
+        R_vector(2) = 0.005;                           // IMU pitch noise variance
+        R_vector(3) = 0.005;                           // IMU yaw noise variance
+        R_vector(4) = 0.005;                           // DVL vx noise variance
+        R_vector(5) = 0.005;                           // DVL vy noise variance
+        R_vector(6) = 0.005;                           // DVL vz noise variance
+        R_ = casadi::DM::diag(R_vector);
+
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                    "Initialized P_est_, Q_, and R_ for Kalman filter.");
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "configure successful");
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -560,10 +614,11 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.current_state_.setEuler(hw_vehicle_struct.command_state_.roll,
                                                   hw_vehicle_struct.command_state_.pitch,
                                                   hw_vehicle_struct.command_state_.yaw);
-        
+
         hw_vehicle_struct.imu_state.setEuler(hw_vehicle_struct.command_state_.roll,
-                                             hw_vehicle_struct.command_state_.pitch,
-                                             hw_vehicle_struct.command_state_.yaw);
+                                             -hw_vehicle_struct.command_state_.pitch,
+                                             -hw_vehicle_struct.command_state_.yaw);
+        hw_vehicle_struct.depth_from_pressure2 = hw_vehicle_struct.command_state_.position_z;
 
         hw_vehicle_struct.current_state_.u = hw_vehicle_struct.command_state_.u;
         hw_vehicle_struct.current_state_.v = hw_vehicle_struct.command_state_.v;
@@ -574,7 +629,7 @@ namespace ros2_control_blue_reach_5
 
         hw_vehicle_struct.dvl_state.vx = hw_vehicle_struct.command_state_.u;
         hw_vehicle_struct.dvl_state.vy = hw_vehicle_struct.command_state_.v;
-        hw_vehicle_struct.dvl_state.vz = -hw_vehicle_struct.command_state_.w; // dvl velocity in z is also a negative of the simulation response
+        hw_vehicle_struct.dvl_state.vz = hw_vehicle_struct.command_state_.w;
 
         hw_vehicle_struct.current_state_.Fx = hw_vehicle_struct.command_state_.Fx;
         hw_vehicle_struct.current_state_.Fy = hw_vehicle_struct.command_state_.Fy;
@@ -582,6 +637,55 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.current_state_.Tx = hw_vehicle_struct.command_state_.Tx;
         hw_vehicle_struct.current_state_.Ty = hw_vehicle_struct.command_state_.Ty;
         hw_vehicle_struct.current_state_.Tz = hw_vehicle_struct.command_state_.Tz;
+
+        // measurements
+        casadi::DM y_k = casadi::DM::zeros(7, 1);
+        {
+            y_k(0) = hw_vehicle_struct.depth_from_pressure2;
+            y_k(1) = hw_vehicle_struct.imu_state.roll;
+            y_k(2) = hw_vehicle_struct.imu_state.pitch;
+            y_k(3) = hw_vehicle_struct.imu_state.yaw;
+            y_k(4) = hw_vehicle_struct.dvl_state.vx;
+            y_k(5) = hw_vehicle_struct.dvl_state.vy;
+            y_k(6) = hw_vehicle_struct.dvl_state.vz;
+        };
+
+        // control input vector (6x1) from current force/torque commands:
+        casadi::DM u_dm = casadi::DM::zeros(6, 1);
+        u_dm(0) = hw_vehicle_struct.command_state_.Fx;
+        u_dm(1) = hw_vehicle_struct.command_state_.Fy;
+        u_dm(2) = hw_vehicle_struct.command_state_.Fz;
+        u_dm(3) = hw_vehicle_struct.command_state_.Tx;
+        u_dm(4) = hw_vehicle_struct.command_state_.Ty;
+        u_dm(5) = hw_vehicle_struct.command_state_.Tz;
+
+        // Define an external force vector (6x1), here set to zero.
+        casadi::DM f_ext = casadi::DM::zeros(6, 1);
+        // Wrap time step in a DM object.
+        casadi::DM dt_dm(delta_seconds);
+        std::vector<casadi::DM> ekf_inputs = {x_est_, P_est_, u_dm, vehicle_parameters, dt_dm, y_k, Q_, R_, f_ext};
+
+        // Call your CasADi function
+        std::vector<casadi::DM> state_est = utils_service.uv_Exkalman_update(ekf_inputs);
+
+        // Extract result
+        x_est_ = state_est[0];
+        P_est_ = state_est[1];
+
+        // // Convert x_est_ to std::vector<double> or just read from DM?
+        std::vector<double> x_est_v = x_est_.nonzeros();
+
+        // Update the estimated state in your hardware vehicle struct
+        hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
+        hw_vehicle_struct.estimate_state_.position_y = x_est_v[1];
+        hw_vehicle_struct.estimate_state_.position_z = x_est_v[2];
+        hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3],x_est_v[4],x_est_v[5]);
+        hw_vehicle_struct.estimate_state_.u          = x_est_v[6];
+        hw_vehicle_struct.estimate_state_.v          = x_est_v[7];
+        hw_vehicle_struct.estimate_state_.w          = x_est_v[8];
+        hw_vehicle_struct.estimate_state_.p          = x_est_v[9];
+        hw_vehicle_struct.estimate_state_.q          = x_est_v[10];
+        hw_vehicle_struct.estimate_state_.r          = x_est_v[11];
 
         hw_vehicle_struct.sim_time = time_seconds;
         hw_vehicle_struct.sim_period = delta_seconds;
@@ -659,14 +763,14 @@ namespace ros2_control_blue_reach_5
             StateEstimateTransform.header.frame_id = hw_vehicle_struct.map_frame_id;
             StateEstimateTransform.child_frame_id = hw_vehicle_struct.body_frame_id;
             StateEstimateTransform.header.stamp = time;
-            StateEstimateTransform.transform.translation.x = hw_vehicle_struct.current_state_.position_x;
-            StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.current_state_.position_y;
-            StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.current_state_.position_z;
+            StateEstimateTransform.transform.translation.x = hw_vehicle_struct.estimate_state_.position_x;
+            StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.estimate_state_.position_y;
+            StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.estimate_state_.position_z;
 
-            q_orig.setW(hw_vehicle_struct.current_state_.orientation_w);
-            q_orig.setX(hw_vehicle_struct.current_state_.orientation_x);
-            q_orig.setY(hw_vehicle_struct.current_state_.orientation_y);
-            q_orig.setZ(hw_vehicle_struct.current_state_.orientation_z);
+            q_orig.setW(hw_vehicle_struct.estimate_state_.orientation_w);
+            q_orig.setX(hw_vehicle_struct.estimate_state_.orientation_x);
+            q_orig.setY(hw_vehicle_struct.estimate_state_.orientation_y);
+            q_orig.setZ(hw_vehicle_struct.estimate_state_.orientation_z);
 
             q_orig.normalize();
 
