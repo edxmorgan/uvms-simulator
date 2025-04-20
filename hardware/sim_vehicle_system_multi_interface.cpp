@@ -153,12 +153,12 @@ namespace ros2_control_blue_reach_5
 
         for (const hardware_interface::ComponentInfo &gpio : info_.gpios)
         {
-            // RRBotSystemMultiInterface has exactly 69 gpio state interfaces
-            if (gpio.state_interfaces.size() != 69)
+            // RRBotSystemMultiInterface has exactly 81 gpio state interfaces
+            if (gpio.state_interfaces.size() != 81)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
-                    "GPIO '%s'has %zu state interfaces. 69 expected.", gpio.name.c_str(),
+                    "GPIO '%s'has %zu state interfaces. 81 expected.", gpio.name.c_str(),
                     gpio.state_interfaces.size());
                 return hardware_interface::CallbackReturn::ERROR;
             }
@@ -222,7 +222,10 @@ namespace ros2_control_blue_reach_5
         x_est_ = casadi::DM::zeros(12, 1);
         // Initialize state covariance as a 12x12 identity scaled by a small value.
         P_est_ = casadi::DM::eye(12) * 0.001;
-
+        for (std::size_t i = 0; i < 12; ++i)
+        {
+            P_diag_[i] = double(P_est_(i, i));
+        }
         // Process noise covariance: 12x12, scaled by 0.01
         casadi::DM Q_vector = casadi::DM::zeros(12, 1);
         Q_vector(0) = 0.001;
@@ -465,6 +468,33 @@ namespace ros2_control_blue_reach_5
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             info_.gpios[0].name, info_.gpios[0].state_interfaces[68].name, &hw_vehicle_struct.estimate_state_.r));
 
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[69].name, &P_diag_[0]));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[70].name, &P_diag_[1]));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[71].name, &P_diag_[2]));
+
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[72].name, &P_diag_[3]));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[73].name, &P_diag_[4]));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[74].name, &P_diag_[5]));
+
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[75].name, &P_diag_[6]));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[76].name, &P_diag_[7]));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[77].name, &P_diag_[8]));
+
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[78].name, &P_diag_[9]));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[79].name, &P_diag_[10]));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            info_.gpios[0].name, info_.gpios[0].state_interfaces[80].name, &P_diag_[11]));
         return state_interfaces;
     }
 
@@ -671,7 +701,10 @@ namespace ros2_control_blue_reach_5
         // Extract result
         x_est_ = state_est[0];
         P_est_ = state_est[1];
-
+        for (std::size_t i = 0; i < 12; ++i)
+        {
+            P_diag_[i] = double(P_est_(i, i));
+        }
         // // Convert x_est_ to std::vector<double> or just read from DM?
         std::vector<double> x_est_v = x_est_.nonzeros();
 
@@ -679,13 +712,13 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
         hw_vehicle_struct.estimate_state_.position_y = x_est_v[1];
         hw_vehicle_struct.estimate_state_.position_z = x_est_v[2];
-        hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3],x_est_v[4],x_est_v[5]);
-        hw_vehicle_struct.estimate_state_.u          = x_est_v[6];
-        hw_vehicle_struct.estimate_state_.v          = x_est_v[7];
-        hw_vehicle_struct.estimate_state_.w          = x_est_v[8];
-        hw_vehicle_struct.estimate_state_.p          = x_est_v[9];
-        hw_vehicle_struct.estimate_state_.q          = x_est_v[10];
-        hw_vehicle_struct.estimate_state_.r          = x_est_v[11];
+        hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3], x_est_v[4], x_est_v[5]);
+        hw_vehicle_struct.estimate_state_.u = x_est_v[6];
+        hw_vehicle_struct.estimate_state_.v = x_est_v[7];
+        hw_vehicle_struct.estimate_state_.w = x_est_v[8];
+        hw_vehicle_struct.estimate_state_.p = x_est_v[9];
+        hw_vehicle_struct.estimate_state_.q = x_est_v[10];
+        hw_vehicle_struct.estimate_state_.r = x_est_v[11];
 
         hw_vehicle_struct.sim_time = time_seconds;
         hw_vehicle_struct.sim_period = delta_seconds;

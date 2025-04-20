@@ -281,6 +281,20 @@
         <state_interface name="angular_velocity_estimate.x"/>
         <state_interface name="angular_velocity_estimate.y"/>
         <state_interface name="angular_velocity_estimate.z"/>
+
+        <state_interface name="P_x_x"/>
+        <state_interface name="P_y_y"/>
+        <state_interface name="P_z_z"/>
+        <state_interface name="P_roll_roll"/>
+        <state_interface name="P_pitch_pitch"/>
+        <state_interface name="P_yaw_yaw"/>
+        <state_interface name="P_u_u"/>
+        <state_interface name="P_v_v"/>
+        <state_interface name="P_w_w"/>
+        <state_interface name="P_p_p"/>
+        <state_interface name="P_q_q"/>
+        <state_interface name="P_r_r"/>
+
       </gpio>
 
     </ros2_control>

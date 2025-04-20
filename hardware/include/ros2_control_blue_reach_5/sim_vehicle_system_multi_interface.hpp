@@ -139,6 +139,7 @@ namespace ros2_control_blue_reach_5
         casadi::DM Q_;     // Process noise
         casadi::DM R_;     // Measurement noise
         std::vector<casadi::DM> vehicle_parameters;
+        double P_diag_[12];
     };
 
 } // namespace ros2_control_blue
