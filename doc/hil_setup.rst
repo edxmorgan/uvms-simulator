@@ -10,7 +10,7 @@ This document describes the Hardware‑in‑the‑Loop (HIL) setup and system ar
 Prerequisites
 -------------
 1. **BlueOS Architecture**  
-   Ensure that your BlueOS installation is running on the **aarch64** architecture.
+   Ensure that your BlueOS is running on the **aarch64** architecture.
 
 2. **BlueOS ROS 2 Extension**  
    - Install the BlueOS ROS 2 extension on your aarch64 BlueOS system.  
