@@ -5,7 +5,7 @@ Hardware‑in‑the‑Loop (HIL) Setup & Architecture
 
 Overview
 --------
-This document describes the Hardware‑in‑the‑Loop (HIL) setup and system architecture for the RA5BHS platform. It covers prerequisites, installation steps, and links to supporting resources.
+This document describes the Hardware‑in‑the‑Loop (HIL) setup and system architecture for the platform. It covers prerequisites, installation steps, and links to supporting resources.
 
 Prerequisites
 -------------
