@@ -903,58 +903,55 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.imu_state.roll_unwrap = unwrap_roll_rt.scalar();
         hw_vehicle_struct.imu_state.pitch_unwrap = unwrap_pitch_rt.scalar();
         hw_vehicle_struct.imu_state.yaw_unwrap = unwrap_yaw_rt.scalar();
-        // hw_vehicle_struct.current_state_.setEuler(hw_vehicle_struct.imu_state.roll_unwrap,
-        //                                           hw_vehicle_struct.imu_state.pitch_unwrap,
-        //                                           hw_vehicle_struct.imu_state.yaw_unwrap);
 
         // measurements
-        // casadi::DM y_k = casadi::DM::zeros(7, 1);
-        // {
-        //     y_k(0) = hw_vehicle_struct.depth_from_pressure2;
-        //     y_k(1) = unwrapped_roll;
-        //     y_k(2) = unwrapped_pitch;
-        //     y_k(3) = unwrapped_yaw;
-        //     y_k(4) = hw_vehicle_struct.dvl_state.vx;
-        //     y_k(5) = hw_vehicle_struct.dvl_state.vy;
-        //     y_k(6) = hw_vehicle_struct.dvl_state.vz;
-        // };
+        casadi::DM y_k = casadi::DM::zeros(7, 1);
+        {
+            y_k(0) = hw_vehicle_struct.depth_from_pressure2;
+            y_k(1) = hw_vehicle_struct.imu_state.roll_unwrap;
+            y_k(2) = hw_vehicle_struct.imu_state.pitch_unwrap;
+            y_k(3) = hw_vehicle_struct.imu_state.yaw_unwrap;
+            y_k(4) = hw_vehicle_struct.dvl_state.vx;
+            y_k(5) = hw_vehicle_struct.dvl_state.vy;
+            y_k(6) = hw_vehicle_struct.dvl_state.vz;
+        };
 
-        // // Build the control input vector (6x1) from current force/torque commands:
-        // casadi::DM u_dm = casadi::DM::zeros(6, 1);
-        // u_dm(0) = hw_vehicle_struct.command_state_.Fx;
-        // u_dm(1) = hw_vehicle_struct.command_state_.Fy;
-        // u_dm(2) = hw_vehicle_struct.command_state_.Fz;
-        // u_dm(3) = hw_vehicle_struct.command_state_.Tx;
-        // u_dm(4) = hw_vehicle_struct.command_state_.Ty;
-        // u_dm(5) = hw_vehicle_struct.command_state_.Tz;
+        // Build the control input vector (6x1) from current force/torque commands:
+        casadi::DM u_dm = casadi::DM::zeros(6, 1);
+        u_dm(0) = hw_vehicle_struct.command_state_.Fx;
+        u_dm(1) = hw_vehicle_struct.command_state_.Fy;
+        u_dm(2) = hw_vehicle_struct.command_state_.Fz;
+        u_dm(3) = hw_vehicle_struct.command_state_.Tx;
+        u_dm(4) = hw_vehicle_struct.command_state_.Ty;
+        u_dm(5) = hw_vehicle_struct.command_state_.Tz;
 
-        // // Define an external force vector (6x1), here set to zero.
-        // casadi::DM f_ext = casadi::DM::zeros(6, 1);
-        // // Wrap time step in a DM object.
-        // casadi::DM dt_dm(dt_k);
-        // std::vector<casadi::DM> ekf_inputs = {x_est_, P_est_, u_dm, vehicle_parameters, dt_dm, y_k, Q_, R_, f_ext};
+        // Define an external force vector (6x1), here set to zero.
+        casadi::DM f_ext = casadi::DM::zeros(6, 1);
+        // Wrap time step in a DM object.
+        casadi::DM dt_dm(dt_k);
+        std::vector<casadi::DM> ekf_inputs = {x_est_, P_est_, u_dm, vehicle_parameters, dt_dm, y_k, Q_, R_, f_ext};
 
-        // // Call your CasADi function
-        // std::vector<casadi::DM> state_est = utils_service.uv_Exkalman_update(ekf_inputs);
+        // Call your CasADi function
+        std::vector<casadi::DM> state_est = utils_service.uv_Exkalman_update(ekf_inputs);
 
-        // // Extract result
-        // x_est_ = state_est[0];
-        // P_est_ = state_est[1];
+        // Extract result
+        x_est_ = state_est[0];
+        P_est_ = state_est[1];
 
-        // // // Convert x_est_ to std::vector<double> or just read from DM?
-        // std::vector<double> x_est_v = x_est_.nonzeros();
+        // // Convert x_est_ to std::vector<double> or just read from DM?
+        std::vector<double> x_est_v = x_est_.nonzeros();
 
-        // // Update the estimated state in your hardware vehicle struct
-        // hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
-        // hw_vehicle_struct.estimate_state_.position_y = x_est_v[1];
-        // hw_vehicle_struct.estimate_state_.position_z = x_est_v[2];
-        // hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3],x_est_v[4],x_est_v[5]);
-        // hw_vehicle_struct.estimate_state_.u          = x_est_v[6];
-        // hw_vehicle_struct.estimate_state_.v          = x_est_v[7];
-        // hw_vehicle_struct.estimate_state_.w          = x_est_v[8];
-        // hw_vehicle_struct.estimate_state_.p          = x_est_v[9];
-        // hw_vehicle_struct.estimate_state_.q          = x_est_v[10];
-        // hw_vehicle_struct.estimate_state_.r          = x_est_v[11];
+        // Update the estimated state in your hardware vehicle struct
+        hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
+        hw_vehicle_struct.estimate_state_.position_y = x_est_v[1];
+        hw_vehicle_struct.estimate_state_.position_z = x_est_v[2];
+        hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3],x_est_v[4],x_est_v[5]);
+        hw_vehicle_struct.estimate_state_.u          = x_est_v[6];
+        hw_vehicle_struct.estimate_state_.v          = x_est_v[7];
+        hw_vehicle_struct.estimate_state_.w          = x_est_v[8];
+        hw_vehicle_struct.estimate_state_.p          = x_est_v[9];
+        hw_vehicle_struct.estimate_state_.q          = x_est_v[10];
+        hw_vehicle_struct.estimate_state_.r          = x_est_v[11];
 
         // Lock and check if new data is available
         std::lock_guard<std::mutex> lock(dvl_data_mutex_);
@@ -1213,10 +1210,23 @@ namespace ros2_control_blue_reach_5
 
             q_orig.normalize();
 
-            StateEstimateTransform.transform.rotation.x = q_orig.x();
-            StateEstimateTransform.transform.rotation.y = q_orig.y();
-            StateEstimateTransform.transform.rotation.z = -q_orig.z();
-            StateEstimateTransform.transform.rotation.w = q_orig.w();
+
+            // get roll/pitch/yaw
+            double roll, pitch, yaw;
+            tf2::Matrix3x3(q_orig).getRPY(roll, pitch, yaw);
+
+            // invert yaw only
+            yaw = -yaw;
+
+            // rebuild
+            tf2::Quaternion q_fixed;
+            q_fixed.setRPY(roll, pitch, yaw);
+            q_fixed.normalize();
+
+            StateEstimateTransform.transform.rotation.x = q_fixed.x();
+            StateEstimateTransform.transform.rotation.y = q_fixed.y();
+            StateEstimateTransform.transform.rotation.z = q_fixed.z();
+            StateEstimateTransform.transform.rotation.w = q_fixed.w();
 
             // Publish the TF
             realtime_transform_publisher_->unlockAndPublish();

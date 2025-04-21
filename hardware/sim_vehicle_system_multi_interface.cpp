@@ -796,21 +796,33 @@ namespace ros2_control_blue_reach_5
             StateEstimateTransform.header.frame_id = hw_vehicle_struct.map_frame_id;
             StateEstimateTransform.child_frame_id = hw_vehicle_struct.body_frame_id;
             StateEstimateTransform.header.stamp = time;
-            StateEstimateTransform.transform.translation.x = hw_vehicle_struct.estimate_state_.position_x;
-            StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.estimate_state_.position_y;
-            StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.estimate_state_.position_z;
+            StateEstimateTransform.transform.translation.x = hw_vehicle_struct.current_state_.position_x;
+            StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.current_state_.position_y;
+            StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.current_state_.position_z;
 
-            q_orig.setW(hw_vehicle_struct.estimate_state_.orientation_w);
-            q_orig.setX(hw_vehicle_struct.estimate_state_.orientation_x);
-            q_orig.setY(hw_vehicle_struct.estimate_state_.orientation_y);
-            q_orig.setZ(hw_vehicle_struct.estimate_state_.orientation_z);
+            q_orig.setW(hw_vehicle_struct.current_state_.orientation_w);
+            q_orig.setX(hw_vehicle_struct.current_state_.orientation_x);
+            q_orig.setY(hw_vehicle_struct.current_state_.orientation_y);
+            q_orig.setZ(hw_vehicle_struct.current_state_.orientation_z);
 
             q_orig.normalize();
 
-            StateEstimateTransform.transform.rotation.x = q_orig.x();
-            StateEstimateTransform.transform.rotation.y = q_orig.y();
-            StateEstimateTransform.transform.rotation.z = -q_orig.z();
-            StateEstimateTransform.transform.rotation.w = q_orig.w();
+            // get roll/pitch/yaw
+            double roll, pitch, yaw;
+            tf2::Matrix3x3(q_orig).getRPY(roll, pitch, yaw);
+
+            // invert yaw only
+            yaw = -yaw;
+
+            // rebuild
+            tf2::Quaternion q_fixed;
+            q_fixed.setRPY(roll, pitch, yaw);
+            q_fixed.normalize();
+
+            StateEstimateTransform.transform.rotation.x = q_fixed.x();
+            StateEstimateTransform.transform.rotation.y = q_fixed.y();
+            StateEstimateTransform.transform.rotation.z = q_fixed.z();
+            StateEstimateTransform.transform.rotation.w = q_fixed.w();
 
             // Publish the TF
             realtime_transform_publisher_->unlockAndPublish();
