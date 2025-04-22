@@ -1217,6 +1217,7 @@ namespace ros2_control_blue_reach_5
 
             // invert yaw only
             yaw = -yaw;
+            pitch = -pitch;
 
             // rebuild
             tf2::Quaternion q_fixed;
