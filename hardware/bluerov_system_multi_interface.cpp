@@ -937,6 +937,10 @@ namespace ros2_control_blue_reach_5
         // Extract result
         x_est_ = state_est[0];
         P_est_ = state_est[1];
+        for (std::size_t i = 0; i < 12; ++i)
+        {
+            P_diag_[i] = double(P_est_(i, i));
+        }
 
         // // Convert x_est_ to std::vector<double> or just read from DM?
         std::vector<double> x_est_v = x_est_.nonzeros();
