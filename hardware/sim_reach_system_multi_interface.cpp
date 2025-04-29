@@ -261,7 +261,7 @@ namespace ros2_control_blue_reach_5
 
             hw_joint_struct_[i].current_state_.sim_time = time_seconds;
             hw_joint_struct_[i].current_state_.sim_period = delta_seconds;
-
+            
             hw_joint_struct_[i].current_state_.filtered_position = hw_joint_struct_[i].command_state_.position;
 
             hw_joint_struct_[i].current_state_.position = hw_joint_struct_[i].command_state_.position;
