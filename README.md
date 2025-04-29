@@ -39,6 +39,9 @@ This project derives its kinematic and dynamic models from [diff_uv](https://git
 3. **Install Required Dependencies:**  
    Use your package manager to install dependencies:
    ```bash
+   sudo apt update
+   ```
+   ```bash
    sudo apt-get install git-lfs \
        ros-$ROS_DISTRO-hardware-interface ros-$ROS_DISTRO-xacro \
        ros-$ROS_DISTRO-controller-manager ros-$ROS_DISTRO-joint-state-broadcaster \
@@ -46,8 +49,11 @@ This project derives its kinematic and dynamic models from [diff_uv](https://git
        ros-$ROS_DISTRO-ros2-control ros-$ROS_DISTRO-mavros ros-$ROS_DISTRO-mavros-msgs \
        ros-$ROS_DISTRO-nav2-msgs ros-$ROS_DISTRO-force-torque-sensor-broadcaster ros-$ROS_DISTRO-tf-transformations
    ```
+   ```bash
+   sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+   ```
 
-4. **Install CasADi:**  
+5. **Install CasADi:**  
    Follow the [CasADi Installation Instructions](https://github.com/casadi/casadi/wiki/InstallationLinux).
 
 ### Installation Steps
