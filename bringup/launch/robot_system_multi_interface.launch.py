@@ -378,7 +378,9 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
     base_link = f'{prefix}base_link'
     robot_base_links.append(base_link)
 
-    IOs = f'{prefix}IOs'
+    vehicle_IOs = f'{prefix}IOs'
+    arm_IOs = f'{prefix}_arm_IOs'
+    
         # Add agent to the uvms_controller parameters
     new_param['uvms_controller']['ros__parameters']['agents'].append(agent_name)
 
@@ -387,6 +389,10 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
         'prefix': prefix,
         'base_TF_translation': [0.190, 0.000, -0.120],
         'base_TF_rotation': [3.142, 0.000, 0.000],
+        'payload_topic_interface': [f'{arm_IOs}/payload.mass', 
+                                    f'{arm_IOs}/payload.Ixx', 
+                                    f'{arm_IOs}/payload.Iyy', 
+                                    f'{arm_IOs}/payload.Izz']
     }
 
     fts_broadcaster_name = f'fts_broadcaster_{i}'
@@ -398,14 +404,14 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
         'frame_id': base_link,
         'interface_names': {
             'force': {
-                'x': f'{IOs}/force.x',
-                'y': f'{IOs}/force.y',
-                'z': f'{IOs}/force.z'
+                'x': f'{vehicle_IOs}/force.x',
+                'y': f'{vehicle_IOs}/force.y',
+                'z': f'{vehicle_IOs}/force.z'
                 },
             'torque': {
-                'x': f'{IOs}/torque.x',
-                'y': f'{IOs}/torque.y',
-                'z': f'{IOs}/torque.z'
+                'x': f'{vehicle_IOs}/torque.x',
+                'y': f'{vehicle_IOs}/torque.y',
+                'z': f'{vehicle_IOs}/torque.z'
                 }
             }
         }

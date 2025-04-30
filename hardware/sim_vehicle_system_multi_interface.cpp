@@ -132,7 +132,7 @@ namespace ros2_control_blue_reach_5
         {
             Thruster::State defaultState{};
             hw_vehicle_struct.hw_thrust_structs_.emplace_back(joint.name, defaultState);
-            // RRBotSystemMultiInterface has exactly 6 joint state interfaces
+            // SimVehicleSystemMultiInterfaceHardware has exactly 6 joint state interfaces
             if (joint.state_interfaces.size() != 6)
             {
                 RCLCPP_FATAL(
@@ -153,7 +153,7 @@ namespace ros2_control_blue_reach_5
 
         for (const hardware_interface::ComponentInfo &gpio : info_.gpios)
         {
-            // RRBotSystemMultiInterface has exactly 81 gpio state interfaces
+            // SimVehicleSystemMultiInterfaceHardware has exactly 81 gpio state interfaces
             if (gpio.state_interfaces.size() != 81)
             {
                 RCLCPP_FATAL(
@@ -162,7 +162,7 @@ namespace ros2_control_blue_reach_5
                     gpio.state_interfaces.size());
                 return hardware_interface::CallbackReturn::ERROR;
             }
-            // RRBotSystemMultiInterface has exactly 28 gpio command interfaces
+            // SimVehicleSystemMultiInterfaceHardware has exactly 28 gpio command interfaces
             if (gpio.command_interfaces.size() != 28)
             {
                 RCLCPP_FATAL(

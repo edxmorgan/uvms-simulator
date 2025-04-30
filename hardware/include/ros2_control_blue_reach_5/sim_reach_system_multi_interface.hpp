@@ -98,6 +98,12 @@ namespace ros2_control_blue_reach_5
     private:
         // Store the state & commands for the robot joints
         std::vector<Joint> hw_joint_struct_;
+        
+        double payload_mass = 0;
+        double payload_Ixx = 0;
+        double payload_Iyy = 0;
+        double payload_Izz = 0;
+
 
         double delta_seconds;
         double time_seconds;

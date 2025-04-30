@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
 #include "ros2_control_blue_reach_5/reach_system_multi_Interface.hpp"
 
 #include <algorithm>
@@ -109,6 +108,28 @@ namespace ros2_control_blue_reach_5
             "Joint '%s'has %zu state interfaces. 27 expected.",
             joint.name.c_str(),
             joint.state_interfaces.size());
+        return hardware_interface::CallbackReturn::ERROR;
+      }
+    };
+
+    for (const hardware_interface::ComponentInfo &gpio : info_.gpios)
+    {
+      // ReachSystemMultiInterfaceHardware has exactly 4 gpio state interfaces
+      if (gpio.state_interfaces.size() != 4)
+      {
+        RCLCPP_FATAL(
+            rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+            "GPIO '%s'has %zu state interfaces. 4 expected.", gpio.name.c_str(),
+            gpio.state_interfaces.size());
+        return hardware_interface::CallbackReturn::ERROR;
+      }
+      // ReachSystemMultiInterfaceHardware has exactly 0 gpio command interfaces
+      if (gpio.command_interfaces.size() != 0)
+      {
+        RCLCPP_FATAL(
+            rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+            "GPIO '%s'has %zu command interfaces. 0 expected.", gpio.name.c_str(),
+            gpio.command_interfaces.size());
         return hardware_interface::CallbackReturn::ERROR;
       }
     };
@@ -250,6 +271,16 @@ namespace ros2_control_blue_reach_5
       state_interfaces.emplace_back(hardware_interface::StateInterface(
           info_.joints[i].name, info_.joints[i].state_interfaces[26].name, &hw_joint_struct_[i].current_state_.gravityT_z));
     };
+
+    // 0-3: payload
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.gpios[0].name, info_.gpios[0].state_interfaces[0].name, &payload_mass));
+  state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.gpios[0].name, info_.gpios[0].state_interfaces[1].name, &payload_Ixx));
+  state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.gpios[0].name, info_.gpios[0].state_interfaces[2].name, &payload_Iyy));
+  state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.gpios[0].name, info_.gpios[0].state_interfaces[3].name, &payload_Izz));
     return state_interfaces;
   }
 

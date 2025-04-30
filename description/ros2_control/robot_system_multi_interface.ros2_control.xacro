@@ -397,6 +397,15 @@
         <state_interface name="gravity_torque.y"/>
         <state_interface name="gravity_torque.z"/>
       </joint>
+
+
+      <gpio name="${prefix}_arm_IOs">
+        <state_interface name="payload.mass"/>
+        <state_interface name="payload.Ixx"/>
+        <state_interface name="payload.Iyy"/>
+        <state_interface name="payload.Izz"/>
+      </gpio>
+
     </ros2_control>
 
   </xacro:macro>
