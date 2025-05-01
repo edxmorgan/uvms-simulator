@@ -305,17 +305,16 @@ namespace ros2_control_blue_reach_5
 
             hw_joint_struct_[i].current_state_.computed_effort = hw_joint_struct_[i].command_state_.effort;
         };
-
+        payload_mass = 0.0;
+        payload_Ixx = 0.0;
+        payload_Iyy = 0.0;
+        payload_Izz = 0.0;
         return hardware_interface::return_type::OK;
     }
 
     hardware_interface::return_type SimReachSystemMultiInterfaceHardware::write(
         const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
     {
-        payload_mass = 0.0;
-        payload_Ixx = 0.0;
-        payload_Iyy = 0.0;
-        payload_Izz = 0.0;
         return hardware_interface::return_type::OK;
     }
 

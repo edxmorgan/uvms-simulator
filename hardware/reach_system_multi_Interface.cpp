@@ -274,13 +274,13 @@ namespace ros2_control_blue_reach_5
 
     // 0-3: payload
     state_interfaces.emplace_back(hardware_interface::StateInterface(
-      info_.gpios[0].name, info_.gpios[0].state_interfaces[0].name, &payload_mass));
-  state_interfaces.emplace_back(hardware_interface::StateInterface(
-      info_.gpios[0].name, info_.gpios[0].state_interfaces[1].name, &payload_Ixx));
-  state_interfaces.emplace_back(hardware_interface::StateInterface(
-      info_.gpios[0].name, info_.gpios[0].state_interfaces[2].name, &payload_Iyy));
-  state_interfaces.emplace_back(hardware_interface::StateInterface(
-      info_.gpios[0].name, info_.gpios[0].state_interfaces[3].name, &payload_Izz));
+        info_.gpios[0].name, info_.gpios[0].state_interfaces[0].name, &payload_mass));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+        info_.gpios[0].name, info_.gpios[0].state_interfaces[1].name, &payload_Ixx));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+        info_.gpios[0].name, info_.gpios[0].state_interfaces[2].name, &payload_Iyy));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+        info_.gpios[0].name, info_.gpios[0].state_interfaces[3].name, &payload_Izz));
     return state_interfaces;
   }
 
@@ -398,6 +398,11 @@ namespace ros2_control_blue_reach_5
 
       hw_joint_struct_[i].current_state_.sim_time = time_seconds;
       hw_joint_struct_[i].current_state_.sim_period = delta_seconds;
+
+      payload_mass = 0.0;
+      payload_Ixx = 0.0;
+      payload_Iyy = 0.0;
+      payload_Izz = 0.0;
     };
     return hardware_interface::return_type::OK;
   }

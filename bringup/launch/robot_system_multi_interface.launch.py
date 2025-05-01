@@ -720,7 +720,7 @@ def launch_setup(context, *args, **kwargs):
 
     mode = OpaqueFunction(function=lambda context: [])
 
-    if task in ['interactive','manual', 'coverage','experimental']:
+    if task in ['interactive','manual', 'coverage', 'dof_control']:
         try:
             _ = FindPackageShare("simlab").find("simlab")
             simlab_exists = True
@@ -769,10 +769,10 @@ def launch_setup(context, *args, **kwargs):
                     }]
                 )
                 mode = coverage_node
-            elif task == 'experimental':
-                experimental_node = Node(
+            elif task == 'dof_control':
+                dof_control_node = Node(
                     package='simlab',
-                    executable='experimental_node',
+                    executable='dof_controller',
                     parameters=[{
                         'robots_prefix': robot_prefixes,
                         'no_robot': len(robot_prefixes),
@@ -781,7 +781,7 @@ def launch_setup(context, *args, **kwargs):
                         'controllers': controllers
                     }]
                 )
-                mode = experimental_node
+                mode = dof_control_node
         else:
             raise Exception("""uvms simlab package not found. If you intend to run
                             the coverage example, interactive marker mode or manual control via PS4 joystick,
