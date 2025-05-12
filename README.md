@@ -57,9 +57,9 @@ This project derives its kinematic and dynamic models from [diff_uv](https://git
    Follow the [CasADi Installation Instructions](https://github.com/casadi/casadi/wiki/InstallationLinux).
 
    Set LD_LIBRARY_PATH for CasADi:If you encounter errors indicating that libcasadi.so cannot be found, update your LD_LIBRARY_PATH to include the directory containing libcasadi.so. For example:
-   
+   ```bash
    export LD_LIBRARY_PATH=/path/to/casadi/build/lib:$LD_LIBRARY_PATH
-
+   ```
 
 ### Installation Steps
 
