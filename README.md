@@ -75,6 +75,8 @@ This project derives its kinematic and dynamic models from [diff_uv](https://git
    From the root of your workspace, install any missing dependencies:
    ```bash
    cd /absolute/path/to/your_ros2_workspace
+   sudo rosdep init
+   rosdep update
    rosdep install --from-paths src --ignore-src -r -y
    ```
 
