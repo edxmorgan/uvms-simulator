@@ -51,6 +51,7 @@ This project derives its kinematic and dynamic models from [diff_uv](https://git
    ```
    ```bash
    sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+   sudo apt install ros-$ROS_DISTRO-plotjuggler-ros
    ```
 
 5. **Install CasADi:**  
