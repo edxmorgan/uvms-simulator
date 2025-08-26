@@ -77,7 +77,8 @@ namespace ros2_control_blue_reach_5
         // Use CasADi's "external" to load the compiled functions
         utils_service.usage_cplusplus_checks("test", "libtest.so", "vehicle");
         utils_service.vehicle_dynamics = utils_service.load_casadi_fun("Vnext", "libUV_xnext.so");
-        utils_service.pwm2rads = utils_service.load_casadi_fun("pwm_to_rads", "libPWM_RAD.so");
+        utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
+        utils_service.thrust2rads = utils_service.load_casadi_fun("thrusts_to_rads", "libTHRUST_RAD.so");
         utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
 
         hw_vehicle_struct.world_frame_id = info_.hardware_parameters["world_frame_id"];
@@ -661,11 +662,27 @@ namespace ros2_control_blue_reach_5
         uv_input.push_back(hw_vehicle_struct.command_state_.Ty);
         uv_input.push_back(hw_vehicle_struct.command_state_.Tz);
 
+        // Define the 6×8 thrust configuration matrix.
+        DM thrust_config = DM({{0.707, 0.707, -0.707, -0.707, 0.0, 0.0, 0.0, 0.0},
+                               {-0.707, 0.707, -0.707, 0.707, 0.0, 0.0, 0.0, 0.0},
+                               {0.0, 0.0, 0.0, 0.0, -1.0, 1.0, 1.0, -1.0},
+                               {0.06, -0.06, 0.06, -0.06, -0.218, -0.218, 0.218, 0.218},
+                               {0.06, 0.06, -0.06, -0.06, 0.12, -0.12, 0.12, -0.12},
+                               {-0.1888, 0.1888, 0.1888, -0.1888, 0.0, 0.0, 0.0, 0.0}});
+
+        std::vector<DM> inputs = {thrust_config, uv_input};
+        std::vector<DM> thrust_outputs = utils_service.genForces2propThrust(inputs);
+        std::vector<double> thrusts = thrust_outputs.at(0).nonzeros();
+
+        std::vector<DM> thrust2rads_args = {thrusts};
+        std::vector<DM> thruster_rads_outputs = utils_service.thrust2rads(thrust2rads_args);
+        std::vector<double> thrusts_rads_double = thruster_rads_outputs.at(0).nonzeros();
+
         for (std::size_t i = 0; i < info_.joints.size(); i++)
         {
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.sim_time = time_seconds;
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.sim_period = delta_seconds;
-            hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position = hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position + 60 * delta_seconds;
+            hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position = hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position + thrusts_rads_double[i] * delta_seconds;
         }
         
         vehicle_parameters_new = {1.15000000e+01, 1.12815000e+02, 1.14800000e+02, 0.00000000e+00,
