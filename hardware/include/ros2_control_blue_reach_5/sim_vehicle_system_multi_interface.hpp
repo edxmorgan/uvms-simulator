@@ -39,8 +39,8 @@
 #include "ros2_control_blue_reach_5/custom_hardware_interface_type_values.hpp"
 #include "ros2_control_blue_reach_5/utils.hpp"
 
-#include "realtime_tools/realtime_buffer.h"
-#include "realtime_tools/realtime_publisher.h"
+#include "realtime_tools/realtime_buffer.hpp"
+#include "realtime_tools/realtime_publisher.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "tf2_msgs/msg/tf_message.hpp"
 #include "tf2_ros/transform_broadcaster.h"
@@ -140,6 +140,14 @@ namespace ros2_control_blue_reach_5
         casadi::DM R_;     // Measurement noise
         std::vector<casadi::DM> vehicle_parameters;
         double P_diag_[12];
+
+        std::vector<casadi::DM> uv_state;
+        std::vector<casadi::DM> uv_input;
+        std::vector<casadi::DM> vehicle_simulate_argument;
+        std::vector<casadi::DM> vehicle_sim;
+        std::vector<double> vehicle_next_states;
+        std::vector<casadi::DM> vehicle_parameters_new;
+        std::vector<double> arm_base_f_ext;
     };
 
 } // namespace ros2_control_blue

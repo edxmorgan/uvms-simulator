@@ -43,6 +43,15 @@
 
 #include <casadi/casadi.hpp>
 
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <tf2_msgs/msg/tf_message.hpp>
+#include <realtime_tools/realtime_publisher.hpp>
+
+
+using tf = tf2_msgs::msg::TFMessage;
+
+
 namespace ros2_control_blue_reach_5
 {
     class SimReachSystemMultiInterfaceHardware : public hardware_interface::SystemInterface
@@ -96,17 +105,41 @@ namespace ros2_control_blue_reach_5
             const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
     private:
-        // Store the state & commands for the robot joints
-        std::vector<Joint> hw_joint_struct_;
-        
         double payload_mass = 0;
         double payload_Ixx = 0;
         double payload_Iyy = 0;
         double payload_Izz = 0;
 
+        // Store the state & commands for the robot joints
+        std::vector<Joint> hw_joint_struct_;
+        
+        std::string robot_prefix;
+
+        std::shared_ptr<rclcpp::Node> node_frames_interface_;
+        std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> executor_;
+        std::thread spin_thread_;
+
+        rclcpp::Publisher<tf>::SharedPtr frame_transform_publisher_;
+        std::shared_ptr<realtime_tools::RealtimePublisher<tf>> realtime_frame_transform_publisher_;
+
 
         double delta_seconds;
         double time_seconds;
+
+        std::vector<casadi::DM> arm_state;
+        std::vector<casadi::DM> arm_torques;
+        
+        std::vector<DM> arm_simulate_argument;
+        std::vector<DM> arm_sim;
+        std::vector<double> arm_next_states;
+
+        // cache FK outputs computed in read
+        std::vector<casadi::DM> T_i_;
+        std::vector<casadi::DM> T_com_i_;
+
+        // Store the utils function for the robot joints
+        casadi_reach_alpha_5::Utils utils_service;
+
     };
 
 } // namespace ros2_control_blue_reach_5

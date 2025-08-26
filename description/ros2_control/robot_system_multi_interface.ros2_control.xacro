@@ -11,11 +11,13 @@
           <plugin>ros2_control_blue_reach_5/ReachSystemMultiInterfaceHardware</plugin>
           <param name="serial_port">${serial_port}</param>
           <param name="state_update_frequency">${state_update_frequency}</param>
+          <param name="prefix">${prefix}</param>
         </xacro:if>
 
         <xacro:unless value="${use_hardware}">
           <plugin>ros2_control_blue_reach_5/SimReachSystemMultiInterfaceHardware</plugin>
           <param name="state_update_frequency">${state_update_frequency}</param>
+          <param name="prefix">${prefix}</param>
         </xacro:unless>
       </hardware>
 

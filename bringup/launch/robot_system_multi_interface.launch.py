@@ -261,10 +261,10 @@ def rviz_states_axes_configure(robot_prefixes, rviz_config):
         robot_map_frame = f'{prefix}map'
         rviz_axes_display(base_link, base_link, rviz_config, 0.1, 0.01, True)
         rviz_axes_display(robot_map_frame, f'{prefix}map', rviz_config, 0.1, 0.01, True)
+        rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, True)
         for i in range(5):
             rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
-            rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, True)
-
+        
 def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task):
     rviz_config['Visualization Manager']['Views']['Saved'] = []
     original_view = {
@@ -342,20 +342,9 @@ def modify_controller_config(use_vehicle_hardware, use_manipulator_hardware, con
             controller_param = yaml.load(file,yaml.SafeLoader)
         new_param = copy.deepcopy(controller_param)
 
-        controller_descriptor = new_param['uvms_controller']['ros__parameters']
-
-        dof_efforts = [
-                effort 
-                for joint in controller_descriptor['joints'] 
-                if joint in controller_descriptor 
-                for effort in controller_descriptor[joint].get('effort_command_interface', [])
-            ]
-
         ix = []
         robot_prefixes = []
         robot_base_links = []
-
-        new_param['uvms_controller']['ros__parameters']['agents'] = []
 
         if use_manipulator_hardware or use_vehicle_hardware:
             i = 'real'
@@ -366,11 +355,10 @@ def modify_controller_config(use_vehicle_hardware, use_manipulator_hardware, con
 
         with open(new_config_path,'w') as file:
             yaml.dump(new_param,file,Dumper=NoAliasDumper)
-        return robot_prefixes, robot_base_links, ix, dof_efforts
+        return robot_prefixes, robot_base_links, ix
 
 def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_param, i, robot_prefixes, robot_base_links, ix):
     ix.append(i)
-    agent_name = f'bluerov_alpha_{i}'
     prefix = f'robot_{i}_'
 
     robot_prefixes.append(prefix)
@@ -379,21 +367,6 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
     robot_base_links.append(base_link)
 
     vehicle_IOs = f'{prefix}IOs'
-    arm_IOs = f'{prefix}_arm_IOs'
-    
-        # Add agent to the uvms_controller parameters
-    new_param['uvms_controller']['ros__parameters']['agents'].append(agent_name)
-
-    # Add agent-specific parameters under uvms_controller
-    new_param['uvms_controller']['ros__parameters'][agent_name] = {
-        'prefix': prefix,
-        'base_TF_translation': [0.190, 0.000, -0.120],
-        'base_TF_rotation': [3.142, 0.000, 0.000],
-        'payload_topic_interface': [f'{arm_IOs}/payload.mass', 
-                                    f'{arm_IOs}/payload.Ixx', 
-                                    f'{arm_IOs}/payload.Iyy', 
-                                    f'{arm_IOs}/payload.Izz']
-    }
 
     fts_broadcaster_name = f'fts_broadcaster_{i}'
     new_param['controller_manager']['ros__parameters'][fts_broadcaster_name] = {
@@ -597,15 +570,15 @@ def launch_setup(context, *args, **kwargs):
 
     use_manipulator_hardware_bool = IfCondition(use_manipulator_hardware).evaluate(context)
     use_vehicle_hardware_bool = IfCondition(use_vehicle_hardware).evaluate(context)
-    record_data_bool = IfCondition(record_data).evaluate(context)
 
-    robot_prefixes, robot_base_links, ix, dof_efforts = modify_controller_config(use_vehicle_hardware_bool,
+
+    robot_prefixes, robot_base_links, ix = modify_controller_config(use_vehicle_hardware_bool,
                                                                                  use_manipulator_hardware_bool,
                                                                                   robot_controllers_read_file,
                                                                                     robot_controllers_modified_file,
                                                                                       sim_robot_count)
 
-
+    record_data_bool = IfCondition(record_data).evaluate(context)
     # Read the controllers string and split into a list
     controllers_str = LaunchConfiguration('controllers').perform(context)
     controllers = ['force' if task=='manual' or task=='cli' else c.strip() for c in controllers_str.split(',')]
@@ -671,14 +644,6 @@ def launch_setup(context, *args, **kwargs):
         arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
     )
 
-
-    # UVMS Controller Spawner (if using mock hardware)
-    uvms_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["uvms_controller", "--controller-manager", "/controller_manager"]
-    )
-
     # Spawner Nodes
     fts_spawner_nodes = []
     # Spawn fts and imu broadcasters for each robot
@@ -736,7 +701,7 @@ def launch_setup(context, *args, **kwargs):
                     parameters=[{
                         'robots_prefix': robot_prefixes,
                         'no_robot': len(robot_prefixes),
-                        'no_efforts': len(dof_efforts),
+                        'no_efforts': 11,
                         'record_data': record_data_bool,
                         'controllers': controllers
                     }]
@@ -751,7 +716,7 @@ def launch_setup(context, *args, **kwargs):
                     parameters=[{
                         'robots_prefix': robot_prefixes,
                         'no_robot': len(robot_prefixes),
-                        'no_efforts': len(dof_efforts),
+                        'no_efforts': 11,
                         'record_data': record_data_bool
                     }]
                 )
@@ -763,7 +728,7 @@ def launch_setup(context, *args, **kwargs):
                     parameters=[{
                         'robots_prefix': robot_prefixes,
                         'no_robot': len(robot_prefixes),
-                        'no_efforts': len(dof_efforts),
+                        'no_efforts': 11,
                         'record_data': record_data_bool,
                         'controllers': controllers
                     }]
@@ -776,7 +741,7 @@ def launch_setup(context, *args, **kwargs):
                     parameters=[{
                         'robots_prefix': robot_prefixes,
                         'no_robot': len(robot_prefixes),
-                        'no_efforts': len(dof_efforts),
+                        'no_efforts': 11,
                         'record_data': record_data_bool,
                         'controllers': controllers
                     }]
@@ -799,24 +764,11 @@ def launch_setup(context, *args, **kwargs):
             ])
         ),
     )
-
-    # param_updater_node = Node(
-    #         package='simlab',
-    #         executable='param_updater_node',
-    #         name='param_updater_node',
-    #         parameters=[{
-    #             'robots_prefix': robot_prefixes,
-    #             'no_robot': len(robot_prefixes),
-    #             'no_efforts': len(dof_efforts),
-    #             'record_data': record_data_bool
-    #         }]
-    #     )
     
   # Define the simulator actions
     simulator_actions = [
         joint_state_broadcaster_spawner, #important
         control_node, 
-        uvms_spawner,
         thruster_forward_pwm_spawner,
         mode,
         run_plotjuggler,
@@ -826,7 +778,7 @@ def launch_setup(context, *args, **kwargs):
  
     # Define simulator_agent
     simulator_agent = GroupAction(
-        actions=simulator_actions + fts_spawner_nodes,
+        actions=[*simulator_actions, *fts_spawner_nodes],
     )
 
     # Launch nodes

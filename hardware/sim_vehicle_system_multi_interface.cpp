@@ -76,6 +76,8 @@ namespace ros2_control_blue_reach_5
 
         // Use CasADi's "external" to load the compiled functions
         utils_service.usage_cplusplus_checks("test", "libtest.so", "vehicle");
+        utils_service.vehicle_dynamics = utils_service.load_casadi_fun("Vnext", "libUV_xnext.so");
+        utils_service.pwm2rads = utils_service.load_casadi_fun("pwm_to_rads", "libPWM_RAD.so");
         utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
 
         hw_vehicle_struct.world_frame_id = info_.hardware_parameters["world_frame_id"];
@@ -617,49 +619,95 @@ namespace ros2_control_blue_reach_5
     }
 
     hardware_interface::return_type SimVehicleSystemMultiInterfaceHardware::read(
+        const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
+    {
+        return hardware_interface::return_type::OK;
+    }
+
+    hardware_interface::return_type SimVehicleSystemMultiInterfaceHardware::write(
         const rclcpp::Time &time, const rclcpp::Duration &period)
     {
-        // RCLCPP_INFO(
-        //     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
-        //     "Got commands: %f,  %f, %f, %f, %f,  %f",
-        //     hw_vehicle_struct.command_state_.Fx,
-        //     hw_vehicle_struct.command_state_.Fy,
-        //     hw_vehicle_struct.command_state_.Fz,
-        //     hw_vehicle_struct.command_state_.Tx,
-        //     hw_vehicle_struct.command_state_.Ty,
-        //     hw_vehicle_struct.command_state_.Tz);
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
+
+        // IMPORTANT, clear per cycle
+        uv_state.clear();
+        uv_state.reserve(12);
+
+        uv_input.clear();
+        uv_input.reserve(6);
+
+        arm_base_f_ext.clear();
+        arm_base_f_ext.reserve(6);
+
+        uv_state.push_back(hw_vehicle_struct.current_state_.position_x);
+        uv_state.push_back(hw_vehicle_struct.current_state_.position_y);
+        uv_state.push_back(hw_vehicle_struct.current_state_.position_z);
+        uv_state.push_back(hw_vehicle_struct.current_state_.roll);
+        uv_state.push_back(hw_vehicle_struct.current_state_.pitch);
+        uv_state.push_back(hw_vehicle_struct.current_state_.yaw);
+
+        uv_state.push_back(hw_vehicle_struct.current_state_.u);
+        uv_state.push_back(hw_vehicle_struct.current_state_.v);
+        uv_state.push_back(hw_vehicle_struct.current_state_.w);
+        uv_state.push_back(hw_vehicle_struct.current_state_.p);
+        uv_state.push_back(hw_vehicle_struct.current_state_.q);
+        uv_state.push_back(hw_vehicle_struct.current_state_.r);
+
+        uv_input.push_back(hw_vehicle_struct.command_state_.Fx);
+        uv_input.push_back(hw_vehicle_struct.command_state_.Fy);
+        uv_input.push_back(hw_vehicle_struct.command_state_.Fz);
+        uv_input.push_back(hw_vehicle_struct.command_state_.Tx);
+        uv_input.push_back(hw_vehicle_struct.command_state_.Ty);
+        uv_input.push_back(hw_vehicle_struct.command_state_.Tz);
+
         for (std::size_t i = 0; i < info_.joints.size(); i++)
         {
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.sim_time = time_seconds;
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.sim_period = delta_seconds;
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position = hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position + 60 * delta_seconds;
         }
+        
+        vehicle_parameters_new = {1.15000000e+01, 1.12815000e+02, 1.14800000e+02, 0.00000000e+00,
+                                  0.00000000e+00, 2.00000000e-02, 0.00000000e+00, 0.00000000e+00,
+                                  0.00000000e+00, 1.60000000e-01, 1.60000000e-01, 1.60000000e-01,
+                                  0.00000000e+00, -5.50000000e+00, -1.27000000e+01, -1.45700000e+01,
+                                  -1.20000000e-01, -1.20000000e-01, -1.20000000e-01, 0.00000000e+00,
+                                  0.00000000e+00, 0.00000000e+00, 0.00000000e+00, -4.03000000e+00,
+                                  -6.22000000e+00, -5.18000000e+00, -7.00000000e-02, -7.00000000e-02,
+                                  -7.00000000e-02, -1.81800000e+01, -2.16600000e+01, -3.69900000e+01,
+                                  -1.55000000e+00, -1.55000000e+00, -1.55000000e+00, 
+                                  0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
+                                  0.00000000e+00, 0.00000000e+00, 0.00000000e+00};
+        arm_base_f_ext = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        vehicle_simulate_argument = {uv_state, uv_input, vehicle_parameters_new, delta_seconds, arm_base_f_ext};
+        vehicle_sim = utils_service.vehicle_dynamics(vehicle_simulate_argument);
+        vehicle_next_states = vehicle_sim.at(0).nonzeros();
 
-        hw_vehicle_struct.current_state_.position_x = hw_vehicle_struct.command_state_.position_x;
-        hw_vehicle_struct.current_state_.position_y = hw_vehicle_struct.command_state_.position_y;
-        hw_vehicle_struct.current_state_.position_z = hw_vehicle_struct.command_state_.position_z;
+        hw_vehicle_struct.current_state_.position_x = vehicle_next_states[0];
+        hw_vehicle_struct.current_state_.position_y = vehicle_next_states[1];
+        hw_vehicle_struct.current_state_.position_z = vehicle_next_states[2];
+        
+        hw_vehicle_struct.depth_from_pressure2 = vehicle_next_states[2];
 
-        hw_vehicle_struct.current_state_.setEuler(hw_vehicle_struct.command_state_.roll,
-                                                  hw_vehicle_struct.command_state_.pitch,
-                                                  hw_vehicle_struct.command_state_.yaw);
+        hw_vehicle_struct.current_state_.setEuler(vehicle_next_states[3],
+                                                  vehicle_next_states[4],
+                                                  vehicle_next_states[5]);
 
-        hw_vehicle_struct.imu_state.setEuler(hw_vehicle_struct.command_state_.roll,
-                                             -hw_vehicle_struct.command_state_.pitch,
-                                             -hw_vehicle_struct.command_state_.yaw);
-        hw_vehicle_struct.depth_from_pressure2 = hw_vehicle_struct.command_state_.position_z;
+        hw_vehicle_struct.imu_state.setEuler(vehicle_next_states[3],
+                                             -vehicle_next_states[4],
+                                             -vehicle_next_states[5]);
 
-        hw_vehicle_struct.current_state_.u = hw_vehicle_struct.command_state_.u;
-        hw_vehicle_struct.current_state_.v = hw_vehicle_struct.command_state_.v;
-        hw_vehicle_struct.current_state_.w = hw_vehicle_struct.command_state_.w;
-        hw_vehicle_struct.current_state_.p = hw_vehicle_struct.command_state_.p;
-        hw_vehicle_struct.current_state_.q = hw_vehicle_struct.command_state_.q;
-        hw_vehicle_struct.current_state_.r = hw_vehicle_struct.command_state_.r;
+        hw_vehicle_struct.current_state_.u = vehicle_next_states[6];
+        hw_vehicle_struct.current_state_.v = vehicle_next_states[7];
+        hw_vehicle_struct.current_state_.w = vehicle_next_states[8];
+        hw_vehicle_struct.current_state_.p = vehicle_next_states[9];
+        hw_vehicle_struct.current_state_.q = vehicle_next_states[10];
+        hw_vehicle_struct.current_state_.r = vehicle_next_states[11];
 
-        hw_vehicle_struct.dvl_state.vx = hw_vehicle_struct.command_state_.u;
-        hw_vehicle_struct.dvl_state.vy = hw_vehicle_struct.command_state_.v;
-        hw_vehicle_struct.dvl_state.vz = hw_vehicle_struct.command_state_.w;
+        hw_vehicle_struct.dvl_state.vx = vehicle_next_states[6];
+        hw_vehicle_struct.dvl_state.vy = vehicle_next_states[7];
+        hw_vehicle_struct.dvl_state.vz = vehicle_next_states[8];
 
         hw_vehicle_struct.current_state_.Fx = hw_vehicle_struct.command_state_.Fx;
         hw_vehicle_struct.current_state_.Fy = hw_vehicle_struct.command_state_.Fy;
@@ -727,11 +775,6 @@ namespace ros2_control_blue_reach_5
         return hardware_interface::return_type::OK;
     }
 
-    hardware_interface::return_type SimVehicleSystemMultiInterfaceHardware::write(
-        const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
-    {
-        return hardware_interface::return_type::OK;
-    }
     void SimVehicleSystemMultiInterfaceHardware::publishStaticPoseTransform()
     {
         // Capture the current time

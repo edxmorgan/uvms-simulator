@@ -52,7 +52,6 @@ namespace ros2_control_blue_reach_5
     utils_service.usage_cplusplus_checks("test", "libtest.so", "reach system");
     utils_service.current2torqueMap = utils_service.load_casadi_fun("current_to_torque_map", "libC2T.so");
     utils_service.torque2currentMap = utils_service.load_casadi_fun("torque_to_current_map", "libT2C.so");
-    utils_service.arm_kalman_update = utils_service.load_casadi_fun("position_kf_update", "libArmKalman_update.so");
 
     cfg_.serial_port_ = info_.hardware_parameters["serial_port"];
     cfg_.state_update_freq_ = std::stoi(info_.hardware_parameters["state_update_frequency"]);

@@ -50,8 +50,8 @@
 #include "ros2_control_blue_reach_5/custom_hardware_interface_type_values.hpp"
 #include "ros2_control_blue_reach_5/utils.hpp"
 
-#include "realtime_tools/realtime_buffer.h"
-#include "realtime_tools/realtime_publisher.h"
+#include "realtime_tools/realtime_buffer.hpp"
+#include "realtime_tools/realtime_publisher.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "tf2_msgs/msg/tf_message.hpp"
 #include "tf2_ros/transform_broadcaster.h"
