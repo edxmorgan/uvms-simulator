@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
 #ifndef ROS2_CONTROL_BLUE_REACH_5__REACH_SYSTEM_MULTI_INTERFACE_HPP_
 #define ROS2_CONTROL_BLUE_REACH_5__REACH_SYSTEM_MULTI_INTERFACE_HPP_
 
@@ -49,9 +48,14 @@
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include <casadi/casadi.hpp>
 
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <tf2_msgs/msg/tf_message.hpp>
+#include <realtime_tools/realtime_publisher.hpp>
+
 namespace ros2_control_blue_reach_5
 {
-
+  using tf = tf2_msgs::msg::TFMessage;
   using RefType = std_msgs::msg::Float64MultiArray;
   class ReachSystemMultiInterfaceHardware : public hardware_interface::SystemInterface
   {
@@ -135,12 +139,25 @@ namespace ros2_control_blue_reach_5
     double payload_Iyy = 0;
     double payload_Izz = 0;
 
-
     std::vector<DM> C2T_arg;
     std::vector<DM> T2C_arg;
 
     double delta_seconds;
     double time_seconds;
+
+    std::string robot_prefix;
+
+    std::shared_ptr<rclcpp::Node> node_frames_interface_;
+    std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> executor_;
+    std::thread spin_thread_;
+
+    rclcpp::Publisher<tf>::SharedPtr frame_transform_publisher_;
+    std::shared_ptr<realtime_tools::RealtimePublisher<tf>> realtime_frame_transform_publisher_;
+
+    // cache FK outputs computed in read
+    std::vector<casadi::DM> T_i_;
+    std::vector<casadi::DM> T_com_i_;
+
     // Store the utils function for the robot joints
     casadi_reach_alpha_5::Utils utils_service;
 

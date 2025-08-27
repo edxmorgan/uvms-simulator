@@ -779,72 +779,37 @@ def launch_setup(context, *args, **kwargs):
 
     mode = OpaqueFunction(function=lambda context: [])
 
-    if task in ['interactive','manual', 'coverage', 'dof_control']:
+    if task in ['interactive', 'manual', 'motion_plan', 'joint', 'direct_thrusters']:
         try:
-            _ = FindPackageShare("simlab").find("simlab")
-            simlab_exists = True
-        except Exception:
-            simlab_exists = False
+            FindPackageShare("simlab").find("simlab")
+        except Exception as e:
+            raise RuntimeError(
+                "uvms simlab package not found. If you intend to run the coverage example, interactive marker mode, or manual control via PS4 joystick, please install uvms_simlab from https://github.com/edxmorgan/uvms_simlab"
+            ) from e
 
-        if simlab_exists:
-            if task == 'interactive':
-                interactive_marker_node = Node(
-                    package='simlab',
-                    executable='interactive_marker_node',
-                    name='interactive_marker_mode',
-                    parameters=[{
-                        'robots_prefix': robot_prefixes,
-                        'no_robot': len(robot_prefixes),
-                        'no_efforts': 11,
-                        'record_data': record_data_bool,
-                        'controllers': controllers
-                    }]
-                )
-                mode = interactive_marker_node
+        mode_params = {
+            'robots_prefix': robot_prefixes,
+            'no_robot': len(robot_prefixes),
+            'no_efforts': 11,
+            'record_data': record_data_bool,
+            'controllers': controllers,
+        }
 
-            if task == 'manual':
-                joystick_controller_node = Node(
-                    package='simlab',
-                    executable='joystick_controller',
-                    name='joystick_controller',
-                    parameters=[{
-                        'robots_prefix': robot_prefixes,
-                        'no_robot': len(robot_prefixes),
-                        'no_efforts': 11,
-                        'record_data': record_data_bool
-                    }]
-                )
-                mode = joystick_controller_node
-            elif task == 'coverage':
-                coverage_node = Node(
-                    package='simlab',
-                    executable='coverage_node',
-                    parameters=[{
-                        'robots_prefix': robot_prefixes,
-                        'no_robot': len(robot_prefixes),
-                        'no_efforts': 11,
-                        'record_data': record_data_bool,
-                        'controllers': controllers
-                    }]
-                )
-                mode = coverage_node
-            elif task == 'dof_control':
-                dof_control_node = Node(
-                    package='simlab',
-                    executable='dof_controller',
-                    parameters=[{
-                        'robots_prefix': robot_prefixes,
-                        'no_robot': len(robot_prefixes),
-                        'no_efforts': 11,
-                        'record_data': record_data_bool,
-                        'controllers': controllers
-                    }]
-                )
-                mode = dof_control_node
-        else:
-            raise Exception("""uvms simlab package not found. If you intend to run
-                            the coverage example, interactive marker mode or manual control via PS4 joystick,
-                            please install uvms_simlab from https://github.com/edxmorgan/uvms_simlab""")
+        task_map = {
+            'interactive':      ('interactive_controller', {**mode_params}),
+            'manual':           ('joystick_controller',    {**mode_params}),
+            'motion_plan':      ('motion_plan_controller', {**mode_params}),
+            'joint':            ('joint_controller',       {**mode_params}),
+            'direct_thrusters': ('direct_thruster_controller',  {**mode_params}),
+        }
+
+        exec_name, params = task_map[task]
+        mode = Node(
+            package='simlab',
+            executable=exec_name,
+            name=exec_name,
+            parameters=[params],
+        )
 
   # Define the simulator actions
     simulator_actions = [

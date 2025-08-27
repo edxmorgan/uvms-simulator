@@ -13,7 +13,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-
 #ifndef ROS2_CONTROL_BLUE_REACH_5__SIM_REACH_SYSTEM_MULTI_INTERFACE_HPP_
 #define ROS2_CONTROL_BLUE_REACH_5__SIM_REACH_SYSTEM_MULTI_INTERFACE_HPP_
 
@@ -48,12 +47,9 @@
 #include <tf2_msgs/msg/tf_message.hpp>
 #include <realtime_tools/realtime_publisher.hpp>
 
-
-using tf = tf2_msgs::msg::TFMessage;
-
-
 namespace ros2_control_blue_reach_5
 {
+    using tf = tf2_msgs::msg::TFMessage;
     class SimReachSystemMultiInterfaceHardware : public hardware_interface::SystemInterface
     {
 
@@ -112,7 +108,7 @@ namespace ros2_control_blue_reach_5
 
         // Store the state & commands for the robot joints
         std::vector<Joint> hw_joint_struct_;
-        
+
         std::string robot_prefix;
 
         std::shared_ptr<rclcpp::Node> node_frames_interface_;
@@ -122,13 +118,12 @@ namespace ros2_control_blue_reach_5
         rclcpp::Publisher<tf>::SharedPtr frame_transform_publisher_;
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>> realtime_frame_transform_publisher_;
 
-
         double delta_seconds;
         double time_seconds;
 
         std::vector<casadi::DM> arm_state;
         std::vector<casadi::DM> arm_torques;
-        
+
         std::vector<DM> arm_simulate_argument;
         std::vector<DM> arm_sim;
         std::vector<double> arm_next_states;
@@ -139,7 +134,6 @@ namespace ros2_control_blue_reach_5
 
         // Store the utils function for the robot joints
         casadi_reach_alpha_5::Utils utils_service;
-
     };
 
 } // namespace ros2_control_blue_reach_5
