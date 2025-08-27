@@ -6,9 +6,6 @@ controller_manager:
     joint_state_broadcaster:
       type: joint_state_broadcaster/JointStateBroadcaster
 
-    forward_pwm_controller:
-      type: forward_command_controller/ForwardCommandController
-
 # get vehicle base to manipulator base TF
 # ros2 run tf2_ros tf2_echo base_link alpha_base_link 
 
@@ -21,16 +18,3 @@ joint_state_broadcaster:
       acceleration: acceleration
       current: current
       stateId: stateId
-
-forward_pwm_controller:
-  ros__parameters:
-    joints:
-      - robot_real_thruster1_joint
-      - robot_real_thruster2_joint
-      - robot_real_thruster3_joint
-      - robot_real_thruster4_joint
-      - robot_real_thruster5_joint
-      - robot_real_thruster6_joint
-      - robot_real_thruster7_joint
-      - robot_real_thruster8_joint
-    interface_name: pwm

@@ -449,9 +449,10 @@ namespace ros2_control_blue_reach_5
             arm_state.push_back(hw_joint_struct_[j].current_state_.velocity);
         };
 
+        // Then collect all efforts
         for (int j = 0; j < 4; ++j)
         {
-            arm_torques.push_back(0.0);
+            arm_torques.push_back(hw_joint_struct_[j].command_state_.effort);
         };
 
         arm_simulate_argument = {arm_state, arm_torques, delta_seconds, rigid_p};

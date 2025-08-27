@@ -368,6 +368,7 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
 
     vehicle_IOs = f'{prefix}IOs'
 
+    # Force torque sensor broadcaster
     fts_broadcaster_name = f'fts_broadcaster_{i}'
     new_param['controller_manager']['ros__parameters'][fts_broadcaster_name] = {
         'type': 'force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster'
@@ -390,6 +391,65 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
         }
     }
 
+    # Vehicle effort controller
+    vehicle_effort_ctrl_name = f'vehicle_effort_controller_{i}'
+    new_param['controller_manager']['ros__parameters'][vehicle_effort_ctrl_name] = {
+        'type': 'gpio_controllers/GpioCommandController'
+    }
+    new_param[vehicle_effort_ctrl_name] = {
+        'ros__parameters': {
+            'gpios': [vehicle_IOs],
+            'command_interfaces': {
+                vehicle_IOs: [
+                    {'interfaces': [
+                        'force.x', 'force.y', 'force.z',
+                        'torque.x', 'torque.y', 'torque.z'
+                    ]}
+                ]
+            },
+        }
+    }
+
+    # Vehicle thrusters PWM controller
+    thruster_ctrl_name = f'vehicle_thrusters_pwm_controller_{i}'
+    new_param['controller_manager']['ros__parameters'][thruster_ctrl_name] = {
+        'type': 'forward_command_controller/ForwardCommandController'
+    }
+    new_param[thruster_ctrl_name] = {
+        'ros__parameters': {
+            'joints': [
+                f'{prefix}thruster1_joint',
+                f'{prefix}thruster2_joint',
+                f'{prefix}thruster3_joint',
+                f'{prefix}thruster4_joint',
+                f'{prefix}thruster5_joint',
+                f'{prefix}thruster6_joint',
+                f'{prefix}thruster7_joint',
+                f'{prefix}thruster8_joint'
+            ],
+            'interface_name': 'pwm'
+        }
+    }
+
+    # Manipulation effort controller
+    manip_ctrl_name = f'manipulation_effort_controller_{i}'
+    new_param['controller_manager']['ros__parameters'][manip_ctrl_name] = {
+        'type': 'forward_command_controller/ForwardCommandController'
+    }
+    new_param[manip_ctrl_name] = {
+        'ros__parameters': {
+            'joints': [
+                f'{prefix}_axis_e',
+                f'{prefix}_axis_d',
+                f'{prefix}_axis_c',
+                f'{prefix}_axis_b',
+                f'{prefix}_axis_a'
+            ],
+            'interface_name': 'effort'
+        }
+    }
+
+    # Gravity force torque broadcasters for manipulator axes
     for axis_i in ['e','d','c','b','a']:
         gravity_broadcaster_name = f'gravity_broadcaster_{prefix}_axis_{axis_i}'
         new_param['controller_manager']['ros__parameters'][gravity_broadcaster_name] = {
@@ -412,6 +472,7 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
                 }
             }
         }
+    
     return new_param, robot_prefixes, robot_base_links, ix
 
 def generate_launch_description():
@@ -581,7 +642,7 @@ def launch_setup(context, *args, **kwargs):
     record_data_bool = IfCondition(record_data).evaluate(context)
     # Read the controllers string and split into a list
     controllers_str = LaunchConfiguration('controllers').perform(context)
-    controllers = ['force' if task=='manual' or task=='cli' else c.strip() for c in controllers_str.split(',')]
+    controllers = ['force' if task=='manual' else c.strip() for c in controllers_str.split(',')]
     
     no_robots = len(robot_prefixes)
     if len(controllers) == 1:
@@ -646,6 +707,10 @@ def launch_setup(context, *args, **kwargs):
 
     # Spawner Nodes
     fts_spawner_nodes = []
+    thruster_spawner_nodes = []
+    vehicle_effort_spawner_nodes = []
+    manip_effort_spawner_nodes = []
+
     # Spawn fts and imu broadcasters for each robot
     for k, i in enumerate(ix):
         fts_broadcaster_name = f'fts_broadcaster_{i}'
@@ -658,6 +723,34 @@ def launch_setup(context, *args, **kwargs):
         )
         fts_spawner_nodes.append(fts_spawner)
 
+
+        # controllers
+        thruster_ctrl_name = f"vehicle_thrusters_pwm_controller_{i}"
+        vehicle_effort_ctrl_name   = f"vehicle_effort_controller_{i}"
+        manip_effort_ctrl_name    = f"manipulation_effort_controller_{i}"
+
+        thruster_ctrl_spawner = Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[thruster_ctrl_name, "--controller-manager", "/controller_manager"],
+        )
+        thruster_spawner_nodes.append(thruster_ctrl_spawner)
+
+        vehicle_effort_ctrl_spawner = Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[vehicle_effort_ctrl_name, "--controller-manager", "/controller_manager"],
+        )
+        vehicle_effort_spawner_nodes.append(vehicle_effort_ctrl_spawner)
+
+        manip_effort_ctrl_spawner = Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[manip_effort_ctrl_name, "--controller-manager", "/controller_manager"],
+        )
+        manip_effort_spawner_nodes.append(manip_effort_ctrl_spawner)
+
+        # joint gravity effect broadcaster
         for axis_i in ['e','d','c','b','a']:
             gravity_broadcaster_name = f'gravity_broadcaster_{robot_prefixes[k]}_axis_{axis_i}'
             # gravity visualisation Spawner
@@ -668,10 +761,11 @@ def launch_setup(context, *args, **kwargs):
             )
             fts_spawner_nodes.append(gravity_fts_spawner)
 
+
     # Delay RViz start after `fts_broadcaster_`
     delay_rviz_after_fts_broadcaster_spawner = RegisterEventHandler(
         event_handler=OnProcessExit(
-            target_action=fts_spawner,
+            target_action=fts_spawner_nodes[-1],
             on_exit=[rviz_node],
         )
     )
@@ -752,24 +846,10 @@ def launch_setup(context, *args, **kwargs):
                             the coverage example, interactive marker mode or manual control via PS4 joystick,
                             please install uvms_simlab from https://github.com/edxmorgan/uvms_simlab""")
 
-    thruster_forward_pwm_spawner = Node(
-        package="controller_manager",
-        executable="spawner",
-        arguments=["forward_pwm_controller",
-                "--controller-manager", "/controller_manager"],
-        condition=IfCondition(
-            PythonExpression([
-                "'", LaunchConfiguration("task"), "' == 'manual' and '",
-                LaunchConfiguration("use_vehicle_hardware"), "' == 'true'"
-            ])
-        ),
-    )
-    
   # Define the simulator actions
     simulator_actions = [
         joint_state_broadcaster_spawner, #important
-        control_node, 
-        thruster_forward_pwm_spawner,
+        control_node,
         mode,
         run_plotjuggler,
         robot_state_pub_node,
@@ -778,8 +858,11 @@ def launch_setup(context, *args, **kwargs):
  
     # Define simulator_agent
     simulator_agent = GroupAction(
-        actions=[*simulator_actions, *fts_spawner_nodes],
-    )
+        actions=[*simulator_actions,
+                  *fts_spawner_nodes, 
+                  *thruster_spawner_nodes, 
+                  *vehicle_effort_spawner_nodes, 
+                  *manip_effort_spawner_nodes],)
 
     # Launch nodes
     nodes = [

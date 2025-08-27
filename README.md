@@ -43,11 +43,11 @@ This project derives its kinematic and dynamic models from [diff_uv](https://git
    ```
    ```bash
    sudo apt-get install git-lfs \
-       ros-$ROS_DISTRO-hardware-interface ros-$ROS_DISTRO-xacro \
+       ros-$ROS_DISTRO-hardware-interface ros-$ROS_DISTRO-xacro ros-$ROS_DISTRO-gpio-controllers\
        ros-$ROS_DISTRO-controller-manager ros-$ROS_DISTRO-joint-state-broadcaster \
        ros-$ROS_DISTRO-joint-state-publisher-gui ros-$ROS_DISTRO-forward-command-controller \
        ros-$ROS_DISTRO-ros2-control ros-$ROS_DISTRO-mavros ros-$ROS_DISTRO-mavros-msgs \
-       ros-$ROS_DISTRO-nav2-msgs ros-$ROS_DISTRO-force-torque-sensor-broadcaster ros-$ROS_DISTRO-tf-transformations
+       ros-$ROS_DISTRO-nav2-msgs ros-$ROS_DISTRO-force-torque-sensor-broadcaster ros-$ROS_DISTRO-tf-transformations \
    ```
    ```bash
    sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev

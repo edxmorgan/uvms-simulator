@@ -1034,14 +1034,14 @@ namespace ros2_control_blue_reach_5
         user_forces(4) = hw_vehicle_struct.command_state_.Ty;
         user_forces(5) = hw_vehicle_struct.command_state_.Tz;
 
-        // RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-        //             "Got thruster commands: %f %f %f %f %f %f",
-        //             (double)user_forces(0),
-        //             (double)user_forces(1),
-        //             (double)user_forces(2),
-        //             (double)user_forces(3),
-        //             (double)user_forces(4),
-        //             (double)user_forces(5));
+        RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                    "Got thruster commands: %f %f %f %f %f %f",
+                    (double)user_forces(0),
+                    (double)user_forces(1),
+                    (double)user_forces(2),
+                    (double)user_forces(3),
+                    (double)user_forces(4),
+                    (double)user_forces(5));
 
         // Define the 6×8 thrust configuration matrix.
         DM thrust_config = DM({{0.707, 0.707, -0.707, -0.707, 0.0, 0.0, 0.0, 0.0},
@@ -1054,16 +1054,16 @@ namespace ros2_control_blue_reach_5
         std::vector<DM> inputs = {thrust_config, user_forces};
         std::vector<DM> thrust_outputs = utils_service.genForces2propThrust(inputs);
         std::vector<double> thrusts = thrust_outputs.at(0).nonzeros();
-        // RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-        //                             "Got thruster pwm commands: %f %f %f %f %f %f %f %f",
-        //                             thrusts[0],
-        //                             thrusts[1],
-        //                             thrusts[2],
-        //                             thrusts[3],
-        //                             thrusts[4],
-        //                             thrusts[5],
-        //                             thrusts[6],
-        //                             thrusts[7]);
+        RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                                    "Got thruster pwm commands: %f %f %f %f %f %f %f %f",
+                                    thrusts[0],
+                                    thrusts[1],
+                                    thrusts[2],
+                                    thrusts[3],
+                                    thrusts[4],
+                                    thrusts[5],
+                                    thrusts[6],
+                                    thrusts[7]);
         std::vector<DM> pwm_input = utils_service.from_pwm_to_thrust(thrust_outputs.at(0));
         std::vector<double> pwm_commands = pwm_input.at(0).nonzeros();
 
@@ -1092,7 +1092,7 @@ namespace ros2_control_blue_reach_5
 
                 // if (scaled_pwm != 1500) {
                 // // Log both the original and scaled PWM values.
-                // RCLCPP_INFO(
+                // RCLCPP_DEBUG(
                 //     rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                 //     "Thruster with direction %d: original pwm = %f, scaled pwm = %f",
                 //     thruster.rc_direction, thruster.command_state_.command_pwm, scaled_pwm
