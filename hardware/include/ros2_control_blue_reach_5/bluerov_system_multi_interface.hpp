@@ -140,24 +140,6 @@ namespace ros2_control_blue_reach_5
         rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr camera_mount_pitch_subscriber_;
         realtime_tools::RealtimeBuffer<std_msgs::msg::Float32::SharedPtr> camera_mount_pitch_msg_buffer_;
 
-        // GStreamer objects for the camera stream
-        GstElement *gst_pipeline_{nullptr};
-        GstAppSink *gst_appsink_{nullptr};
-
-        // Publisher for sensor_msgs::Image messages
-        std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::Image>> image_pub_;
-        std::shared_ptr<realtime_tools::RealtimePublisher<sensor_msgs::msg::Image>>
-            realtime_image_pub_;
-
-        // Thread for handling the camera stream
-        std::thread camera_thread_;
-        std::atomic<bool> camera_thread_running_{false};
-
-        // Methods to start, run, and stop the camera stream processing
-        void startCameraStream();
-        void cameraLoop();
-        void stopCameraStream();
-
         // --- Declaration of the helper function to rebuild the full MAVLink packet ---
         static std::vector<uint8_t> convertToBytes(const mavros_msgs::msg::Mavlink::SharedPtr &msg);
 

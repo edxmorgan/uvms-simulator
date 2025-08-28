@@ -32,6 +32,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
 
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
@@ -115,6 +116,11 @@ install(
   DIRECTORY bringup/launch bringup/config
   DESTINATION share/${PROJECT_NAME}
 )
+
+
+# Install the Python package "bringup"  ← ADDED
+ament_python_install_package(bringup)
+
 install(TARGETS ${PROJECT_NAME}
   EXPORT export_ros2_control_blue_reach_5
   ARCHIVE DESTINATION lib
