@@ -1,4 +1,20 @@
+# Copyright (C) 2024 Edward Morgan
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+# 
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
 import yaml, copy
+from launch_ros.actions import Node
 
 class NoAliasDumper(yaml.SafeDumper):
     def ignore_aliases(self, data):
@@ -63,7 +79,7 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
     }
 
     # Vehicle effort controller
-    vehicle_effort_ctrl_name = f'vehicle_effort_controller_{i}'
+    vehicle_effort_ctrl_name = f'vehicle_effort_controller_{prefix}'
     new_param['controller_manager']['ros__parameters'][vehicle_effort_ctrl_name] = {
         'type': 'gpio_controllers/GpioCommandController'
     }
@@ -82,7 +98,7 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
     }
 
     # Vehicle thrusters PWM controller
-    thruster_ctrl_name = f'vehicle_thrusters_pwm_controller_{i}'
+    thruster_ctrl_name = f'vehicle_thrusters_pwm_controller_{prefix}'
     new_param['controller_manager']['ros__parameters'][thruster_ctrl_name] = {
         'type': 'forward_command_controller/ForwardCommandController'
     }
@@ -103,7 +119,7 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
     }
 
     # Manipulation effort controller
-    manip_ctrl_name = f'manipulation_effort_controller_{i}'
+    manip_ctrl_name = f'manipulation_effort_controller_{prefix}'
     new_param['controller_manager']['ros__parameters'][manip_ctrl_name] = {
         'type': 'forward_command_controller/ForwardCommandController'
     }
@@ -164,3 +180,53 @@ def parse_controller_list(controllers_list_str: str, no_robots: int) -> list[str
             f"Provide one controller (applied to all) or exactly {no_robots}."
         )
     return controllers
+
+def controller_spawner_nodes(robot_i, robot_prefixes_k):
+    fts_spawner_nodes = []
+    fts_broadcaster_name = f'fts_broadcaster_{robot_i}'
+
+    # FTS Spawner
+    fts_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[fts_broadcaster_name, "--controller-manager", "/controller_manager"],
+    )
+    fts_spawner_nodes.append(fts_spawner)
+
+    # controllers
+    thruster_pwm_ctrl_name = f"vehicle_thrusters_pwm_controller_{robot_prefixes_k}"
+    vehicle_effort_ctrl_name   = f"vehicle_effort_controller_{robot_prefixes_k}"
+    manip_effort_ctrl_name    = f"manipulation_effort_controller_{robot_prefixes_k}"
+
+    thruster_pwm_ctrl_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[thruster_pwm_ctrl_name, "--controller-manager", "/controller_manager", "--inactive"],
+    )
+    thruster_pwm_ctrl_spawner.controller_name = thruster_pwm_ctrl_name  # attach
+
+    vehicle_effort_ctrl_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[vehicle_effort_ctrl_name, "--controller-manager", "/controller_manager", "--inactive"],
+    )
+    vehicle_effort_ctrl_spawner.controller_name = vehicle_effort_ctrl_name  # attach
+
+    manip_effort_ctrl_spawner = Node(
+        package="controller_manager",
+        executable="spawner",
+        arguments=[manip_effort_ctrl_name, "--controller-manager", "/controller_manager", "--inactive"],
+    )
+    manip_effort_ctrl_spawner.controller_name = manip_effort_ctrl_name  # attach
+
+    # joint gravity effect broadcaster
+    for axis_i in ['e','d','c','b','a']:
+        gravity_broadcaster_name = f'gravity_broadcaster_{robot_prefixes_k}_axis_{axis_i}'
+        # gravity visualisation Spawner
+        gravity_fts_spawner = Node(
+            package="controller_manager",
+            executable="spawner",
+            arguments=[gravity_broadcaster_name, "--controller-manager", "/controller_manager"],
+        )
+        fts_spawner_nodes.append(gravity_fts_spawner)
+    return fts_spawner_nodes, thruster_pwm_ctrl_spawner, vehicle_effort_ctrl_spawner, manip_effort_ctrl_spawner

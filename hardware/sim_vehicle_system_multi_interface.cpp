@@ -628,6 +628,23 @@ namespace ros2_control_blue_reach_5
     hardware_interface::return_type SimVehicleSystemMultiInterfaceHardware::write(
         const rclcpp::Time &time, const rclcpp::Duration &period)
     {
+        // DM user_forces = DM::zeros(6, 1);
+        // user_forces(0) = hw_vehicle_struct.command_state_.Fx;
+        // user_forces(1) = hw_vehicle_struct.command_state_.Fy;
+        // user_forces(2) = hw_vehicle_struct.command_state_.Fz;
+        // user_forces(3) = hw_vehicle_struct.command_state_.Tx;
+        // user_forces(4) = hw_vehicle_struct.command_state_.Ty;
+        // user_forces(5) = hw_vehicle_struct.command_state_.Tz;
+
+        // RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+        //             "Got thruster commands: %f %f %f %f %f %f",
+        //             (double)user_forces(0),
+        //             (double)user_forces(1),
+        //             (double)user_forces(2),
+        //             (double)user_forces(3),
+        //             (double)user_forces(4),
+        //             (double)user_forces(5));
+
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
 

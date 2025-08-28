@@ -23,8 +23,7 @@ from launch_ros.substitutions import FindPackageShare
 
 import launch.logging
 from bringup.utils.rviz_utils import rviz_file_configure
-from bringup.utils.controller_config import modify_controller_config, parse_controller_list
-
+from bringup.utils.controller_config import modify_controller_config, parse_controller_list, controller_spawner_nodes
 
 # Create a logger for the launch file
 logger = launch.logging.get_logger('robot_system_multi_interface_launch')
@@ -259,58 +258,13 @@ def launch_setup(context, *args, **kwargs):
     vehicle_effort_spawner_nodes = []
     manip_effort_spawner_nodes = []
 
-    # Spawn fts and imu broadcasters for each robot
+    # Spawn fts and controllers
     for k, robot_i in enumerate(robot_ix):
-        fts_broadcaster_name = f'fts_broadcaster_{robot_i}'
-
-        # FTS Spawner
-        fts_spawner = Node(
-            package="controller_manager",
-            executable="spawner",
-            arguments=[fts_broadcaster_name, "--controller-manager", "/controller_manager"],
-        )
-        fts_spawner_nodes.append(fts_spawner)
-
-        # controllers
-        thruster_pwm_ctrl_name = f"vehicle_thrusters_pwm_controller_{robot_i}"
-        vehicle_effort_ctrl_name   = f"vehicle_effort_controller_{robot_i}"
-        manip_effort_ctrl_name    = f"manipulation_effort_controller_{robot_i}"
-
-        thruster_pwm_ctrl_spawner = Node(
-            package="controller_manager",
-            executable="spawner",
-            arguments=[thruster_pwm_ctrl_name, "--controller-manager", "/controller_manager", "--inactive"],
-        )
-        thruster_pwm_ctrl_spawner.controller_name = thruster_pwm_ctrl_name  # attach
+        robot_fts_spawner_nodes, thruster_pwm_ctrl_spawner, vehicle_effort_ctrl_spawner, manip_effort_ctrl_spawner = controller_spawner_nodes(robot_i, robot_prefixes[k])
+        fts_spawner_nodes.extend(robot_fts_spawner_nodes)
         thruster_pwm_spawner_nodes.append(thruster_pwm_ctrl_spawner)
-
-        vehicle_effort_ctrl_spawner = Node(
-            package="controller_manager",
-            executable="spawner",
-            arguments=[vehicle_effort_ctrl_name, "--controller-manager", "/controller_manager", "--inactive"],
-        )
-        vehicle_effort_ctrl_spawner.controller_name = vehicle_effort_ctrl_name  # attach
         vehicle_effort_spawner_nodes.append(vehicle_effort_ctrl_spawner)
-
-        manip_effort_ctrl_spawner = Node(
-            package="controller_manager",
-            executable="spawner",
-            arguments=[manip_effort_ctrl_name, "--controller-manager", "/controller_manager", "--inactive"],
-        )
-        manip_effort_ctrl_spawner.controller_name = manip_effort_ctrl_name  # attach
         manip_effort_spawner_nodes.append(manip_effort_ctrl_spawner)
-
-        # joint gravity effect broadcaster
-        for axis_i in ['e','d','c','b','a']:
-            gravity_broadcaster_name = f'gravity_broadcaster_{robot_prefixes[k]}_axis_{axis_i}'
-            # gravity visualisation Spawner
-            gravity_fts_spawner = Node(
-                package="controller_manager",
-                executable="spawner",
-                arguments=[gravity_broadcaster_name, "--controller-manager", "/controller_manager"],
-            )
-            fts_spawner_nodes.append(gravity_fts_spawner)
-
 
     # Define other nodes if needed
     run_plotjuggler = ExecuteProcess(
