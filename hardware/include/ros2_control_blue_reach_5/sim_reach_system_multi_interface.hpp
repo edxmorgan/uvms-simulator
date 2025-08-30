@@ -58,7 +58,7 @@ namespace ros2_control_blue_reach_5
 
         ROS2_CONTROL_BLUE_REACH_5_PUBLIC
         hardware_interface::CallbackReturn on_init(
-            const hardware_interface::HardwareInfo &info) override;
+            const hardware_interface::HardwareComponentInterfaceParams &params) override;
 
         ROS2_CONTROL_BLUE_REACH_5_PUBLIC
         hardware_interface::CallbackReturn on_configure(

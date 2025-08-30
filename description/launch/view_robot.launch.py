@@ -15,7 +15,7 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -56,24 +56,39 @@ def generate_launch_description():
         have to be updated.",
         )
     )
-
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_robot_count",
+            default_value="1",
+            description="Spawn with n numbers of robot agents",
+        )
+    )
     # Initialize Arguments
     description_package = LaunchConfiguration("description_package")
     description_file = LaunchConfiguration("description_file")
     gui = LaunchConfiguration("gui")
     prefix = LaunchConfiguration("prefix")
+    sim_robot_count = LaunchConfiguration("sim_robot_count")
 
     # Get URDF via xacro
+
     robot_description_content = Command(
         [
             PathJoinSubstitution([FindExecutable(name="xacro")]),
             " ",
             PathJoinSubstitution(
-                [FindPackageShare("ros2_control_blue_reach_5"), "xacro", description_file]
+                [
+                    FindPackageShare("ros2_control_blue_reach_5"),
+                    "xacro",
+                    description_file,
+                ]
             ),
             " ",
             "prefix:=",
             prefix,
+            " ",
+            "sim_robot_count:=",
+            sim_robot_count  # Ensure sim_robot_count is evaluated here
         ]
     )
     robot_description = {"robot_description": robot_description_content}

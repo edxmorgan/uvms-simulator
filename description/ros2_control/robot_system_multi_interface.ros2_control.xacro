@@ -53,18 +53,12 @@
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="current">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="current"/>
           <command_interface name="effort">
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="computed_effort">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="computed_effort"/>
 
         <state_interface name="position"/>
         <state_interface name="filtered_position"/>
@@ -128,18 +122,12 @@
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="current">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="current"/>
           <command_interface name="effort">
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="computed_effort">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="computed_effort"/>
 
         <state_interface name="position"/>
         <state_interface name="filtered_position"/>
@@ -204,18 +192,12 @@
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="current">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="current"/>
           <command_interface name="effort">
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="computed_effort">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="computed_effort"/>
 
         <state_interface name="position"/>
         <state_interface name="filtered_position"/>
@@ -280,18 +262,12 @@
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="current">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="current"/>
           <command_interface name="effort">
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="computed_effort">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="computed_effort"/>
 
         <state_interface name="position"/>
         <state_interface name="filtered_position"/>
@@ -356,18 +332,12 @@
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="current">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="current"/>
           <command_interface name="effort">
             <param name="min">-1</param>
             <param name="max">1</param>
           </command_interface>
-          <command_interface name="computed_effort">
-            <param name="min">-1</param>
-            <param name="max">1</param>
-          </command_interface>
+          <command_interface name="computed_effort"/>
           
         <state_interface name="position"/>
         <state_interface name="filtered_position"/>
