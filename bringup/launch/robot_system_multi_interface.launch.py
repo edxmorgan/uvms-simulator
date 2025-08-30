@@ -375,9 +375,9 @@ def launch_setup(context, *args, **kwargs):
     simulator_agents = GroupAction(
         actions=simulator_actions,)
 
-    # # Launch nodes
-    # nodes = [
-    #     simulator_agents
-    # ]
+    # Launch nodes
+    nodes = [
+        simulator_agents
+    ]
     
     return nodes
