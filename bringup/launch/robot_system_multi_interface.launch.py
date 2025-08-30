@@ -120,7 +120,7 @@ def launch_setup(context, *args, **kwargs):
     serial_port = LaunchConfiguration("serial_port").perform(context)
     state_update_frequency = LaunchConfiguration("state_update_frequency").perform(context)
     gui = LaunchConfiguration("gui").perform(context)
-    sim_robot_count = int(LaunchConfiguration("sim_robot_count").perform(context))
+    sim_robot_count = LaunchConfiguration("sim_robot_count").perform(context)
     record_data = LaunchConfiguration("record_data").perform(context)
     record_data_bool = IfCondition(record_data).evaluate(context)  
     controllers_list_str = LaunchConfiguration('controllers').perform(context)
@@ -160,7 +160,7 @@ def launch_setup(context, *args, **kwargs):
             task,
             " ",
             "sim_robot_count:=",
-            TextSubstitution(text=str(sim_robot_count))
+            sim_robot_count
         ]
     )
 
@@ -192,7 +192,7 @@ def launch_setup(context, *args, **kwargs):
                                                                                  use_manipulator_hardware_bool,
                                                                                   robot_controllers_read_file,
                                                                                     robot_controllers_modified_file,
-                                                                                      sim_robot_count)
+                                                                                      int(sim_robot_count))
     
     rviz_config_read = PathJoinSubstitution(
         [

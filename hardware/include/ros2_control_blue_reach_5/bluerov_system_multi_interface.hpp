@@ -21,10 +21,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-
-#include <gst/gst.h>
-#include <gst/app/gstappsink.h>
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 
 #include <sensor_msgs/msg/image.hpp>
 #include <opencv2/opencv.hpp>
@@ -89,7 +86,7 @@ namespace ros2_control_blue_reach_5
 
         ROS2_CONTROL_BLUE_REACH_5_PUBLIC
         hardware_interface::CallbackReturn on_init(
-            const hardware_interface::HardwareInfo &info) override;
+            const hardware_interface::HardwareComponentInterfaceParams &params) override;
 
         ROS2_CONTROL_BLUE_REACH_5_PUBLIC
         hardware_interface::CallbackReturn on_configure(
