@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 25  #Hz
+    update_rate: 50  #Hz
     is_async: True
 
     joint_state_broadcaster:
@@ -9,12 +9,12 @@ controller_manager:
 # get vehicle base to manipulator base TF
 # ros2 run tf2_ros tf2_echo base_link alpha_base_link 
 
-# joint_state_broadcaster:
-#   ros__parameters:
-#     map_interface_to_joint_state:
-#       effort: effort
-#       position: position
-#       velocity: velocity
-#       acceleration: acceleration
-#       current: current
-#       stateId: stateId
+joint_state_broadcaster:
+  ros__parameters:
+    map_interface_to_joint_state:
+      effort: effort
+      position: position
+      velocity: velocity
+      acceleration: acceleration
+      current: current
+      stateId: stateId

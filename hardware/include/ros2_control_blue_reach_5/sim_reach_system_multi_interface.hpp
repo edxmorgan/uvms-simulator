@@ -106,6 +106,8 @@ namespace ros2_control_blue_reach_5
         double payload_Iyy = 0;
         double payload_Izz = 0;
 
+        std::string system_name;
+
         // Store the state & commands for the robot joints
         std::vector<Joint> hw_joint_struct_;
 

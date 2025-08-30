@@ -42,6 +42,9 @@ namespace ros2_control_blue_reach_5
         {
             return hardware_interface::CallbackReturn::ERROR;
         }
+        // Access the name from the HardwareInfo
+        system_name = get_hardware_info().name;
+        RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "System name: %s", system_name.c_str());
 
         // Print the CasADi version
         std::string casadi_version = CasadiMeta::version();
@@ -127,10 +130,10 @@ namespace ros2_control_blue_reach_5
 
     hardware_interface::CallbackReturn SimReachSystemMultiInterfaceHardware::on_configure(const rclcpp_lifecycle::State &)
     {
-        constexpr auto TF_TOPIC = "/tf";
+        constexpr auto DEFAULT_TRANSFORM_TOPIC = "/tf";
         try
         {
-            node_frames_interface_ = std::make_shared<rclcpp::Node>("reach_frames_interface");
+            node_frames_interface_ = std::make_shared<rclcpp::Node>(system_name + "_topics_interface");
 
             executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
             executor_->add_node(node_frames_interface_);
@@ -138,7 +141,7 @@ namespace ros2_control_blue_reach_5
                                        { executor_->spin(); });
 
             frame_transform_publisher_ = rclcpp::create_publisher<tf>(
-                node_frames_interface_, TF_TOPIC, rclcpp::SystemDefaultsQoS());
+                node_frames_interface_, DEFAULT_TRANSFORM_TOPIC, rclcpp::SystemDefaultsQoS());
 
             realtime_frame_transform_publisher_ =
                 std::make_shared<realtime_tools::RealtimePublisher<tf>>(frame_transform_publisher_);
@@ -403,10 +406,10 @@ namespace ros2_control_blue_reach_5
                                    0,
                                    0,
                                    0,
-                                   0.001,
-                                   0.001,
-                                   0.001,
-                                   0.001,
+                                   2.001,
+                                   2.001,
+                                   2.001,
+                                   2.001,
                                    0.0,
                                    0.0,
                                    0.0,
@@ -472,7 +475,8 @@ namespace ros2_control_blue_reach_5
         hw_joint_struct_[1].current_state_.velocity = arm_next_states[5];
         hw_joint_struct_[2].current_state_.velocity = arm_next_states[6];
         hw_joint_struct_[3].current_state_.velocity = arm_next_states[7];
-
+        
+        rclcpp::Time current_time = node_frames_interface_->now();
         if (realtime_frame_transform_publisher_ && realtime_frame_transform_publisher_->trylock())
         {
             auto &msg = realtime_frame_transform_publisher_->msg_;
@@ -489,7 +493,7 @@ namespace ros2_control_blue_reach_5
             for (size_t i = 0; i < nj; ++i)
             {
                 auto &t = transforms[i];
-                t.header.stamp = time;
+                t.header.stamp = current_time;
                 t.header.frame_id = base;
                 t.child_frame_id = robot_prefix + "joint_" + std::to_string(i);
 
@@ -524,7 +528,7 @@ namespace ros2_control_blue_reach_5
             for (size_t i = 0; i < nc; ++i)
             {
                 auto &t = transforms[nj + i];
-                t.header.stamp = time;
+                t.header.stamp = current_time;
                 t.header.frame_id = base;
                 t.child_frame_id = robot_prefix + "link_com_" + std::to_string(i);
 

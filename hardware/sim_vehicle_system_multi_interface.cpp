@@ -48,11 +48,6 @@ const std::vector<casadi::DM> private_vehicle_parameters = {1.15000000e+01, 1.12
 
 using namespace casadi;
 
-namespace
-{
-    constexpr auto DEFAULT_TRANSFORM_TOPIC = "/tf";
-} // namespace
-
 namespace ros2_control_blue_reach_5
 {
     hardware_interface::CallbackReturn SimVehicleSystemMultiInterfaceHardware::on_init(
@@ -182,6 +177,7 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn SimVehicleSystemMultiInterfaceHardware::on_configure(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        constexpr auto DEFAULT_TRANSFORM_TOPIC = "/tf";
         // declare and get parameters needed for controller operations
         // setup realtime buffers, ROS publishers ...
         try
@@ -805,7 +801,7 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.sim_time = time_seconds;
         hw_vehicle_struct.sim_period = delta_seconds;
 
-        publishRealtimePoseTransform(time);
+        publishRealtimePoseTransform();
         return hardware_interface::return_type::OK;
     }
 
@@ -864,15 +860,16 @@ namespace ros2_control_blue_reach_5
             "Published static odom transform once during activation.");
     };
 
-    void SimVehicleSystemMultiInterfaceHardware::publishRealtimePoseTransform(const rclcpp::Time &time)
+    void SimVehicleSystemMultiInterfaceHardware::publishRealtimePoseTransform()
     {
+        rclcpp::Time current_time = node_topics_interface_->now();
         if (realtime_transform_publisher_ && realtime_transform_publisher_->trylock())
         {
             auto &transforms = realtime_transform_publisher_->msg_.transforms;
             auto &StateEstimateTransform = transforms.front();
             StateEstimateTransform.header.frame_id = hw_vehicle_struct.map_frame_id;
             StateEstimateTransform.child_frame_id = hw_vehicle_struct.body_frame_id;
-            StateEstimateTransform.header.stamp = time;
+            StateEstimateTransform.header.stamp = current_time;
             StateEstimateTransform.transform.translation.x = hw_vehicle_struct.current_state_.position_x;
             StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.current_state_.position_y;
             StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.current_state_.position_z;
