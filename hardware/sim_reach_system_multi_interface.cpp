@@ -353,8 +353,9 @@ namespace ros2_control_blue_reach_5
                                    73.563e-12, -0.091e-12, -0.734e-12,
                                    17e-12, -26e-12, 2e-12,
                                    -0.030e-12, -12e-12, -98e-12});
+        DM r_com_body = DM::vertcat({0.0, 0.0, 0.0});
 
-        std::vector<DM> fkcom_args = {q, c_sample, base_T, world_T};
+        std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T};
         T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
 
         return hardware_interface::return_type::OK;
