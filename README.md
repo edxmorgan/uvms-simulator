@@ -24,16 +24,16 @@ This project derives its kinematic and dynamic models from [diff_uv](https://git
 ### Prerequisites
 
 1. **Install ROS2:**  
-   Follow the [ROS2 Installation Guide](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html).
+   Follow the [ROS2 Installation Guide](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html).
 
 2. **Ensure `$ROS_DISTRO` is Set:**  
    Confirm that the environment variable `$ROS_DISTRO` is correctly set:
    ```bash
    echo $ROS_DISTRO
    ```
-   If not, set it to your ROS2 distribution (e.g., `humble`):
+   If not, set it to your ROS2 distribution (e.g., `jazzy`):
    ```bash
-   export ROS_DISTRO=humble
+   export ROS_DISTRO=jazzy
    ```
 
 3. **Install Required Dependencies:**  
