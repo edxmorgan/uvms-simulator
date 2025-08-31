@@ -55,6 +55,7 @@ namespace ros2_control_blue_reach_5
         utils_service.manipulator_dynamics = utils_service.load_casadi_fun("Mnext", "libMnext.so");
         utils_service.forward_kinematics = utils_service.load_casadi_fun("fkeval", "libFK.so");
         utils_service.forward_kinematics_com = utils_service.load_casadi_fun("fkcomeval", "libFKcom.so");
+        utils_service.base_ext_R_to_vehicle = utils_service.load_casadi_fun("R_base", "libBase_ext_R_vehicle.so");
 
         robot_prefix = get_hardware_info().hardware_parameters.at("prefix");
 
@@ -421,7 +422,7 @@ namespace ros2_control_blue_reach_5
                                    0.0,
                                    0.0,
                                    0.0,
-                                   0.0,
+                                   0.000,
                                    0.19,
                                    0.0,
                                    -0.12,

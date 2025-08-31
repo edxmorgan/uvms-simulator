@@ -43,6 +43,7 @@ namespace casadi_reach_alpha_5
         Function pwm2rads; // convert pwm to rads
         Function thrust2rads; // convert thrust to rads
         Function unwrap; // unwrap angle
+        Function base_ext_R_to_vehicle; // reaction forces from manipulator to vehicle
 
         Utils() = default;
         // Constructor with member initializer list
