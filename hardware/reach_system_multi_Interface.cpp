@@ -43,6 +43,9 @@ namespace ros2_control_blue_reach_5
     {
       return hardware_interface::CallbackReturn::ERROR;
     }
+    // Access the name from the HardwareInfo
+    system_name = get_hardware_info().name;
+    RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "System name: %s", system_name.c_str());
 
     // Print the CasADi version
     std::string casadi_version = CasadiMeta::version();
@@ -173,18 +176,17 @@ namespace ros2_control_blue_reach_5
     running_.store(true);
     state_request_worker_ = std::thread(&ReachSystemMultiInterfaceHardware::pollState, this, cfg_.state_update_freq_);
 
-    constexpr auto TF_TOPIC = "/tf";
+    constexpr auto DEFAULT_TRANSFORM_TOPIC = "/tf";
     try
     {
-      node_frames_interface_ = std::make_shared<rclcpp::Node>("reach_frames_interface");
-
+      node_frames_interface_ = std::make_shared<rclcpp::Node>(system_name + "_topics_interface");
       executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
       executor_->add_node(node_frames_interface_);
       spin_thread_ = std::thread([this]
                                  { executor_->spin(); });
 
       frame_transform_publisher_ = rclcpp::create_publisher<tf>(
-          node_frames_interface_, TF_TOPIC, rclcpp::SystemDefaultsQoS());
+          node_frames_interface_, DEFAULT_TRANSFORM_TOPIC, rclcpp::SystemDefaultsQoS());
 
       realtime_frame_transform_publisher_ =
           std::make_shared<realtime_tools::RealtimePublisher<tf>>(frame_transform_publisher_);
@@ -453,17 +455,19 @@ namespace ros2_control_blue_reach_5
     T_i_ = utils_service.forward_kinematics(fk_args);
 
     DM c_sample = DM::vertcat({5e-12, -1e-12, 16e-12,
-                               73.563e-12, -0.091e-12, -0.734e-12,
-                               17e-12, -26e-12, 2e-12,
-                               -0.030e-12, -12e-12, -98e-12});
+                                73.563e-12, -0.091e-12, -0.734e-12,
+                                17e-12, -26e-12, 2e-12,
+                                -0.030e-12, -12e-12, -98e-12});
+    DM r_com_body = DM::vertcat({0.0, 0.0, 0.0});
 
-    std::vector<DM> fkcom_args = {q, c_sample, base_T, world_T};
+    std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T};
     T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
+
     return hardware_interface::return_type::OK;
   }
 
   hardware_interface::return_type ReachSystemMultiInterfaceHardware::write(
-      const rclcpp::Time &time, const rclcpp::Duration & /*period*/)
+      const rclcpp::Time &/*time*/, const rclcpp::Duration & /*period*/)
   {
     // Send the commands for each joint
     for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
@@ -558,7 +562,7 @@ namespace ros2_control_blue_reach_5
         break;
       }
     }
-
+    rclcpp::Time current_time = node_frames_interface_->now();
     if (realtime_frame_transform_publisher_ && realtime_frame_transform_publisher_->trylock())
     {
       auto &msg = realtime_frame_transform_publisher_->msg_;
@@ -575,7 +579,7 @@ namespace ros2_control_blue_reach_5
       for (size_t i = 0; i < nj; ++i)
       {
         auto &t = transforms[i];
-        t.header.stamp = time;
+        t.header.stamp = current_time;
         t.header.frame_id = base;
         t.child_frame_id = robot_prefix + "joint_" + std::to_string(i);
 
@@ -610,7 +614,7 @@ namespace ros2_control_blue_reach_5
       for (size_t i = 0; i < nc; ++i)
       {
         auto &t = transforms[nj + i];
-        t.header.stamp = time;
+        t.header.stamp = current_time;
         t.header.frame_id = base;
         t.child_frame_id = robot_prefix + "link_com_" + std::to_string(i);
 

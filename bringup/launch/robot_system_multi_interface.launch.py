@@ -274,7 +274,7 @@ def launch_setup(context, *args, **kwargs):
     )
 
     controllers = parse_controller_list(controllers_list_str, no_robots)
-    logger.info("Controller list: %s", controllers)
+    logger.info(f"Controller list: {controllers}" )
 
     # start task selected
     mode = OpaqueFunction(function=lambda context: [])

@@ -174,8 +174,7 @@ namespace ros2_control_blue_reach_5
         std::shared_ptr<rclcpp::Client<rcl_interfaces::srv::SetParameters>> set_params_client_;
 
         void publishStaticPoseTransform();
-        void publishRealtimePoseTransform(
-            const rclcpp::Time &time);
+        void publishRealtimePoseTransform();
 
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
 

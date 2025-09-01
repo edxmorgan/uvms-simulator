@@ -95,7 +95,7 @@
       rot_y="0.0"/>
 
     <xacro:robot_system_multi_interface
-      name="$real_ReachSystemMultiInterface"
+      name="real_ReachSystemMultiInterface"
       prefix="${prefix}"
       serial_port="${serial_port}"
       state_update_frequency="${state_update_frequency}"

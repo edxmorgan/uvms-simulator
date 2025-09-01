@@ -139,6 +139,8 @@ namespace ros2_control_blue_reach_5
     double payload_Iyy = 0;
     double payload_Izz = 0;
 
+    std::string system_name;
+
     std::vector<DM> C2T_arg;
     std::vector<DM> T2C_arg;
 
