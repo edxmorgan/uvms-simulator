@@ -241,6 +241,7 @@ def launch_setup(context, *args, **kwargs):
         package="controller_manager",
         executable="ros2_control_node",
         parameters=[robot_controllers_modified, robot_description],
+        arguments=['--ros-args', '--log-level', 'controller_manager:=ERROR'],
         output="both",
     )
 
