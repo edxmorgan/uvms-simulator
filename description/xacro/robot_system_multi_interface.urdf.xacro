@@ -4,6 +4,7 @@
   <!-- Enable setting arguments from the launch file -->
   <xacro:arg name="use_manipulator_hardware" default="false"/>
   <xacro:arg name="use_vehicle_hardware" default="false"/>
+  <xacro:arg name="use_pwm" default="true"/>
   <xacro:arg name="sim_robot_count" default="1"/>
   <xacro:arg name="serial_port" default="/dev/ttyUSB0"/>
   <xacro:arg name="state_update_frequency" default="250"/>
@@ -16,6 +17,7 @@
   <xacro:property name="state_update_frequency" value="$(arg state_update_frequency)"/>
   <xacro:property name="use_manipulator_hardware" value="$(arg use_manipulator_hardware)"/>
   <xacro:property name="use_vehicle_hardware" value="$(arg use_vehicle_hardware)"/>
+  <xacro:property name="use_pwm" value="$(arg use_pwm)"/>
   <xacro:property name="use_optitrack" value="$(arg use_optitrack)"/>
 
   <!-- Define constants -->
@@ -72,7 +74,8 @@
       use_hardware="false"
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
-      map_frame_id="${prefix}map"/>
+      map_frame_id="${prefix}map"
+      use_pwm="${use_pwm}"/>
       
       <!-- Recursively call the macro for the next robot -->
       <xacro:instantiate_robots index="${index + 1}" count="${count}"/>
@@ -109,7 +112,8 @@
       use_hardware="${use_vehicle_hardware}"
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
-      map_frame_id="${prefix}map"/>
+      map_frame_id="${prefix}map"
+      use_pwm="${use_pwm}"/>
   </xacro:if>
 
 </robot>

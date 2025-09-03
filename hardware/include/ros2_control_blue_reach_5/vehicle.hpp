@@ -220,6 +220,7 @@ namespace blue::dynamics
     std::string body_frame_id;  // body frame
     std::string map_frame_id;   // map frame
     std::string robot_prefix;   // robot prefix
+    bool use_pwm; // if use pwm or principal forces and torques
     int light1channel;
     int light2channel;
     int cameraMountPitch_channel;

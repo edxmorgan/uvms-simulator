@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id">
+  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id use_pwm">
 
     <ros2_control name="${name}" type="system">
 
@@ -12,7 +12,7 @@
           <param name="world_frame_id">${world_frame_id}</param>
           <param name="body_frame_id">${body_frame_id}</param>
           <param name="map_frame_id">${map_frame_id}</param>
-            
+          <param name="use_pwm">${use_pwm}</param>
         </xacro:if>
 
         <xacro:unless value="${use_hardware}">

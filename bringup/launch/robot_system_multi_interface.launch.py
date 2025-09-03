@@ -124,6 +124,8 @@ def launch_setup(context, *args, **kwargs):
     record_data = LaunchConfiguration("record_data").perform(context)
     record_data_bool = IfCondition(record_data).evaluate(context)  
     controllers_list_str = LaunchConfiguration('controllers').perform(context)
+    task = task.lower()
+    use_pwm = str(task in {'direct_thrusters'})
 
     # Define the robot description command
     robot_description_content = Command(
@@ -160,7 +162,10 @@ def launch_setup(context, *args, **kwargs):
             task,
             " ",
             "sim_robot_count:=",
-            sim_robot_count
+            sim_robot_count,
+            " ",
+            "use_pwm:=",
+            use_pwm
         ]
     )
 

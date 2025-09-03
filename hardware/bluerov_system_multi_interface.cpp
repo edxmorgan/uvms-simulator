@@ -111,11 +111,21 @@ namespace ros2_control_blue_reach_5
         }
         hw_vehicle_struct.robot_prefix = get_hardware_info().hardware_parameters.at("prefix");
 
+        if (get_hardware_info().hardware_parameters.find("use_pwm") == get_hardware_info().hardware_parameters.cend())
+        {
+            RCLCPP_ERROR( // NOLINT
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'use_pwm' parameter is required.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        const std::string use_pwm_str = get_hardware_info().hardware_parameters.at("use_pwm"); // e.g., "true", "false", "1", "0"
+        hw_vehicle_struct.use_pwm =
+            use_pwm_str == "true" || use_pwm_str == "True" || use_pwm_str == "1";
+
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "robot prefix: %s", hw_vehicle_struct.robot_prefix.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "frame id: %s", hw_vehicle_struct.world_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
-
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "use_pwm: %s", use_pwm_str.c_str());
         // map_position_x = 5.0;
         // map_position_y = 5.0;
         // map_position_z = 0.0;
@@ -933,13 +943,13 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
         hw_vehicle_struct.estimate_state_.position_y = x_est_v[1];
         hw_vehicle_struct.estimate_state_.position_z = x_est_v[2];
-        hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3],x_est_v[4],x_est_v[5]);
-        hw_vehicle_struct.estimate_state_.u          = x_est_v[6];
-        hw_vehicle_struct.estimate_state_.v          = x_est_v[7];
-        hw_vehicle_struct.estimate_state_.w          = x_est_v[8];
-        hw_vehicle_struct.estimate_state_.p          = x_est_v[9];
-        hw_vehicle_struct.estimate_state_.q          = x_est_v[10];
-        hw_vehicle_struct.estimate_state_.r          = x_est_v[11];
+        hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3], x_est_v[4], x_est_v[5]);
+        hw_vehicle_struct.estimate_state_.u = x_est_v[6];
+        hw_vehicle_struct.estimate_state_.v = x_est_v[7];
+        hw_vehicle_struct.estimate_state_.w = x_est_v[8];
+        hw_vehicle_struct.estimate_state_.p = x_est_v[9];
+        hw_vehicle_struct.estimate_state_.q = x_est_v[10];
+        hw_vehicle_struct.estimate_state_.r = x_est_v[11];
 
         // Lock and check if new data is available
         std::lock_guard<std::mutex> lock(dvl_data_mutex_);
@@ -1019,13 +1029,13 @@ namespace ros2_control_blue_reach_5
         user_forces(5) = hw_vehicle_struct.command_state_.Tz;
 
         RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                    "Got thruster commands: %f %f %f %f %f %f",
-                    (double)user_forces(0),
-                    (double)user_forces(1),
-                    (double)user_forces(2),
-                    (double)user_forces(3),
-                    (double)user_forces(4),
-                    (double)user_forces(5));
+                     "Got thruster commands: %f %f %f %f %f %f",
+                     (double)user_forces(0),
+                     (double)user_forces(1),
+                     (double)user_forces(2),
+                     (double)user_forces(3),
+                     (double)user_forces(4),
+                     (double)user_forces(5));
 
         // Define the 6×8 thrust configuration matrix.
         DM thrust_config = DM({{0.707, 0.707, -0.707, -0.707, 0.0, 0.0, 0.0, 0.0},
@@ -1039,26 +1049,29 @@ namespace ros2_control_blue_reach_5
         std::vector<DM> thrust_outputs = utils_service.genForces2propThrust(inputs);
         std::vector<double> thrusts = thrust_outputs.at(0).nonzeros();
         RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                                    "Got thruster pwm commands: %f %f %f %f %f %f %f %f",
-                                    thrusts[0],
-                                    thrusts[1],
-                                    thrusts[2],
-                                    thrusts[3],
-                                    thrusts[4],
-                                    thrusts[5],
-                                    thrusts[6],
-                                    thrusts[7]);
+                     "Got thruster pwm commands: %f %f %f %f %f %f %f %f",
+                     thrusts[0],
+                     thrusts[1],
+                     thrusts[2],
+                     thrusts[3],
+                     thrusts[4],
+                     thrusts[5],
+                     thrusts[6],
+                     thrusts[7]);
         std::vector<DM> pwm_input = utils_service.from_pwm_to_thrust(thrust_outputs.at(0));
         std::vector<double> pwm_commands = pwm_input.at(0).nonzeros();
 
-        hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm = pwm_commands[0];
-        hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm = pwm_commands[1];
-        hw_vehicle_struct.hw_thrust_structs_[2].command_state_.command_pwm = pwm_commands[2];
-        hw_vehicle_struct.hw_thrust_structs_[3].command_state_.command_pwm = pwm_commands[3];
-        hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm = pwm_commands[4];
-        hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm = pwm_commands[5];
-        hw_vehicle_struct.hw_thrust_structs_[6].command_state_.command_pwm = pwm_commands[6];
-        hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm = pwm_commands[7];
+        if (! hw_vehicle_struct.use_pwm)
+        {
+            hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm = pwm_commands[0];
+            hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm = pwm_commands[1];
+            hw_vehicle_struct.hw_thrust_structs_[2].command_state_.command_pwm = pwm_commands[2];
+            hw_vehicle_struct.hw_thrust_structs_[3].command_state_.command_pwm = pwm_commands[3];
+            hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm = pwm_commands[4];
+            hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm = pwm_commands[5];
+            hw_vehicle_struct.hw_thrust_structs_[6].command_state_.command_pwm = pwm_commands[6];
+            hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm = pwm_commands[7];
+        }
 
         if (rt_override_rc_pub_ && rt_override_rc_pub_->trylock())
         {
@@ -1198,7 +1211,6 @@ namespace ros2_control_blue_reach_5
             q_orig.setZ(hw_vehicle_struct.current_state_.orientation_z);
 
             q_orig.normalize();
-
 
             // get roll/pitch/yaw
             double roll, pitch, yaw;
@@ -1423,7 +1435,7 @@ namespace ros2_control_blue_reach_5
                 "No MAVLink messages parsed in this packet!");
         }
     }
- 
+
     // Convert 3x3 covariance to 6x6 format
     std::array<double, 36> BlueRovSystemMultiInterfaceHardware::convert3x3To6x6Covariance(const blue::dynamics::Covariance &linear_cov)
     {

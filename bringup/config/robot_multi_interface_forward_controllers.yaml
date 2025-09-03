@@ -1,6 +1,6 @@
 controller_manager:
   ros__parameters:
-    update_rate: 150  #Hz
+    update_rate: 20  #Hz
     is_async: True
 
     joint_state_broadcaster:
