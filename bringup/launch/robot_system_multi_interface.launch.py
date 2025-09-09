@@ -333,7 +333,13 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
         shell=False,
     )
+    clp_node = Node(
+        package='simlab',
+        executable="cloudpoint_publisher",
+        name="cloudpoint_publisher"
+    )
 
+    
     # 1) Collect all spawners in the exact order you want them to complete
     all_spawners = [
         *fts_spawner_nodes,
@@ -375,6 +381,7 @@ def launch_setup(context, *args, **kwargs):
         *chain_handlers, # event handlers that wire the sequence
         switch_after_all,
         rviz_after_switch,
+        clp_node,
     ]
     
     # Define simulator_agent

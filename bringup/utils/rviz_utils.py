@@ -34,6 +34,45 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
 
     if use_vehicle_hardware:
         image_stream_display("video feed", "/alpha/image_raw",new_rviz_config, True)
+        # Plane billboard cloud from /alpha/image_raw
+        rviz_point_cloud2(
+            name='alpha_plane_cloud',
+            topic='/alpha/points_plane',
+            rviz_config=new_rviz_config,
+            enabled=False,  # default false as requested
+            color='255; 255; 255',
+            custom_properties={
+                "Alpha": 1,
+                "Autocompute Intensity Bounds": True,
+                "Autocompute Value Bounds": {"Max Value": 10, "Min Value": -10, "Value": True},
+                "Axis": "Z",
+                "Channel Name": "intensity",
+                "Class": "rviz_default_plugins/PointCloud2",
+                "Color Transformer": "RGB8",
+                "Decay Time": 0,
+                "Invert Rainbow": False,
+                "Max Color": "255; 255; 255",
+                "Max Intensity": 4096,
+                "Min Color": "0; 0; 0",
+                "Min Intensity": 0,
+                "Position Transformer": "XYZ",
+                "Selectable": True,
+                "Size (Pixels)": 3,
+                "Size (m)": 0.009999999776482582,
+                "Style": "Flat Squares",
+                "Topic": {
+                    "Depth": 5,
+                    "Durability Policy": "Volatile",
+                    "History Policy": "Keep Last",
+                    "Reliability Policy": "Reliable",
+                    "Value": "/alpha/points_plane",
+                },
+                "Use Fixed Frame": True,
+                "Use rainbow": True,
+                "Value": True,
+            }
+        )
+
 
     if task == 'interactive':
         rviz_interactive_marker('controller_interactiveMarker', '/uvms_interactive_controls', new_rviz_config, True)
@@ -41,6 +80,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
                           custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
         rviz_point_cloud2('uv_vehicle_base',"/base_pointcloud",new_rviz_config, True, "255; 0; 0",
                           custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
+
 
     add_wrench_entries(ix, new_rviz_config, False)
     with open(new_rviz_config_path,'w') as file:
