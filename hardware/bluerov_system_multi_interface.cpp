@@ -14,6 +14,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #include "ros2_control_blue_reach_5/bluerov_system_multi_interface.hpp"
+
+// Now include GStreamer, then immediately remove toxic macros
+extern "C"
+{
+#include <gst/gst.h>
+#include <gst/app/gstappsink.h>
+}
+#ifdef TRUE
+#undef TRUE
+#endif
+#ifdef FALSE
+#undef FALSE
+#endif
+
 #include "ros2_control_blue_reach_5/dvldriver.hpp"
 #include <angles/angles.h>
 #include <chrono>
@@ -369,6 +383,12 @@ namespace ros2_control_blue_reach_5
                 std::bind(&BlueRovSystemMultiInterfaceHardware::cameraMountPitch_callback, this, std::placeholders::_1));
 
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Subscribed to /alpha/cameraMountPitch with Reliable QoS");
+
+            // Initialize the ROS publisher for images.
+            image_pub_ = rclcpp::create_publisher<sensor_msgs::msg::Image>(node_topics_interface_, "/alpha/image_raw", rclcpp::SystemDefaultsQoS());
+            realtime_image_pub_ =
+                std::make_shared<realtime_tools::RealtimePublisher<sensor_msgs::msg::Image>>(
+                    image_pub_);
 
             // Initialize the realtime dvl publisher
             dvl_velocity_publisher_ = rclcpp::create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(node_topics_interface_,
@@ -828,6 +848,9 @@ namespace ros2_control_blue_reach_5
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Activating... please wait...");
 
+        // Start the camera stream.
+        startCameraStream();
+
         publishStaticPoseTransform();
 
         stop_thrusters();
@@ -841,6 +864,9 @@ namespace ros2_control_blue_reach_5
     {
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Deactivating... please wait...");
+
+        // Stop the camera stream.
+        stopCameraStream();
         // Stop the thrusters before switching out of passthrough mode
         stop_thrusters();
 
@@ -1061,7 +1087,7 @@ namespace ros2_control_blue_reach_5
         std::vector<DM> pwm_input = utils_service.from_pwm_to_thrust(thrust_outputs.at(0));
         std::vector<double> pwm_commands = pwm_input.at(0).nonzeros();
 
-        if (! hw_vehicle_struct.use_pwm)
+        if (!hw_vehicle_struct.use_pwm)
         {
             hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm = pwm_commands[0];
             hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm = pwm_commands[1];
@@ -1433,6 +1459,123 @@ namespace ros2_control_blue_reach_5
             RCLCPP_DEBUG(
                 rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                 "No MAVLink messages parsed in this packet!");
+        }
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::startCameraStream()
+    {
+        // Ensure GStreamer is initialized exactly once.
+        static bool gst_initialized = false;
+        if (!gst_initialized)
+        {
+            gst_init(nullptr, nullptr);
+            gst_initialized = true;
+        }
+
+        // Define the GStreamer pipeline string.
+        // Note: "h264parse" has been removed since it is unavailable.
+        std::string pipeline_str =
+            "udpsrc port=5600 ! application/x-rtp, payload=96 "
+            "! rtph264depay ! avdec_h264 "
+            "! videoconvert ! video/x-raw,format=(string)BGR "
+            "! appsink name=camera_sink emit-signals=true sync=false max-buffers=2 drop=true";
+
+        // Create and start the pipeline.
+        gst_pipeline_ = gst_parse_launch(pipeline_str.c_str(), nullptr);
+        if (!gst_pipeline_)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                         "Failed to create GStreamer pipeline for camera stream");
+            return;
+        }
+        gst_element_set_state(gst_pipeline_, GST_STATE_PLAYING);
+
+        // Retrieve the appsink element by name.
+        GstElement *appsink_elem = gst_bin_get_by_name(GST_BIN(gst_pipeline_), "camera_sink");
+        if (!appsink_elem)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                         "Failed to get appsink element from camera pipeline");
+            return;
+        }
+        gst_appsink_ = GST_APP_SINK(appsink_elem);
+
+        // Start the camera thread.
+        camera_thread_running_ = true;
+        camera_thread_ = std::thread(&BlueRovSystemMultiInterfaceHardware::cameraLoop, this);
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::cameraLoop()
+    {
+        while (camera_thread_running_)
+        {
+            // Pull a sample from the appsink (blocking call).
+            GstSample *sample = gst_app_sink_pull_sample(gst_appsink_);
+            if (!sample)
+            {
+                RCLCPP_WARN(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                            "No sample received from appsink");
+                continue;
+            }
+
+            // Get the buffer and its capabilities.
+            GstBuffer *buffer = gst_sample_get_buffer(sample);
+            GstCaps *caps = gst_sample_get_caps(sample);
+            if (!caps)
+            {
+                gst_sample_unref(sample);
+                continue;
+            }
+
+            // Retrieve width and height from the caps.
+            GstStructure *s = gst_caps_get_structure(caps, 0);
+            int width = 0, height = 0;
+            if (!gst_structure_get_int(s, "width", &width) || !gst_structure_get_int(s, "height", &height))
+            {
+                gst_sample_unref(sample);
+                continue;
+            }
+
+            // Map the buffer to read the image data.
+            GstMapInfo map;
+            if (!gst_buffer_map(buffer, &map, GST_MAP_READ))
+            {
+                gst_sample_unref(sample);
+                continue;
+            }
+
+            gst_buffer_unmap(buffer, &map);
+            gst_sample_unref(sample);
+            // Get caps and map buffer like you already do, then:
+            auto loaned = image_pub_->borrow_loaned_message();
+            auto &msg = loaned.get();
+            msg.header.stamp = node_topics_interface_->now();
+            msg.header.frame_id = hw_vehicle_struct.robot_prefix + "camera_link";
+            msg.height = height;
+            msg.width = width;
+            msg.encoding = "bgr8";
+            msg.is_bigendian = false;
+            msg.step = width * 3;
+            msg.data.resize(msg.step * height); // one copy
+            std::memcpy(msg.data.data(), map.data, msg.data.size());
+            realtime_image_pub_->trylock() ? (realtime_image_pub_->msg_ = msg, realtime_image_pub_->unlockAndPublish())
+                                           : image_pub_->publish(std::move(loaned));
+        }
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::stopCameraStream()
+    {
+        camera_thread_running_ = false;
+        if (camera_thread_.joinable())
+        {
+            camera_thread_.join();
+        }
+        if (gst_pipeline_)
+        {
+            gst_element_set_state(gst_pipeline_, GST_STATE_NULL);
+            gst_object_unref(gst_pipeline_);
+            gst_pipeline_ = nullptr;
+            gst_appsink_ = nullptr;
         }
     }
 
