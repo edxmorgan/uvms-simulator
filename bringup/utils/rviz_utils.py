@@ -36,8 +36,8 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         image_stream_display("video feed", "/alpha/image_raw",new_rviz_config, True)
         # Plane billboard cloud from /alpha/image_raw
         rviz_point_cloud2(
-            name='alpha_plane_cloud',
-            topic='/alpha/points_plane',
+            name='alpha_camera_cloud',
+            topic='/alpha/points_midas',
             rviz_config=new_rviz_config,
             enabled=False,  # default false as requested
             color='255; 255; 255',
@@ -65,7 +65,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
                     "Durability Policy": "Volatile",
                     "History Policy": "Keep Last",
                     "Reliability Policy": "Reliable",
-                    "Value": "/alpha/points_plane",
+                    "Value": "/alpha/points_midas",
                 },
                 "Use Fixed Frame": True,
                 "Use rainbow": True,
