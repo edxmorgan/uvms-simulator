@@ -46,20 +46,6 @@ extern "C"
 #include "ros2_control_blue_reach_5/dynamics_params.hpp"
 #else
 //   #pragma message("Fallback parameters used")
-const std::vector<casadi::DM> private_vehicle_parameters = {1.15000000e+01, 1.12815000e+02, 1.14800000e+02, 0.00000000e+00,
-                                                            0.00000000e+00, 2.00000000e-02, 0.00000000e+00, 0.00000000e+00,
-                                                            0.00000000e+00, 1.60000000e-01, 1.60000000e-01, 1.60000000e-01,
-                                                            0.00000000e+00, -5.50000000e+00, -1.27000000e+01, -1.45700000e+01,
-                                                            -1.20000000e-01, -1.20000000e-01, -1.20000000e-01, 0.00000000e+00,
-                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, -4.03000000e+00,
-                                                            -6.22000000e+00, -5.18000000e+00, -7.00000000e-02, -7.00000000e-02,
-                                                            -7.00000000e-02, -1.81800000e+01, -2.16600000e+01, -3.69900000e+01,
-                                                            -1.55000000e+00, -1.55000000e+00, -1.55000000e+00, 0.00000000e+00,
-                                                            1.00421848e+00, 1.00000000e+00, 1.00000000e+00, 1.00000000e+00,
-                                                            1.00000000e+00, 1.00000000e+00, 1.00000000e+00, 0.00000000e+00,
-                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-                                                            0.00000000e+00, 0.00000000e+00, 0.00000000e+00};
 #endif
 
 using namespace casadi;
@@ -69,7 +55,6 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_init(
         const hardware_interface::HardwareComponentInterfaceParams &params)
     {
-        vehicle_parameters = private_vehicle_parameters;
         if (
             hardware_interface::SystemInterface::on_init(params) !=
             hardware_interface::CallbackReturn::SUCCESS)
@@ -463,46 +448,6 @@ namespace ros2_control_blue_reach_5
             return CallbackReturn::ERROR;
         }
 
-        // Initialize state estimate vector (12x1)
-        x_est_ = casadi::DM::zeros(12, 1);
-        // Initialize state covariance as a 12x12 identity scaled by a small value.
-        P_est_ = casadi::DM::eye(12) * 0.001;
-        // right after P_ = diag(Q_vector) and R_ = diag(R_vector);
-        for (std::size_t i = 0; i < 12; ++i)
-        {
-            P_diag_[i] = double(P_est_(i, i));
-        }
-
-        // Process noise covariance: 12x12, scaled by 0.01
-        casadi::DM Q_vector = casadi::DM::zeros(12, 1);
-        Q_vector(0) = 0.001;
-        Q_vector(1) = 0.001;
-        Q_vector(2) = 0.001;
-        Q_vector(3) = 0.001;
-        Q_vector(4) = 0.001;
-        Q_vector(5) = 0.001;
-        Q_vector(6) = 0.001;
-        Q_vector(7) = 0.001;
-        Q_vector(8) = 0.001;
-        Q_vector(9) = 0.001;
-        Q_vector(10) = 0.001;
-        Q_vector(11) = 0.001;
-        Q_ = casadi::DM::diag(Q_vector);
-
-        // Measurement noise R_
-        casadi::DM R_vector = casadi::DM::zeros(7, 1); // 7x1 vector
-        R_vector(0) = 0.01;                            // z_pressure noise variance
-        R_vector(1) = 0.005;                           // IMU roll noise variance
-        R_vector(2) = 0.005;                           // IMU pitch noise variance
-        R_vector(3) = 0.005;                           // IMU yaw noise variance
-        R_vector(4) = 0.005;                           // DVL vx noise variance
-        R_vector(5) = 0.005;                           // DVL vy noise variance
-        R_vector(6) = 0.005;                           // DVL vz noise variance
-        R_ = casadi::DM::diag(R_vector);
-
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                    "Initialized P_est_, Q_, and R_ for Kalman filter.");
-
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "configure successful");
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -880,12 +825,6 @@ namespace ros2_control_blue_reach_5
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
 
-        // ----------------------------------------------------------------------------
-        //   EKF UPDATE STEP
-        //   gather the measurements from the hardware struct
-        // ----------------------------------------------------------------------------
-        // Prepare the arguments to ekf_step
-        double dt_k = delta_seconds;
         if (first_imu_read)
         {
             last_wrapped_roll = hw_vehicle_struct.imu_state.roll;
@@ -924,66 +863,13 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.imu_state.pitch_unwrap = unwrap_pitch_rt.scalar();
         hw_vehicle_struct.imu_state.yaw_unwrap = unwrap_yaw_rt.scalar();
 
-        // measurements
-        casadi::DM y_k = casadi::DM::zeros(7, 1);
-        {
-            y_k(0) = hw_vehicle_struct.depth_from_pressure2;
-            y_k(1) = hw_vehicle_struct.imu_state.roll_unwrap;
-            y_k(2) = hw_vehicle_struct.imu_state.pitch_unwrap;
-            y_k(3) = hw_vehicle_struct.imu_state.yaw_unwrap;
-            y_k(4) = hw_vehicle_struct.dvl_state.vx;
-            y_k(5) = hw_vehicle_struct.dvl_state.vy;
-            y_k(6) = hw_vehicle_struct.dvl_state.vz;
-        };
-
-        // Build the control input vector (6x1) from current force/torque commands:
-        casadi::DM u_dm = casadi::DM::zeros(6, 1);
-        u_dm(0) = hw_vehicle_struct.command_state_.Fx;
-        u_dm(1) = hw_vehicle_struct.command_state_.Fy;
-        u_dm(2) = hw_vehicle_struct.command_state_.Fz;
-        u_dm(3) = hw_vehicle_struct.command_state_.Tx;
-        u_dm(4) = hw_vehicle_struct.command_state_.Ty;
-        u_dm(5) = hw_vehicle_struct.command_state_.Tz;
-
-        // Define an external force vector (6x1), here set to zero.
-        casadi::DM f_ext = casadi::DM::zeros(6, 1);
-        // Wrap time step in a DM object.
-        casadi::DM dt_dm(dt_k);
-        std::vector<casadi::DM> ekf_inputs = {x_est_, P_est_, u_dm, vehicle_parameters, dt_dm, y_k, Q_, R_, f_ext};
-
-        // Call your CasADi function
-        std::vector<casadi::DM> state_est = utils_service.uv_Exkalman_update(ekf_inputs);
-
-        // Extract result
-        x_est_ = state_est[0];
-        P_est_ = state_est[1];
-        for (std::size_t i = 0; i < 12; ++i)
-        {
-            P_diag_[i] = double(P_est_(i, i));
-        }
-
-        // // Convert x_est_ to std::vector<double> or just read from DM?
-        std::vector<double> x_est_v = x_est_.nonzeros();
-
-        // Update the estimated state in your hardware vehicle struct
-        hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
-        hw_vehicle_struct.estimate_state_.position_y = x_est_v[1];
-        hw_vehicle_struct.estimate_state_.position_z = x_est_v[2];
-        hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3], x_est_v[4], x_est_v[5]);
-        hw_vehicle_struct.estimate_state_.u = x_est_v[6];
-        hw_vehicle_struct.estimate_state_.v = x_est_v[7];
-        hw_vehicle_struct.estimate_state_.w = x_est_v[8];
-        hw_vehicle_struct.estimate_state_.p = x_est_v[9];
-        hw_vehicle_struct.estimate_state_.q = x_est_v[10];
-        hw_vehicle_struct.estimate_state_.r = x_est_v[11];
-
         // Lock and check if new data is available
         std::lock_guard<std::mutex> lock(dvl_data_mutex_);
         if (new_dvl_data_available_)
         {
             publishDVLVelocity(time);
             new_dvl_data_available_ = false;
-        }
+        };
 
         std::vector<DM> pwm_inputs = {{hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm,
                                        hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm,
