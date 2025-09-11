@@ -944,6 +944,12 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.estimate_state_.p = x_est_v[9];
         hw_vehicle_struct.estimate_state_.q = x_est_v[10];
         hw_vehicle_struct.estimate_state_.r = x_est_v[11];
+        hw_vehicle_struct.current_state_.du = x_est_v[12];
+        hw_vehicle_struct.current_state_.dv = x_est_v[13];
+        hw_vehicle_struct.current_state_.dw = x_est_v[14];
+        hw_vehicle_struct.current_state_.dp = x_est_v[15];
+        hw_vehicle_struct.current_state_.dq = x_est_v[16];
+        hw_vehicle_struct.current_state_.dr = x_est_v[17];
 
         // Lock and check if new data is available
         std::lock_guard<std::mutex> lock(dvl_data_mutex_);

@@ -34,6 +34,14 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
 
     if use_vehicle_hardware:
         image_stream_display("video feed", "/alpha/image_raw",new_rviz_config, True)
+
+        # IMU visualization
+        imu_display(
+            name="Imu",
+            topic="/mavros/imu/data",
+            rviz_config=new_rviz_config,
+            enabled=True
+        )
         # Plane billboard cloud from /alpha/image_raw
         rviz_point_cloud2(
             name='alpha_camera_cloud',
