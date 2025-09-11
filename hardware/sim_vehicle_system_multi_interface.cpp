@@ -202,6 +202,46 @@ namespace ros2_control_blue_reach_5
             return CallbackReturn::ERROR;
         }
 
+        // Initialize state estimate vector (18x1)
+        x_est_ = casadi::DM::zeros(18, 1);
+        // Initialize state covariance as a 18x18 identity scaled by a small value.
+        P_est_ = casadi::DM::eye(18) * 0.001;
+        // right after P_ = diag(Q_vector) and R_ = diag(R_vector);
+        for (std::size_t i = 0; i < 18; ++i)
+        {
+            P_diag_[i] = double(P_est_(i, i));
+        }
+
+        // Process noise covariance: 18x18, scaled by 0.01
+        casadi::DM Q_vector = casadi::DM::zeros(18, 1);
+        Q_vector(0) = 0.001;
+        Q_vector(1) = 0.001;
+        Q_vector(2) = 0.001;
+        Q_vector(3) = 0.001;
+        Q_vector(4) = 0.001;
+        Q_vector(5) = 0.001;
+        Q_vector(6) = 0.001;
+        Q_vector(7) = 0.001;
+        Q_vector(8) = 0.001;
+        Q_vector(9) = 0.001;
+        Q_vector(10) = 0.001;
+        Q_vector(11) = 0.001;
+        Q_ = casadi::DM::diag(Q_vector);
+
+        // Measurement noise R_
+        casadi::DM R_vector = casadi::DM::zeros(7, 1); // 7x1 vector
+        R_vector(0) = 0.01;                            // z_pressure noise variance
+        R_vector(1) = 0.005;                           // IMU roll noise variance
+        R_vector(2) = 0.005;                           // IMU pitch noise variance
+        R_vector(3) = 0.005;                           // IMU yaw noise variance
+        R_vector(4) = 0.005;                           // DVL vx noise variance
+        R_vector(5) = 0.005;                           // DVL vy noise variance
+        R_vector(6) = 0.005;                           // DVL vz noise variance
+        R_ = casadi::DM::diag(R_vector);
+
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                    "Initialized P_est_, Q_, and R_ for Kalman filter.");
+
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "configure successful");
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -564,8 +604,51 @@ namespace ros2_control_blue_reach_5
     }
 
     hardware_interface::return_type SimVehicleSystemMultiInterfaceHardware::read(
-        const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
+        const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
     {
+        delta_seconds = period.seconds();
+        // measurements
+        casadi::DM y_k = casadi::DM::zeros(7, 1);
+        {
+            y_k(0) = hw_vehicle_struct.depth_from_pressure2;
+            y_k(1) = hw_vehicle_struct.imu_state.roll_unwrap;
+            y_k(2) = hw_vehicle_struct.imu_state.pitch_unwrap;
+            y_k(3) = hw_vehicle_struct.imu_state.yaw_unwrap;
+            y_k(4) = hw_vehicle_struct.dvl_state.vx;
+            y_k(5) = hw_vehicle_struct.dvl_state.vy;
+            y_k(6) = hw_vehicle_struct.dvl_state.vz;
+        };
+
+        // Wrap time step in a DM object.
+        casadi::DM dt_dm(delta_seconds);
+        std::vector<casadi::DM> ekf_inputs = {x_est_, P_est_, dt_dm, y_k, Q_, R_};
+
+        // Call your CasADi function
+        std::vector<casadi::DM> state_est = utils_service.uv_Exkalman_update(ekf_inputs);
+
+        // Extract result
+        x_est_ = state_est[0];
+        P_est_ = state_est[1];
+        for (std::size_t i = 0; i < 18; ++i)
+        {
+            P_diag_[i] = double(P_est_(i, i));
+        }
+
+        // // Convert x_est_ to std::vector<double> or just read from DM?
+        std::vector<double> x_est_v = x_est_.nonzeros();
+
+        // Update the estimated state in your hardware vehicle struct
+        hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
+        hw_vehicle_struct.estimate_state_.position_y = x_est_v[1];
+        hw_vehicle_struct.estimate_state_.position_z = x_est_v[2];
+        hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3], x_est_v[4], x_est_v[5]);
+        hw_vehicle_struct.estimate_state_.u = x_est_v[6];
+        hw_vehicle_struct.estimate_state_.v = x_est_v[7];
+        hw_vehicle_struct.estimate_state_.w = x_est_v[8];
+        hw_vehicle_struct.estimate_state_.p = x_est_v[9];
+        hw_vehicle_struct.estimate_state_.q = x_est_v[10];
+        hw_vehicle_struct.estimate_state_.r = x_est_v[11];
+
         return hardware_interface::return_type::OK;
     }
 
@@ -628,7 +711,7 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.sim_period = delta_seconds;
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position = hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position + thrusts_rads_double[i] * delta_seconds;
         }
-        
+
         vehicle_parameters_new = {1.15000000e+01, 1.12815000e+02, 1.14800000e+02, 0.00000000e+00,
                                   0.00000000e+00, 2.00000000e-02, 0.00000000e+00, 0.00000000e+00,
                                   0.00000000e+00, 1.60000000e-01, 1.60000000e-01, 1.60000000e-01,
@@ -637,10 +720,10 @@ namespace ros2_control_blue_reach_5
                                   0.00000000e+00, 0.00000000e+00, 0.00000000e+00, -4.03000000e+00,
                                   -6.22000000e+00, -5.18000000e+00, -7.00000000e-02, -7.00000000e-02,
                                   -7.00000000e-02, -1.81800000e+01, -2.16600000e+01, -3.69900000e+01,
-                                  -1.55000000e+00, -1.55000000e+00, -1.55000000e+00, 
+                                  -1.55000000e+00, -1.55000000e+00, -1.55000000e+00,
                                   0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-                                  0.00000000e+00, 0.00000000e+00, 0.00000000e+00 };
-                                  
+                                  0.00000000e+00, 0.00000000e+00, 0.00000000e+00};
+
         arm_base_f_ext = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         vehicle_simulate_argument = {uv_state, uv_input, vehicle_parameters_new, delta_seconds, arm_base_f_ext};
         vehicle_sim = utils_service.vehicle_dynamics(vehicle_simulate_argument);
@@ -649,7 +732,7 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.current_state_.position_x = vehicle_next_states[0];
         hw_vehicle_struct.current_state_.position_y = vehicle_next_states[1];
         hw_vehicle_struct.current_state_.position_z = vehicle_next_states[2];
-        
+
         hw_vehicle_struct.depth_from_pressure2 = vehicle_next_states[2];
 
         hw_vehicle_struct.current_state_.setEuler(vehicle_next_states[3],
@@ -659,6 +742,11 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.imu_state.setEuler(vehicle_next_states[3],
                                              -vehicle_next_states[4],
                                              -vehicle_next_states[5]);
+
+        hw_vehicle_struct.imu_state.roll_unwrap = vehicle_next_states[3];
+        hw_vehicle_struct.imu_state.pitch_unwrap = -vehicle_next_states[4];
+        hw_vehicle_struct.imu_state.yaw_unwrap = -vehicle_next_states[5];
+
 
         hw_vehicle_struct.current_state_.u = vehicle_next_states[6];
         hw_vehicle_struct.current_state_.v = vehicle_next_states[7];

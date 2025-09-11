@@ -448,6 +448,46 @@ namespace ros2_control_blue_reach_5
             return CallbackReturn::ERROR;
         }
 
+        // Initialize state estimate vector (18x1)
+        x_est_ = casadi::DM::zeros(18, 1);
+        // Initialize state covariance as a 18x18 identity scaled by a small value.
+        P_est_ = casadi::DM::eye(18) * 0.001;
+        // right after P_ = diag(Q_vector) and R_ = diag(R_vector);
+        for (std::size_t i = 0; i < 18; ++i)
+        {
+            P_diag_[i] = double(P_est_(i, i));
+        }
+
+        // Process noise covariance: 18x18, scaled by 0.01
+        casadi::DM Q_vector = casadi::DM::zeros(18, 1);
+        Q_vector(0) = 0.001;
+        Q_vector(1) = 0.001;
+        Q_vector(2) = 0.001;
+        Q_vector(3) = 0.001;
+        Q_vector(4) = 0.001;
+        Q_vector(5) = 0.001;
+        Q_vector(6) = 0.001;
+        Q_vector(7) = 0.001;
+        Q_vector(8) = 0.001;
+        Q_vector(9) = 0.001;
+        Q_vector(10) = 0.001;
+        Q_vector(11) = 0.001;
+        Q_ = casadi::DM::diag(Q_vector);
+
+        // Measurement noise R_
+        casadi::DM R_vector = casadi::DM::zeros(7, 1); // 7x1 vector
+        R_vector(0) = 0.01;                            // z_pressure noise variance
+        R_vector(1) = 0.005;                           // IMU roll noise variance
+        R_vector(2) = 0.005;                           // IMU pitch noise variance
+        R_vector(3) = 0.005;                           // IMU yaw noise variance
+        R_vector(4) = 0.005;                           // DVL vx noise variance
+        R_vector(5) = 0.005;                           // DVL vy noise variance
+        R_vector(6) = 0.005;                           // DVL vz noise variance
+        R_ = casadi::DM::diag(R_vector);
+
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                    "Initialized P_est_, Q_, and R_ for Kalman filter.");
+
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "configure successful");
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -863,6 +903,48 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.imu_state.pitch_unwrap = unwrap_pitch_rt.scalar();
         hw_vehicle_struct.imu_state.yaw_unwrap = unwrap_yaw_rt.scalar();
 
+        // measurements
+        casadi::DM y_k = casadi::DM::zeros(7, 1);
+        {
+            y_k(0) = hw_vehicle_struct.depth_from_pressure2;
+            y_k(1) = hw_vehicle_struct.imu_state.roll_unwrap;
+            y_k(2) = hw_vehicle_struct.imu_state.pitch_unwrap;
+            y_k(3) = hw_vehicle_struct.imu_state.yaw_unwrap;
+            y_k(4) = hw_vehicle_struct.dvl_state.vx;
+            y_k(5) = hw_vehicle_struct.dvl_state.vy;
+            y_k(6) = hw_vehicle_struct.dvl_state.vz;
+        };
+
+        // Wrap time step in a DM object.
+        casadi::DM dt_dm(delta_seconds);
+        std::vector<casadi::DM> ekf_inputs = {x_est_, P_est_, dt_dm, y_k, Q_, R_};
+
+        // Call your CasADi function
+        std::vector<casadi::DM> state_est = utils_service.uv_Exkalman_update(ekf_inputs);
+
+        // Extract result
+        x_est_ = state_est[0];
+        P_est_ = state_est[1];
+        for (std::size_t i = 0; i < 18; ++i)
+        {
+            P_diag_[i] = double(P_est_(i, i));
+        }
+
+        // // Convert x_est_ to std::vector<double> or just read from DM?
+        std::vector<double> x_est_v = x_est_.nonzeros();
+
+        // Update the estimated state in your hardware vehicle struct
+        hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
+        hw_vehicle_struct.estimate_state_.position_y = x_est_v[1];
+        hw_vehicle_struct.estimate_state_.position_z = x_est_v[2];
+        hw_vehicle_struct.estimate_state_.setEuler(x_est_v[3], x_est_v[4], x_est_v[5]);
+        hw_vehicle_struct.estimate_state_.u = x_est_v[6];
+        hw_vehicle_struct.estimate_state_.v = x_est_v[7];
+        hw_vehicle_struct.estimate_state_.w = x_est_v[8];
+        hw_vehicle_struct.estimate_state_.p = x_est_v[9];
+        hw_vehicle_struct.estimate_state_.q = x_est_v[10];
+        hw_vehicle_struct.estimate_state_.r = x_est_v[11];
+
         // Lock and check if new data is available
         std::lock_guard<std::mutex> lock(dvl_data_mutex_);
         if (new_dvl_data_available_)
@@ -1113,14 +1195,14 @@ namespace ros2_control_blue_reach_5
             StateEstimateTransform.header.frame_id = hw_vehicle_struct.map_frame_id;
             StateEstimateTransform.child_frame_id = hw_vehicle_struct.body_frame_id;
             StateEstimateTransform.header.stamp = current_time;
-            StateEstimateTransform.transform.translation.x = hw_vehicle_struct.current_state_.position_x;
-            StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.current_state_.position_y;
-            StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.current_state_.position_z;
+            StateEstimateTransform.transform.translation.x = hw_vehicle_struct.estimate_state_.position_x;
+            StateEstimateTransform.transform.translation.y = hw_vehicle_struct.estimate_state_.position_y;
+            StateEstimateTransform.transform.translation.z = hw_vehicle_struct.estimate_state_.position_z;
 
-            q_orig.setW(hw_vehicle_struct.current_state_.orientation_w);
-            q_orig.setX(hw_vehicle_struct.current_state_.orientation_x);
-            q_orig.setY(hw_vehicle_struct.current_state_.orientation_y);
-            q_orig.setZ(hw_vehicle_struct.current_state_.orientation_z);
+            q_orig.setW(hw_vehicle_struct.estimate_state_.orientation_w);
+            q_orig.setX(hw_vehicle_struct.estimate_state_.orientation_x);
+            q_orig.setY(hw_vehicle_struct.estimate_state_.orientation_y);
+            q_orig.setZ(hw_vehicle_struct.estimate_state_.orientation_z);
 
             q_orig.normalize();
 
