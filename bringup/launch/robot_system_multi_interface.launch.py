@@ -338,7 +338,12 @@ def launch_setup(context, *args, **kwargs):
         executable="cloudpoint_publisher",
         name="cloudpoint_publisher"
     )
-
+    estimator_node = Node(
+        package='simlab',
+        executable="estimator_publisher",
+        name="estimator_publisher",
+        parameters=[mode_params],
+    )
     
     # 1) Collect all spawners in the exact order you want them to complete
     all_spawners = [
@@ -365,11 +370,19 @@ def launch_setup(context, *args, **kwargs):
         OnProcessExit(target_action=all_spawners[-1], on_exit=[switch_proc])
     )
 
-    # 4) When the switch finishes, start RViz
+    # 4) After the switch
+    # 4a) start RViz if requested
     rviz_after_switch = RegisterEventHandler(
         OnProcessExit(target_action=switch_proc, on_exit=[rviz_node])
     )
-
+    # 4b) start clp after the switch
+    clp_after_switch = RegisterEventHandler(
+        OnProcessExit(target_action=switch_proc, on_exit=[clp_node, estimator_node])
+    )
+    # # 4c) start estimator only after clp has started and exited its launch process
+    # estimator_after_clp = RegisterEventHandler(
+    #     OnProcessExit(target_action=clp_node, on_exit=[])
+    # )
     # Define the simulator actions
     simulator_actions = [
         joint_state_broadcaster_spawner,
@@ -381,7 +394,8 @@ def launch_setup(context, *args, **kwargs):
         *chain_handlers, # event handlers that wire the sequence
         switch_after_all,
         rviz_after_switch,
-        clp_node,
+        clp_after_switch,
+        # estimator_after_clp,
     ]
     
     # Define simulator_agent
