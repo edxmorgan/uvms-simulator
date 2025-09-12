@@ -40,6 +40,7 @@ namespace casadi_reach_alpha_5
         Function genForces2propThrust; // functions to transform generalized forces to proper thrusts
         Function from_pwm_to_thrust; // function to transform pwm to thrust
         Function uv_Exkalman_update; // sensor fusion update for uv
+        Function manip_Exkalman_update; // sensor fusion update for uv
         Function pwm2rads; // convert pwm to rads
         Function thrust2rads; // convert thrust to rads
         Function unwrap; // unwrap angle

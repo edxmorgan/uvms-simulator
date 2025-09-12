@@ -149,6 +149,13 @@ namespace ros2_control_blue_reach_5
 
     std::string robot_prefix;
 
+    // One EKF per joint
+    std::vector<casadi::DM> x_est_list_;             // each is 3x1
+    std::vector<casadi::DM> P_est_list_;             // each is 3x3
+    std::vector<casadi::DM> Q_list_;                 // each is 3x3
+    std::vector<casadi::DM> R_list_;                 // each is 2x2
+    std::vector<std::array<double, 3>> P_diag_list_; // cached diagonals for quick inspection
+
     std::shared_ptr<rclcpp::Node> node_frames_interface_;
     std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> executor_;
     std::thread spin_thread_;

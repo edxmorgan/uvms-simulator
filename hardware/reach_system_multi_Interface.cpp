@@ -56,6 +56,7 @@ namespace ros2_control_blue_reach_5
     utils_service.current2torqueMap = utils_service.load_casadi_fun("current_to_torque_map", "libC2T.so");
     utils_service.torque2currentMap = utils_service.load_casadi_fun("torque_to_current_map", "libT2C.so");
     utils_service.forward_kinematics = utils_service.load_casadi_fun("fkeval", "libFK.so");
+    utils_service.manip_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libmEKF_next.so");
     utils_service.forward_kinematics_com = utils_service.load_casadi_fun("fkcomeval", "libFKcom.so");
     robot_prefix = get_hardware_info().hardware_parameters.at("prefix");
     cfg_.serial_port_ = get_hardware_info().hardware_parameters.at("serial_port");
@@ -204,6 +205,41 @@ namespace ros2_control_blue_reach_5
         rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
         "Successfully configured the ReachSystemMultiInterfaceHardware system interface for serial communication!");
 
+    // Initialize one EKF per joint
+    const std::size_t nj = get_hardware_info().joints.size();
+    x_est_list_.resize(nj);
+    P_est_list_.resize(nj);
+    Q_list_.resize(nj);
+    R_list_.resize(nj);
+    P_diag_list_.resize(nj);
+
+    for (std::size_t i = 0; i < nj; ++i)
+    {
+      // state [pos, vel, acc]^T
+      x_est_list_[i] = casadi::DM::zeros(3, 1);
+
+      // covariance init
+      casadi::DM P = casadi::DM::eye(3) * 0.001;
+      P_est_list_[i] = P;
+
+      // process noise
+      casadi::DM Q_vec = casadi::DM::zeros(3, 1);
+      Q_vec(0) = 0.001; // pos
+      Q_vec(1) = 0.001; // vel
+      Q_vec(2) = 0.001; // acc
+      Q_list_[i] = casadi::DM::diag(Q_vec);
+
+      // measurement noise for [pos, vel]
+      casadi::DM R_vec = casadi::DM::zeros(2, 1);
+      R_vec(0) = 0.01;  // position variance
+      R_vec(1) = 0.005; // velocity variance
+      R_list_[i] = casadi::DM::diag(R_vec);
+
+      P_diag_list_[i] = {double(P(0, 0)), double(P(1, 1)), double(P(2, 2))};
+    }
+
+    RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+                "Initialized %zu per joint EKFs.", nj);
     return hardware_interface::CallbackReturn::SUCCESS;
   }
 
@@ -412,9 +448,7 @@ namespace ros2_control_blue_reach_5
     {
       double prev_velocity_ = hw_joint_struct_[i].current_state_.velocity;
       hw_joint_struct_[i].current_state_.position = hw_joint_struct_[i].async_state_.position;
-      hw_joint_struct_[i].current_state_.filtered_position = hw_joint_struct_[i].async_state_.position;
       hw_joint_struct_[i].current_state_.velocity = hw_joint_struct_[i].async_state_.velocity;
-      hw_joint_struct_[i].current_state_.filtered_velocity = hw_joint_struct_[i].async_state_.velocity;
       hw_joint_struct_[i].current_state_.current = hw_joint_struct_[i].async_state_.current;
 
       if (hw_joint_struct_[i].current_state_.current > 0)
@@ -455,19 +489,59 @@ namespace ros2_control_blue_reach_5
     T_i_ = utils_service.forward_kinematics(fk_args);
 
     DM c_sample = DM::vertcat({5e-12, -1e-12, 16e-12,
-                                73.563e-12, -0.091e-12, -0.734e-12,
-                                17e-12, -26e-12, 2e-12,
-                                -0.030e-12, -12e-12, -98e-12});
+                               73.563e-12, -0.091e-12, -0.734e-12,
+                               17e-12, -26e-12, 2e-12,
+                               -0.030e-12, -12e-12, -98e-12});
     DM r_com_body = DM::vertcat({0.0, 0.0, 0.0});
 
     std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T};
     T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
 
+    // Time step for this cycle
+    casadi::DM dt_dm(delta_seconds);
+
+    // Run EKF for each joint, measurement y = [position, velocity]^T from current raw states
+    for (std::size_t i = 0; i < get_hardware_info().joints.size(); ++i)
+    {
+      // Pack measurement
+      casadi::DM y_k = casadi::DM::zeros(2, 1);
+      y_k(0) = hw_joint_struct_[i].current_state_.position;
+      y_k(1) = hw_joint_struct_[i].current_state_.velocity;
+
+      // Bundle inputs for this joint
+      std::vector<casadi::DM> ekf_inputs = {
+          x_est_list_[i], // x_k
+          P_est_list_[i], // P_k
+          dt_dm,          // dt
+          y_k,            // measurement
+          Q_list_[i],     // Q
+          R_list_[i]      // R
+      };
+
+      // EKF update
+      std::vector<casadi::DM> ekf_out = utils_service.manip_Exkalman_update(ekf_inputs);
+
+      // Extract results
+      x_est_list_[i] = ekf_out[0];
+      P_est_list_[i] = ekf_out[1];
+
+      // Cache diagonals
+      for (std::size_t d = 0; d < 3; ++d)
+      {
+        P_diag_list_[i][d] = double(P_est_list_[i](d, d));
+      }
+
+      // Write filtered states back to this joint
+      const std::vector<double> x_est_dense = x_est_list_[i].nonzeros(); // 3 entries
+      hw_joint_struct_[i].current_state_.filtered_position = x_est_dense[0];
+      hw_joint_struct_[i].current_state_.filtered_velocity = x_est_dense[1];
+      hw_joint_struct_[i].current_state_.estimated_acceleration = x_est_dense[2];
+    }
     return hardware_interface::return_type::OK;
   }
 
   hardware_interface::return_type ReachSystemMultiInterfaceHardware::write(
-      const rclcpp::Time &/*time*/, const rclcpp::Duration & /*period*/)
+      const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
   {
     // Send the commands for each joint
     for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
