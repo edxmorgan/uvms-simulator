@@ -59,6 +59,7 @@ namespace ros2_control_blue_reach_5
         utils_service.vehicle_dynamics = utils_service.load_casadi_fun("Vnext", "libUV_xnext.so");
         utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
         utils_service.thrust2rads = utils_service.load_casadi_fun("thrusts_to_rads", "libTHRUST_RAD.so");
+        utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
 
         hw_vehicle_struct.world_frame_id = get_hardware_info().hardware_parameters.at("world_frame_id");
         hw_vehicle_struct.body_frame_id = get_hardware_info().hardware_parameters.at("body_frame_id");
@@ -241,7 +242,6 @@ namespace ros2_control_blue_reach_5
 
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                     "Initialized P_est_, Q_, and R_ for Kalman filter.");
-
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "configure successful");
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -604,7 +604,7 @@ namespace ros2_control_blue_reach_5
     }
 
     hardware_interface::return_type SimVehicleSystemMultiInterfaceHardware::read(
-        const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
+        const rclcpp::Time & /*time*/, const rclcpp::Duration &period)
     {
         delta_seconds = period.seconds();
         // measurements
@@ -654,7 +654,7 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.current_state_.dp = x_est_v[15];
         hw_vehicle_struct.current_state_.dq = x_est_v[16];
         hw_vehicle_struct.current_state_.dr = x_est_v[17];
-        
+
         return hardware_interface::return_type::OK;
     }
 
@@ -753,7 +753,6 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.imu_state.pitch_unwrap = -vehicle_next_states[4];
         hw_vehicle_struct.imu_state.yaw_unwrap = -vehicle_next_states[5];
 
-
         hw_vehicle_struct.current_state_.u = vehicle_next_states[6];
         hw_vehicle_struct.current_state_.v = vehicle_next_states[7];
         hw_vehicle_struct.current_state_.w = vehicle_next_states[8];
@@ -844,14 +843,14 @@ namespace ros2_control_blue_reach_5
             StateEstimateTransform.header.frame_id = hw_vehicle_struct.map_frame_id;
             StateEstimateTransform.child_frame_id = hw_vehicle_struct.body_frame_id;
             StateEstimateTransform.header.stamp = current_time;
-            StateEstimateTransform.transform.translation.x = hw_vehicle_struct.current_state_.position_x;
-            StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.current_state_.position_y;
-            StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.current_state_.position_z;
+            StateEstimateTransform.transform.translation.x = hw_vehicle_struct.estimate_state_.position_x;
+            StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.estimate_state_.position_y;
+            StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.estimate_state_.position_z;
 
-            q_orig.setW(hw_vehicle_struct.current_state_.orientation_w);
-            q_orig.setX(hw_vehicle_struct.current_state_.orientation_x);
-            q_orig.setY(hw_vehicle_struct.current_state_.orientation_y);
-            q_orig.setZ(hw_vehicle_struct.current_state_.orientation_z);
+            q_orig.setW(hw_vehicle_struct.estimate_state_.orientation_w);
+            q_orig.setX(hw_vehicle_struct.estimate_state_.orientation_x);
+            q_orig.setY(hw_vehicle_struct.estimate_state_.orientation_y);
+            q_orig.setZ(hw_vehicle_struct.estimate_state_.orientation_z);
 
             q_orig.normalize();
 

@@ -212,7 +212,7 @@ namespace ros2_control_blue_reach_5
         casadi::DM P_est_; // Covariance: either 12x1 diag or 12x12, depending on your ekf_step function
         casadi::DM Q_;     // Process noise
         casadi::DM R_;     // Measurement noise
-        double P_diag_[12];
+        double P_diag_[18];
 
         // DVL driver instance
         a50dvl::driver::DVLDriver dvl_driver_;

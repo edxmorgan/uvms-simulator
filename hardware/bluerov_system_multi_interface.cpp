@@ -1202,8 +1202,8 @@ namespace ros2_control_blue_reach_5
             StateEstimateTransform.child_frame_id = hw_vehicle_struct.body_frame_id;
             StateEstimateTransform.header.stamp = current_time;
             StateEstimateTransform.transform.translation.x = hw_vehicle_struct.estimate_state_.position_x;
-            StateEstimateTransform.transform.translation.y = hw_vehicle_struct.estimate_state_.position_y;
-            StateEstimateTransform.transform.translation.z = hw_vehicle_struct.estimate_state_.position_z;
+            StateEstimateTransform.transform.translation.y = -hw_vehicle_struct.estimate_state_.position_y;
+            StateEstimateTransform.transform.translation.z = -hw_vehicle_struct.estimate_state_.position_z;
 
             q_orig.setW(hw_vehicle_struct.estimate_state_.orientation_w);
             q_orig.setX(hw_vehicle_struct.estimate_state_.orientation_x);

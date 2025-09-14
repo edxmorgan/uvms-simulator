@@ -133,14 +133,13 @@ namespace ros2_control_blue_reach_5
 
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
 
-        // --- Kalman Filter state variables ---
+       // --- Kalman Filter state variables ---
         casadi::DM x_est_; // State vector: e.g. [px, py, pz, roll, pitch, yaw, u, v, w, p, q, r]
         casadi::DM P_est_; // Covariance: either 12x1 diag or 12x12, depending on your ekf_step function
         casadi::DM Q_;     // Process noise
         casadi::DM R_;     // Measurement noise
-        std::vector<casadi::DM> vehicle_parameters;
-        double P_diag_[12];
-
+        double P_diag_[18];
+        
         std::vector<casadi::DM> uv_state;
         std::vector<casadi::DM> uv_input;
         std::vector<casadi::DM> vehicle_simulate_argument;
