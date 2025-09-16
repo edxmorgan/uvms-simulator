@@ -21,6 +21,7 @@
           <param name="world_frame_id">${world_frame_id}</param>
           <param name="body_frame_id">${body_frame_id}</param>
           <param name="map_frame_id">${map_frame_id}</param>
+          <param name="use_pwm">${use_pwm}</param>
         </xacro:unless>
       </hardware>
 

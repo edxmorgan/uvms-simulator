@@ -310,7 +310,7 @@ def launch_setup(context, *args, **kwargs):
             'manual': ('joystick_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
             'motion_plan': ('motion_plan_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
             'joint': ('joint_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
-            'direct_thrusters': ('direct_thruster_controller', [*vehicle_thruster_pwm_ctrl]),
+            'direct_thrusters': ('direct_thruster_controller', [*manipulator_effort_ctrl, *vehicle_thruster_pwm_ctrl]),
         }
 
         exec_name, start_ctrls = task_map[task]

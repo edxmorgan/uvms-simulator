@@ -978,20 +978,20 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position += rads_output[i] * delta_seconds;
         }
 
-        hw_vehicle_struct.current_state_.position_x = hw_vehicle_struct.command_state_.position_x;
-        hw_vehicle_struct.current_state_.position_y = hw_vehicle_struct.command_state_.position_y;
-        hw_vehicle_struct.current_state_.position_z = hw_vehicle_struct.command_state_.position_z;
+        hw_vehicle_struct.current_state_.position_x = hw_vehicle_struct.estimate_state_.position_x;
+        hw_vehicle_struct.current_state_.position_y = hw_vehicle_struct.estimate_state_.position_y;
+        hw_vehicle_struct.current_state_.position_z = hw_vehicle_struct.estimate_state_.position_z;
 
-        hw_vehicle_struct.current_state_.setEuler(hw_vehicle_struct.command_state_.roll,
-                                                  hw_vehicle_struct.command_state_.pitch,
-                                                  hw_vehicle_struct.command_state_.yaw);
+        hw_vehicle_struct.current_state_.setEuler(hw_vehicle_struct.estimate_state_.roll,
+                                                  hw_vehicle_struct.estimate_state_.pitch,
+                                                  hw_vehicle_struct.estimate_state_.yaw);
 
-        hw_vehicle_struct.current_state_.u = hw_vehicle_struct.command_state_.u;
-        hw_vehicle_struct.current_state_.v = hw_vehicle_struct.command_state_.v;
-        hw_vehicle_struct.current_state_.w = hw_vehicle_struct.command_state_.w;
-        hw_vehicle_struct.current_state_.p = hw_vehicle_struct.command_state_.p;
-        hw_vehicle_struct.current_state_.q = hw_vehicle_struct.command_state_.q;
-        hw_vehicle_struct.current_state_.r = hw_vehicle_struct.command_state_.r;
+        hw_vehicle_struct.current_state_.u = hw_vehicle_struct.estimate_state_.u;
+        hw_vehicle_struct.current_state_.v = hw_vehicle_struct.estimate_state_.v;
+        hw_vehicle_struct.current_state_.w = hw_vehicle_struct.estimate_state_.w;
+        hw_vehicle_struct.current_state_.p = hw_vehicle_struct.estimate_state_.p;
+        hw_vehicle_struct.current_state_.q = hw_vehicle_struct.estimate_state_.q;
+        hw_vehicle_struct.current_state_.r = hw_vehicle_struct.estimate_state_.r;
 
         hw_vehicle_struct.current_state_.Fx = hw_vehicle_struct.command_state_.Fx;
         hw_vehicle_struct.current_state_.Fy = hw_vehicle_struct.command_state_.Fy;
@@ -1059,18 +1059,18 @@ namespace ros2_control_blue_reach_5
                      thrusts[6],
                      thrusts[7]);
         std::vector<DM> pwm_input = utils_service.from_pwm_to_thrust(thrust_outputs.at(0));
-        std::vector<double> pwm_commands = pwm_input.at(0).nonzeros();
+        std::vector<double> pwm_commands_from_principal_forces_moments = pwm_input.at(0).nonzeros();
 
         if (!hw_vehicle_struct.use_pwm)
         {
-            hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm = pwm_commands[0];
-            hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm = pwm_commands[1];
-            hw_vehicle_struct.hw_thrust_structs_[2].command_state_.command_pwm = pwm_commands[2];
-            hw_vehicle_struct.hw_thrust_structs_[3].command_state_.command_pwm = pwm_commands[3];
-            hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm = pwm_commands[4];
-            hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm = pwm_commands[5];
-            hw_vehicle_struct.hw_thrust_structs_[6].command_state_.command_pwm = pwm_commands[6];
-            hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm = pwm_commands[7];
+            hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm = pwm_commands_from_principal_forces_moments[0];
+            hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm = pwm_commands_from_principal_forces_moments[1];
+            hw_vehicle_struct.hw_thrust_structs_[2].command_state_.command_pwm = pwm_commands_from_principal_forces_moments[2];
+            hw_vehicle_struct.hw_thrust_structs_[3].command_state_.command_pwm = pwm_commands_from_principal_forces_moments[3];
+            hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm = pwm_commands_from_principal_forces_moments[4];
+            hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm = pwm_commands_from_principal_forces_moments[5];
+            hw_vehicle_struct.hw_thrust_structs_[6].command_state_.command_pwm = pwm_commands_from_principal_forces_moments[6];
+            hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm = pwm_commands_from_principal_forces_moments[7];
         }
 
         if (rt_override_rc_pub_ && rt_override_rc_pub_->trylock())

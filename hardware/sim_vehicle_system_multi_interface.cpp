@@ -66,11 +66,54 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.map_frame_id = get_hardware_info().hardware_parameters.at("map_frame_id");
         hw_vehicle_struct.robot_prefix = get_hardware_info().hardware_parameters.at("prefix");
 
+        if (get_hardware_info().hardware_parameters.find("world_frame_id") == get_hardware_info().hardware_parameters.cend())
+        {
+            RCLCPP_ERROR( // NOLINT
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'world_frame_id' parameter is required.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        hw_vehicle_struct.world_frame_id = get_hardware_info().hardware_parameters.at("world_frame_id");
+
+        if (get_hardware_info().hardware_parameters.find("body_frame_id") == get_hardware_info().hardware_parameters.cend())
+        {
+            RCLCPP_ERROR( // NOLINT
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'body_frame_id' parameter is required.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        hw_vehicle_struct.body_frame_id = get_hardware_info().hardware_parameters.at("body_frame_id");
+
+        if (get_hardware_info().hardware_parameters.find("map_frame_id") == get_hardware_info().hardware_parameters.cend())
+        {
+            RCLCPP_ERROR( // NOLINT
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'map_frame_id' parameter is required.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        hw_vehicle_struct.map_frame_id = get_hardware_info().hardware_parameters.at("map_frame_id");
+
+        if (get_hardware_info().hardware_parameters.find("prefix") == get_hardware_info().hardware_parameters.cend())
+        {
+            RCLCPP_ERROR( // NOLINT
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'prefix' parameter is required.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        hw_vehicle_struct.robot_prefix = get_hardware_info().hardware_parameters.at("prefix");
+
+        if (get_hardware_info().hardware_parameters.find("use_pwm") == get_hardware_info().hardware_parameters.cend())
+        {
+            RCLCPP_ERROR( // NOLINT
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "The 'use_pwm' parameter is required.");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        const std::string use_pwm_str = get_hardware_info().hardware_parameters.at("use_pwm"); // e.g., "true", "false", "1", "0"
+        hw_vehicle_struct.use_pwm =
+            use_pwm_str == "true" || use_pwm_str == "True" || use_pwm_str == "1";
+
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************robot prefix: %s", hw_vehicle_struct.robot_prefix.c_str());
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************frame id: %s", hw_vehicle_struct.world_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
-
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "use_pwm: %s", use_pwm_str.c_str());
+        
         // Use the robot_prefix as a seed
         std::size_t seed_val = std::hash<std::string>{}(hw_vehicle_struct.robot_prefix);
         std::mt19937 gen(seed_val + 23);
