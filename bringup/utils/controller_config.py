@@ -61,22 +61,34 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
         'type': 'force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster'
     }
 
-    new_param[fts_broadcaster_name] = {'ros__parameters': {
-        'frame_id': base_link,
-        'interface_names': {
-            'force': {
-                'x': f'{vehicle_IOs}/force.x',
-                'y': f'{vehicle_IOs}/force.y',
-                'z': f'{vehicle_IOs}/force.z'
+    new_param[fts_broadcaster_name] = {
+        'ros__parameters': {
+            'frame_id': base_link,
+            'interface_names': {
+                'force': {
+                    'x': f'{vehicle_IOs}/force.x',
+                    'y': f'{vehicle_IOs}/force.y',
+                    'z': f'{vehicle_IOs}/force.z',
                 },
-            'torque': {
-                'x': f'{vehicle_IOs}/torque.x',
-                'y': f'{vehicle_IOs}/torque.y',
-                'z': f'{vehicle_IOs}/torque.z'
-                }
-            }
+                'torque': {
+                    'x': f'{vehicle_IOs}/torque.x',
+                    'y': f'{vehicle_IOs}/torque.y',
+                    'z': f'{vehicle_IOs}/torque.z',
+                },
+            },
+            # Flip Y and Z if left and down come in with opposite sign
+            'multiplier': {
+                'force': {'x': 1.0, 'y': -1.0, 'z': -1.0},
+                'torque': {'x': 1.0, 'y': -1.0, 'z': -1.0},
+            },
+            # Optional zero offsets
+            'offset': {
+                'force': {'x': 0.0, 'y': 0.0, 'z': 0.0},
+                'torque': {'x': 0.0, 'y': 0.0, 'z': 0.0},
+            },
         }
     }
+
 
     # Vehicle effort controller
     vehicle_effort_ctrl_name = f'vehicle_effort_controller_{prefix}'

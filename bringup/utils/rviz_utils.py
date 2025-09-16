@@ -90,7 +90,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
                           custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
 
 
-    add_wrench_entries(ix, new_rviz_config, False)
+    add_wrench_entries(ix, new_rviz_config, True)
     with open(new_rviz_config_path,'w') as file:
         yaml.dump(new_rviz_config,file,Dumper=NoAliasDumper)
 
@@ -342,11 +342,11 @@ def add_wrench_entries(ix, rviz_config, enabled= True):
         'Arrow Width': 0.3,
         'Class': 'rviz_default_plugins/Wrench',
         'Enabled': enabled,
-        'Force Arrow Scale': 0.7,
+        'Force Arrow Scale': 0.1,
         'Force Color': '204; 51; 51',
         'History Length': 1,
         'Name': 'Wrench',
-        'Torque Arrow Scale': 0.7,
+        'Torque Arrow Scale': 0.2,
         'Torque Color': '204; 204; 51',
         'Value': True
     }
