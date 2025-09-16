@@ -56,6 +56,7 @@ namespace ros2_control_blue_reach_5
         utils_service.forward_kinematics = utils_service.load_casadi_fun("fkeval", "libFK.so");
         utils_service.forward_kinematics_com = utils_service.load_casadi_fun("fkcomeval", "libFKcom.so");
         utils_service.base_ext_R_to_vehicle = utils_service.load_casadi_fun("R_base", "libBase_ext_R_vehicle.so");
+        utils_service.manip_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libmEKF_next.so");
 
         robot_prefix = get_hardware_info().hardware_parameters.at("prefix");
 
@@ -156,9 +157,41 @@ namespace ros2_control_blue_reach_5
                          "Failed TF publisher setup, %s", e.what());
             return hardware_interface::CallbackReturn::ERROR;
         }
-        RCLCPP_INFO( // NOLINT
-            rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
-            "Successfully configured the SimReachSystemMultiInterfaceHardware system interface for serial communication!");
+        // Initialize one EKF per joint
+        const std::size_t nj = get_hardware_info().joints.size();
+        x_est_list_.resize(nj);
+        P_est_list_.resize(nj);
+        Q_list_.resize(nj);
+        R_list_.resize(nj);
+        P_diag_list_.resize(nj);
+
+        for (std::size_t i = 0; i < nj; ++i)
+        {
+            // state [pos, vel, acc]^T
+            x_est_list_[i] = casadi::DM::zeros(3, 1);
+
+            // covariance init
+            casadi::DM P = casadi::DM::eye(3) * 0.001;
+            P_est_list_[i] = P;
+
+            // process noise
+            casadi::DM Q_vec = casadi::DM::zeros(3, 1);
+            Q_vec(0) = 0.001; // pos
+            Q_vec(1) = 0.001; // vel
+            Q_vec(2) = 0.001; // acc
+            Q_list_[i] = casadi::DM::diag(Q_vec);
+
+            // measurement noise for [pos, vel]
+            casadi::DM R_vec = casadi::DM::zeros(2, 1);
+            R_vec(0) = 0.01;  // position variance
+            R_vec(1) = 0.005; // velocity variance
+            R_list_[i] = casadi::DM::diag(R_vec);
+
+            P_diag_list_[i] = {double(P(0, 0)), double(P(1, 1)), double(P(2, 2))};
+        }
+
+        RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+                    "Initialized %zu per joint EKFs.", nj);
 
         return hardware_interface::CallbackReturn::SUCCESS;
     }
@@ -358,7 +391,47 @@ namespace ros2_control_blue_reach_5
 
         std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T};
         T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
+        // Time step for this cycle
+        casadi::DM dt_dm(delta_seconds);
 
+        // Run EKF for each joint, measurement y = [position, velocity]^T from current raw states
+        for (std::size_t i = 0; i < get_hardware_info().joints.size(); ++i)
+        {
+            // Pack measurement
+            casadi::DM y_k = casadi::DM::zeros(2, 1);
+            y_k(0) = hw_joint_struct_[i].current_state_.position;
+            y_k(1) = hw_joint_struct_[i].current_state_.velocity;
+
+            // Bundle inputs for this joint
+            std::vector<casadi::DM> ekf_inputs = {
+                x_est_list_[i], // x_k
+                P_est_list_[i], // P_k
+                dt_dm,          // dt
+                y_k,            // measurement
+                Q_list_[i],     // Q
+                R_list_[i]      // R
+            };
+
+            // EKF update
+            std::vector<casadi::DM> ekf_out = utils_service.manip_Exkalman_update(ekf_inputs);
+
+            // Extract results
+            x_est_list_[i] = ekf_out[0];
+            P_est_list_[i] = ekf_out[1];
+
+            // Cache diagonals
+            for (std::size_t d = 0; d < 3; ++d)
+            {
+                P_diag_list_[i][d] = double(P_est_list_[i](d, d));
+            }
+
+            // Write filtered states back to this joint
+            const std::vector<double> x_est_dense = x_est_list_[i].nonzeros(); // 3 entries
+            hw_joint_struct_[i].current_state_.filtered_position = x_est_dense[0];
+            hw_joint_struct_[i].current_state_.filtered_velocity = x_est_dense[1];
+            hw_joint_struct_[i].current_state_.estimated_acceleration = x_est_dense[2];
+            hw_joint_struct_[i].current_state_.acceleration = x_est_dense[2];
+        }
         return hardware_interface::return_type::OK;
     }
 
@@ -477,7 +550,7 @@ namespace ros2_control_blue_reach_5
         hw_joint_struct_[1].current_state_.velocity = arm_next_states[5];
         hw_joint_struct_[2].current_state_.velocity = arm_next_states[6];
         hw_joint_struct_[3].current_state_.velocity = arm_next_states[7];
-        
+
         rclcpp::Time current_time = node_frames_interface_->now();
         if (realtime_frame_transform_publisher_ && realtime_frame_transform_publisher_->trylock())
         {

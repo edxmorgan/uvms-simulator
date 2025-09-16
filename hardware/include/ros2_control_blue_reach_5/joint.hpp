@@ -137,8 +137,6 @@ public:
           soft_limits_(soft_limits),
           actuator_Properties_(actuator_Properties) {}
 
-    void calcAcceleration(const double &cur_velocity, const double &prev_velocity_, const double &period_seconds);
-
     /**
      * @brief Enforce position, velocity, and effort limits for a joint that is not subject to soft limits.
      *
@@ -146,15 +144,6 @@ public:
      * is considered timed out. This must be greater than 1 second; defaults to 3 seconds.
      */
     double enforce_hard_limits(const double &current_effort);
-
-    /**
-     * @brief Enforce position, velocity and effort limits for a joint subject to soft limits.
-     * @note If the joint has no position limits (eg. a continuous joint), only velocity and effort limits
-     * will be enforced.
-     */
-    double enforce_soft_limits();
-
-    double calculateExcitationEffortForJoint();
 };
 
 #endif // ROS2_CONTROL_BLUE_REACH_5__JOINT_HPP_

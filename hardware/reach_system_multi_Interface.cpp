@@ -446,7 +446,6 @@ namespace ros2_control_blue_reach_5
     const std::lock_guard<std::mutex> lock(access_async_states_);
     for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
     {
-      double prev_velocity_ = hw_joint_struct_[i].current_state_.velocity;
       hw_joint_struct_[i].current_state_.position = hw_joint_struct_[i].async_state_.position;
       hw_joint_struct_[i].current_state_.velocity = hw_joint_struct_[i].async_state_.velocity;
       hw_joint_struct_[i].current_state_.current = hw_joint_struct_[i].async_state_.current;
@@ -466,7 +465,6 @@ namespace ros2_control_blue_reach_5
       std::vector<DM> torque = utils_service.current2torqueMap(T2C_arg);
       hw_joint_struct_[i].current_state_.effort = torque.at(0).scalar();
       hw_joint_struct_[i].current_state_.computed_effort = hw_joint_struct_[i].command_state_.effort;
-      hw_joint_struct_[i].calcAcceleration(hw_joint_struct_[i].current_state_.velocity, prev_velocity_, delta_seconds);
 
       hw_joint_struct_[i].current_state_.sim_time = time_seconds;
       hw_joint_struct_[i].current_state_.sim_period = delta_seconds;
@@ -536,6 +534,7 @@ namespace ros2_control_blue_reach_5
       hw_joint_struct_[i].current_state_.filtered_position = x_est_dense[0];
       hw_joint_struct_[i].current_state_.filtered_velocity = x_est_dense[1];
       hw_joint_struct_[i].current_state_.estimated_acceleration = x_est_dense[2];
+      hw_joint_struct_[i].current_state_.acceleration = x_est_dense[2];
     }
     return hardware_interface::return_type::OK;
   }
