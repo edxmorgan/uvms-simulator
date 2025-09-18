@@ -73,7 +73,7 @@ namespace ros2_control_blue_reach_5
         // Use CasADi's "external" to load the compiled functions
         utils_service.usage_cplusplus_checks("test", "libtest.so", "vehicle");
         utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
-        utils_service.from_pwm_to_thrust = utils_service.load_casadi_fun("getNpwm", "libThrust_PWM.so");
+        utils_service.from_thrust_to_pwm = utils_service.load_casadi_fun("getNpwm", "libThrust_PWM.so");
         utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
         utils_service.pwm2rads = utils_service.load_casadi_fun("pwm_to_rads", "libPWM_RAD.so");
         utils_service.unwrap = utils_service.load_casadi_fun("unwrap", "libAngWrap.so");
@@ -1058,7 +1058,7 @@ namespace ros2_control_blue_reach_5
                      thrusts[5],
                      thrusts[6],
                      thrusts[7]);
-        std::vector<DM> pwm_input = utils_service.from_pwm_to_thrust(thrust_outputs.at(0));
+        std::vector<DM> pwm_input = utils_service.from_thrust_to_pwm(thrust_outputs.at(0));
         std::vector<double> pwm_commands_from_principal_forces_moments = pwm_input.at(0).nonzeros();
 
         if (!hw_vehicle_struct.use_pwm)

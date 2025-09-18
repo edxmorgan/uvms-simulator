@@ -68,6 +68,13 @@ namespace ros2_control_blue_reach_5
 
         hw_joint_struct_.reserve(get_hardware_info().joints.size());
 
+        const std::size_t nj = get_hardware_info().joints.size();
+        is_locked_.assign(nj, false); // joint lock mechanism
+
+        //  could come from parameters instead of hard-coding
+        on_db_.assign(nj, 1e-3);  // joint on deadband
+        off_db_.assign(nj, 2e-3); // joint off deadband
+
         for (const hardware_interface::ComponentInfo &joint : get_hardware_info().joints)
         {
             std::string device_id_value = joint.parameters.at("device_id");
@@ -537,7 +544,46 @@ namespace ros2_control_blue_reach_5
             arm_torques.push_back(hw_joint_struct_[j].command_state_.effort);
         };
 
-        arm_simulate_argument = {arm_state, arm_torques, delta_seconds, rigid_p};
+        // number of dynamic joints in the model
+        constexpr std::size_t n_dyn = 4;
+
+        // update hysteresis for the 4 dynamic joints
+        for (std::size_t j = 0; j < n_dyn; ++j)
+        {
+            const double u = hw_joint_struct_[j].command_state_.effort;
+            if (!is_locked_[j] && std::abs(u) < on_db_[j])
+            {
+                is_locked_[j] = true;
+            }
+            else if (is_locked_[j] && std::abs(u) > off_db_[j])
+            {
+                is_locked_[j] = false;
+            }
+        }
+
+        // build a single column mask of length 4
+        casadi::DM lock_mask = casadi::DM::zeros(static_cast<int>(n_dyn), 1);
+        for (std::size_t j = 0; j < n_dyn; ++j)
+            lock_mask(j) = is_locked_[j] ? 1.0 : 0.0;
+
+        // // optional log
+        // RCLCPP_INFO_THROTTLE(
+        //     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+        //     *node_frames_interface_->get_clock(), 500,
+        //     "efforts = [%.3e %.3e %.3e %.3e | ee %.3e], mask = [%d %d %d %d]",
+        //     hw_joint_struct_[0].command_state_.effort,
+        //     hw_joint_struct_[1].command_state_.effort,
+        //     hw_joint_struct_[2].command_state_.effort,
+        //     hw_joint_struct_[3].command_state_.effort,
+        //     hw_joint_struct_[4].command_state_.effort,
+        //     static_cast<int>(is_locked_[0]),
+        //     static_cast<int>(is_locked_[1]),
+        //     static_cast<int>(is_locked_[2]),
+        //     static_cast<int>(is_locked_[3]));
+
+        // call dynamics with the mask
+        DM baumgarte_alpha = 5;
+        arm_simulate_argument = {arm_state, arm_torques, delta_seconds, rigid_p, lock_mask, baumgarte_alpha};
         arm_sim = utils_service.manipulator_dynamics(arm_simulate_argument);
         arm_next_states = arm_sim.at(0).nonzeros();
 

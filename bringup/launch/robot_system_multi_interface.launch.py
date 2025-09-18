@@ -379,10 +379,7 @@ def launch_setup(context, *args, **kwargs):
     clp_after_switch = RegisterEventHandler(
         OnProcessExit(target_action=switch_proc, on_exit=[clp_node, estimator_node])
     )
-    # # 4c) start estimator only after clp has started and exited its launch process
-    # estimator_after_clp = RegisterEventHandler(
-    #     OnProcessExit(target_action=clp_node, on_exit=[])
-    # )
+
     # Define the simulator actions
     simulator_actions = [
         joint_state_broadcaster_spawner,
@@ -394,8 +391,7 @@ def launch_setup(context, *args, **kwargs):
         *chain_handlers, # event handlers that wire the sequence
         switch_after_all,
         rviz_after_switch,
-        clp_after_switch,
-        # estimator_after_clp,
+        # clp_after_switch
     ]
     
     # Define simulator_agent

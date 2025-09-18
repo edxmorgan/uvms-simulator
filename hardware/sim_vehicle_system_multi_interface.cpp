@@ -60,6 +60,8 @@ namespace ros2_control_blue_reach_5
         utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
         utils_service.thrust2rads = utils_service.load_casadi_fun("thrusts_to_rads", "libTHRUST_RAD.so");
         utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
+        utils_service.pwm_to_thrusts = utils_service.load_casadi_fun("pwm_to_thrusts", "libPWM_THRUST.so");
+        utils_service.thruster_f2body_f = utils_service.load_casadi_fun("F_thruster_body", "libF_thruster_body.so");
 
         hw_vehicle_struct.world_frame_id = get_hardware_info().hardware_parameters.at("world_frame_id");
         hw_vehicle_struct.body_frame_id = get_hardware_info().hardware_parameters.at("body_frame_id");
@@ -113,7 +115,7 @@ namespace ros2_control_blue_reach_5
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "use_pwm: %s", use_pwm_str.c_str());
-        
+
         // Use the robot_prefix as a seed
         std::size_t seed_val = std::hash<std::string>{}(hw_vehicle_struct.robot_prefix);
         std::mt19937 gen(seed_val + 23);
@@ -706,6 +708,47 @@ namespace ros2_control_blue_reach_5
     {
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
+        // Define the 6×8 thrust configuration matrix.
+        DM thrust_config = DM({{0.707, 0.707, -0.707, -0.707, 0.0, 0.0, 0.0, 0.0},
+                               {-0.707, 0.707, -0.707, 0.707, 0.0, 0.0, 0.0, 0.0},
+                               {0.0, 0.0, 0.0, 0.0, -1.0, 1.0, 1.0, -1.0},
+                               {0.06, -0.06, 0.06, -0.06, -0.218, -0.218, 0.218, 0.218},
+                               {0.06, 0.06, -0.06, -0.06, 0.12, -0.12, 0.12, -0.12},
+                               {-0.1888, 0.1888, 0.1888, -0.1888, 0.0, 0.0, 0.0, 0.0}});
+
+        if (hw_vehicle_struct.use_pwm)
+        {
+            DM pwm_commands = DM({hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm,
+                                  hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm,
+                                  hw_vehicle_struct.hw_thrust_structs_[2].command_state_.command_pwm,
+                                  hw_vehicle_struct.hw_thrust_structs_[3].command_state_.command_pwm,
+                                  hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm,
+                                  hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm,
+                                  hw_vehicle_struct.hw_thrust_structs_[8].command_state_.command_pwm,
+                                  hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm});
+
+            std::vector<DM> thrusts_commands = utils_service.pwm_to_thrusts(pwm_commands);
+            // std::vector<double> thrusts_commands_doubles = thrusts_commands.at(0).nonzeros();
+
+            const std::vector<double> &v = thrusts_commands.at(0).nonzeros();
+            std::vector<double> thrusts_commands_doubles;
+            thrusts_commands_doubles.reserve(v.size());
+            const double scale = 0.015;
+            for (double x : v)
+            {
+                thrusts_commands_doubles.push_back(scale * x);
+            }
+            std::vector<DM> thrust2bodyf_args = {thrust_config, thrusts_commands_doubles};
+            std::vector<DM> body_forces_command_resp = utils_service.thruster_f2body_f(thrust2bodyf_args);
+            std::vector<double> body_forces_command = body_forces_command_resp.at(0).nonzeros();
+
+            hw_vehicle_struct.command_state_.Fx = body_forces_command[0];
+            hw_vehicle_struct.command_state_.Fy = body_forces_command[1];
+            hw_vehicle_struct.command_state_.Fz = body_forces_command[2];
+            hw_vehicle_struct.command_state_.Tx = body_forces_command[3];
+            hw_vehicle_struct.command_state_.Ty = body_forces_command[4];
+            hw_vehicle_struct.command_state_.Tz = body_forces_command[5];
+        }
 
         // IMPORTANT, clear per cycle
         uv_state.clear();
@@ -738,16 +781,8 @@ namespace ros2_control_blue_reach_5
         uv_input.push_back(hw_vehicle_struct.command_state_.Ty);
         uv_input.push_back(hw_vehicle_struct.command_state_.Tz);
 
-        // Define the 6×8 thrust configuration matrix.
-        DM thrust_config = DM({{0.707, 0.707, -0.707, -0.707, 0.0, 0.0, 0.0, 0.0},
-                               {-0.707, 0.707, -0.707, 0.707, 0.0, 0.0, 0.0, 0.0},
-                               {0.0, 0.0, 0.0, 0.0, -1.0, 1.0, 1.0, -1.0},
-                               {0.06, -0.06, 0.06, -0.06, -0.218, -0.218, 0.218, 0.218},
-                               {0.06, 0.06, -0.06, -0.06, 0.12, -0.12, 0.12, -0.12},
-                               {-0.1888, 0.1888, 0.1888, -0.1888, 0.0, 0.0, 0.0, 0.0}});
-
-        std::vector<DM> inputs = {thrust_config, uv_input};
-        std::vector<DM> thrust_outputs = utils_service.genForces2propThrust(inputs);
+        std::vector<DM> FTinputs = {thrust_config, uv_input};
+        std::vector<DM> thrust_outputs = utils_service.genForces2propThrust(FTinputs);
         std::vector<double> thrusts = thrust_outputs.at(0).nonzeros();
 
         std::vector<DM> thrust2rads_args = {thrusts};

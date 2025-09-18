@@ -130,6 +130,10 @@ namespace ros2_control_blue_reach_5
         double delta_seconds;
         double time_seconds;
 
+        std::vector<bool>   is_locked_;
+        std::vector<double> on_db_;
+        std::vector<double> off_db_;
+
         std::vector<casadi::DM> arm_state;
         std::vector<casadi::DM> arm_torques;
 

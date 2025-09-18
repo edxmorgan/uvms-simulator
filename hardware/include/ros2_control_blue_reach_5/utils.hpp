@@ -38,11 +38,13 @@ namespace casadi_reach_alpha_5
         Function torque2currentMap; // forward motor utils
         Function current2torqueMap; // inverse motor utils
         Function genForces2propThrust; // functions to transform generalized forces to proper thrusts
-        Function from_pwm_to_thrust; // function to transform pwm to thrust
+        Function from_thrust_to_pwm; // function to transform thrust to pwm
         Function uv_Exkalman_update; // sensor fusion update for uv
         Function manip_Exkalman_update; // sensor fusion update for uv
         Function pwm2rads; // convert pwm to rads
         Function thrust2rads; // convert thrust to rads
+        Function pwm_to_thrusts; // convert pwm to thrust
+        Function thruster_f2body_f;
         Function unwrap; // unwrap angle
         Function base_ext_R_to_vehicle; // reaction forces from manipulator to vehicle
 
