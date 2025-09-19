@@ -626,16 +626,31 @@ namespace ros2_control_blue_reach_5
         arm_sim = utils_service.manipulator_dynamics(arm_simulate_argument);
         arm_next_states = arm_sim.at(0).nonzeros();
 
-        hw_joint_struct_[0].current_state_.position = arm_next_states[0];
-        hw_joint_struct_[1].current_state_.position = arm_next_states[1];
-        hw_joint_struct_[2].current_state_.position = arm_next_states[2];
-        hw_joint_struct_[3].current_state_.position = arm_next_states[3];
+        // clamp the NEW state, then write it back
+        for (int j = 0; j < 4; ++j)
+        {
+            double q = arm_next_states[j];
+            double qd = arm_next_states[4 + j];
 
-        hw_joint_struct_[0].current_state_.velocity = arm_next_states[4];
-        hw_joint_struct_[1].current_state_.velocity = arm_next_states[5];
-        hw_joint_struct_[2].current_state_.velocity = arm_next_states[6];
-        hw_joint_struct_[3].current_state_.velocity = arm_next_states[7];
+            const auto &lim = hw_joint_struct_[j].limits_;
 
+            if (q < lim.position_min)
+            {
+                q = lim.position_min;
+                if (qd < 0.0)
+                    qd = 0.0;
+            }
+            else if (q > lim.position_max)
+            {
+                q = lim.position_max;
+                if (qd > 0.0)
+                    qd = 0.0;
+            }
+
+            hw_joint_struct_[j].current_state_.position = q;
+            hw_joint_struct_[j].current_state_.velocity = qd;
+        }
+        // Publish TFs
         rclcpp::Time current_time = node_frames_interface_->now();
         if (realtime_frame_transform_publisher_ && realtime_frame_transform_publisher_->trylock())
         {
