@@ -532,30 +532,30 @@ namespace ros2_control_blue_reach_5
                                    0,
                                    0};
         arm_state.clear();
-        arm_state.reserve(8);
+        arm_state.reserve(10);
 
         arm_torques.clear();
-        arm_torques.reserve(4);
+        arm_torques.reserve(5);
 
-        for (int j = 0; j < 4; ++j)
+        for (int j = 0; j < 5; ++j)
         {
             hw_joint_struct_[j].current_state_.sim_time = time_seconds;
             hw_joint_struct_[j].current_state_.sim_period = delta_seconds;
         };
         // First collect all positions
-        for (int j = 0; j < 4; ++j)
+        for (int j = 0; j < 5; ++j)
         {
             arm_state.push_back(hw_joint_struct_[j].current_state_.position);
         };
 
         // Then collect all velocities
-        for (int j = 0; j < 4; ++j)
+        for (int j = 0; j < 5; ++j)
         {
             arm_state.push_back(hw_joint_struct_[j].current_state_.velocity);
         };
 
         // Then collect all efforts, using your maps and current limiter
-        for (int j = 0; j < 4; ++j)
+        for (int j = 0; j < 5; ++j)
         {
             const double tau_cmd = hw_joint_struct_[j].command_state_.effort;
 
@@ -622,15 +622,19 @@ namespace ros2_control_blue_reach_5
 
         // call dynamics with the mask
         DM baumgarte_alpha = 200;
-        arm_simulate_argument = {arm_state, arm_torques, delta_seconds, rigid_p, lock_mask, baumgarte_alpha};
+        DM endeffector_mass = 300;
+        DM endeffector_damping = 400;
+        DM endeffector_stiffness = 0;
+        arm_simulate_argument = {arm_state, arm_torques, delta_seconds, rigid_p, endeffector_mass,
+            endeffector_damping, endeffector_stiffness, lock_mask, baumgarte_alpha};
         arm_sim = utils_service.manipulator_dynamics(arm_simulate_argument);
         arm_next_states = arm_sim.at(0).nonzeros();
 
         // clamp the NEW state, then write it back
-        for (int j = 0; j < 4; ++j)
+        for (int j = 0; j < 5; ++j)
         {
             double q = arm_next_states[j];
-            double qd = arm_next_states[4 + j];
+            double qd = arm_next_states[5 + j];
 
             const auto &lim = hw_joint_struct_[j].limits_;
 

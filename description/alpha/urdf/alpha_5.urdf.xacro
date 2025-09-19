@@ -189,8 +189,7 @@
             <origin xyz="0 0 0" rpy="0 0 0"/>
         </xacro:alpha_standard_jaws>
 
-        <link name="${name}_payload">
-        <!-- optional inertia if you want it in dynamics -->
+        <!-- <link name="${name}_payload">
         <inertial>
             <mass value="2.0"/>
             <inertia
@@ -199,7 +198,6 @@
             izz="1e-4"/>
         </inertial>
         <visual>
-            <!-- raise the box half its height so it sits flush on the tip -->
             <origin xyz="0 0 0.025" rpy="0 0 0"/>
             <geometry>
             <box size="0.05 0.05 0.05"/>
@@ -214,15 +212,13 @@
             <box size="0.05 0.05 0.05"/>
             </geometry>
         </collision>
-        </link>
+        </link> -->
 
-        <joint name="${name}_payload_joint" type="fixed">
-        <!-- swap this parent to whichever link is your true tip -->
+        <!-- <joint name="${name}_payload_joint" type="fixed">
         <parent link="${name}_jaws_base_link"/>
         <child  link="${name}_payload"/>
-        <!-- adjust this if your tip is elsewhere or rotated differently -->
         <origin xyz="0 0 0.04" rpy="0 0 0"/>
-        </joint>
+        </joint> -->
 
     </xacro:macro>
 </robot>
