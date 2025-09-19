@@ -621,7 +621,7 @@ namespace ros2_control_blue_reach_5
         //     static_cast<int>(is_locked_[3]));
 
         // call dynamics with the mask
-        DM baumgarte_alpha = 100;
+        DM baumgarte_alpha = 200;
         arm_simulate_argument = {arm_state, arm_torques, delta_seconds, rigid_p, lock_mask, baumgarte_alpha};
         arm_sim = utils_service.manipulator_dynamics(arm_simulate_argument);
         arm_next_states = arm_sim.at(0).nonzeros();
