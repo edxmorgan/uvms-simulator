@@ -29,9 +29,6 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
-    // hardware_interface::CallbackReturn SimReachSystemMultiInterfaceHardware::on_init(
-    //     const hardware_interface::HardwareInfo &info)
-
     hardware_interface::CallbackReturn SimReachSystemMultiInterfaceHardware::on_init(
         const hardware_interface::HardwareComponentInterfaceParams &params)
 
@@ -49,9 +46,11 @@ namespace ros2_control_blue_reach_5
         // Print the CasADi version
         std::string casadi_version = CasadiMeta::version();
         RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "CasADi computer from manipulator system: %s", casadi_version.c_str());
-        RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "Testing casadi ready for operations");
+        RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Testing casadi ready for operations");
         // Use CasADi's "external" to load the compiled dynamics functions
         utils_service.usage_cplusplus_checks("test", "libtest.so", "reach system");
+        utils_service.current2torqueMap = utils_service.load_casadi_fun("current_to_torque_map", "libC2T.so");
+        utils_service.torque2currentMap = utils_service.load_casadi_fun("torque_to_current_map", "libT2C.so");
         utils_service.manipulator_dynamics = utils_service.load_casadi_fun("Mnext", "libMnext.so");
         utils_service.forward_kinematics = utils_service.load_casadi_fun("fkeval", "libFK.so");
         utils_service.forward_kinematics_com = utils_service.load_casadi_fun("fkcomeval", "libFKcom.so");
@@ -87,8 +86,25 @@ namespace ros2_control_blue_reach_5
             RCLCPP_INFO(
                 rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Device default position is %f", default_position);
 
+            double max_effort = stod(joint.parameters.at("max_effort"));
+            bool positionLimitsFlag = stoi(joint.parameters.at("has_position_limits"));
+            double min_position = stod(joint.parameters.at("min_position"));
+            double max_position = stod(joint.parameters.at("max_position"));
+            double max_velocity = stod(joint.parameters.at("max_velocity"));
+            double soft_k_position = stod(joint.parameters.at("soft_k_position"));
+            double soft_k_velocity = stod(joint.parameters.at("soft_k_velocity"));
+            double soft_min_position = stod(joint.parameters.at("soft_min_position"));
+            double soft_max_position = stod(joint.parameters.at("soft_max_position"));
+            double kt = stod(joint.parameters.at("kt"));
+            double forward_I_static = stod(joint.parameters.at("forward_I_static"));
+            double backward_I_static = stod(joint.parameters.at("backward_I_static"));
+
             Joint::State initialState(default_position);
-            hw_joint_struct_.emplace_back(joint.name, device_id, initialState);
+            Joint::Limits jointLimits{.position_min = min_position, .position_max = max_position, .velocity_max = max_velocity, .effort_max = max_effort};
+            Joint::SoftLimits jointSoftLimits{.position_k = soft_k_position, .velocity_k = soft_k_velocity, .position_min = soft_min_position, .position_max = soft_max_position};
+            Joint::MotorInfo actuatorProp{.kt = kt, .forward_I_static = forward_I_static, .backward_I_static = backward_I_static};
+            hw_joint_struct_.emplace_back(joint.name, device_id, initialState, jointLimits, positionLimitsFlag, jointSoftLimits, actuatorProp);
+
             // RRBotSystemMultiInterface has exactly 19 state interfaces
             // and 6 command interfaces on each joint
             RCLCPP_INFO(
@@ -197,7 +213,7 @@ namespace ros2_control_blue_reach_5
             P_diag_list_[i] = {double(P(0, 0)), double(P(1, 1)), double(P(2, 2))};
         }
 
-        RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+        RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
                     "Initialized %zu per joint EKFs.", nj);
 
         return hardware_interface::CallbackReturn::SUCCESS;
@@ -538,10 +554,33 @@ namespace ros2_control_blue_reach_5
             arm_state.push_back(hw_joint_struct_[j].current_state_.velocity);
         };
 
-        // Then collect all efforts
+        // Then collect all efforts, using your maps and current limiter
         for (int j = 0; j < 4; ++j)
         {
-            arm_torques.push_back(hw_joint_struct_[j].command_state_.effort);
+            const double tau_cmd = hw_joint_struct_[j].command_state_.effort;
+
+            // torque -> current
+            const bool pos_tau = (tau_cmd >= 0.0);
+            std::vector<DM> T2C_arg = {
+                DM(hw_joint_struct_[j].actuator_Properties_.kt),
+                DM(pos_tau ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
+                           : hw_joint_struct_[j].actuator_Properties_.backward_I_static),
+                DM(tau_cmd)};
+            const double I_cmd = utils_service.torque2currentMap(T2C_arg).at(0).scalar();
+
+            // clamp in current using your existing hard limiter that also enforces position limits
+            const double I_safe = hw_joint_struct_[j].enforce_hard_limits(I_cmd);
+
+            // current -> torque
+            const bool pos_cur = (I_safe >= 0.0);
+            std::vector<DM> C2T_arg = {
+                DM(hw_joint_struct_[j].actuator_Properties_.kt),
+                DM(pos_cur ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
+                           : hw_joint_struct_[j].actuator_Properties_.backward_I_static),
+                DM(I_safe)};
+            const double tau_safe = utils_service.current2torqueMap(C2T_arg).at(0).scalar();
+
+            arm_torques.push_back(tau_safe);
         };
 
         // number of dynamic joints in the model
@@ -582,7 +621,7 @@ namespace ros2_control_blue_reach_5
         //     static_cast<int>(is_locked_[3]));
 
         // call dynamics with the mask
-        DM baumgarte_alpha = 5;
+        DM baumgarte_alpha = 100;
         arm_simulate_argument = {arm_state, arm_torques, delta_seconds, rigid_p, lock_mask, baumgarte_alpha};
         arm_sim = utils_service.manipulator_dynamics(arm_simulate_argument);
         arm_next_states = arm_sim.at(0).nonzeros();

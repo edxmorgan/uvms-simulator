@@ -27,7 +27,7 @@
         <param name="home">3.1</param>
 
         <!-- limit constraints -->
-        <param name="max_effort">600</param>
+        <param name="max_effort">600</param> <!-- in mA -->
         <param name="has_position_limits">1</param>
         <param name="min_position">1.0</param>
         <param name="max_position">5.5</param>
@@ -96,7 +96,7 @@
         <param name="home">0.7</param>
 
         <!-- limit constraints -->
-        <param name="max_effort">400</param>
+        <param name="max_effort">400</param> <!-- in mA -->
         <param name="has_position_limits">1</param>
         <param name="min_position">0.01</param>
         <param name="max_position">3.400</param>
@@ -166,7 +166,7 @@
         <param name="home">0.4</param>
 
         <!-- limit constraints -->
-        <param name="max_effort">400</param>
+        <param name="max_effort">400</param> <!-- in mA -->
         <param name="has_position_limits">1</param>
         <param name="min_position">0.01</param>
         <param name="max_position">3.400</param>
@@ -235,7 +235,7 @@
         <param name="home">2.1</param>
 
         <!-- limit constraints -->
-        <param name="max_effort">400</param>
+        <param name="max_effort">400</param> <!-- in mA -->
         <param name="has_position_limits">1</param>
         <param name="min_position">0.01</param>
         <param name="max_position">5.70</param>
@@ -306,7 +306,7 @@
         <param name="home">0.0</param>
 
         <!-- limit constraints -->
-        <param name="max_effort">400</param>
+        <param name="max_effort">400</param> <!-- in mA -->
         <param name="has_position_limits">1</param>
         <param name="min_position">0.0004</param>
         <param name="max_position">0.0137</param>
