@@ -56,7 +56,7 @@ namespace ros2_control_blue_reach_5
 
         // Use CasADi's "external" to load the compiled functions
         utils_service.usage_cplusplus_checks("test", "libtest.so", "vehicle");
-        utils_service.vehicle_dynamics = utils_service.load_casadi_fun("Vnext", "libUV_xnext.so");
+        utils_service.vehicle_dynamics = utils_service.load_casadi_fun("Vnext_reg", "libUV_xnext.so");
         utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
         utils_service.thrust2rads = utils_service.load_casadi_fun("thrusts_to_rads", "libTHRUST_RAD.so");
         utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
@@ -796,17 +796,9 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position = hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position + thrusts_rads_double[i] * delta_seconds;
         }
 
-        vehicle_parameters_new = {1.15000000e+01, 1.12815000e+02, 1.14800000e+02, 0.00000000e+00,
-                                  0.00000000e+00, 2.00000000e-02, 0.00000000e+00, 0.00000000e+00,
-                                  0.00000000e+00, 1.60000000e-01, 1.60000000e-01, 1.60000000e-01,
-                                  0.00000000e+00, -5.50000000e+00, -1.27000000e+01, -1.45700000e+01,
-                                  -1.20000000e-01, -1.20000000e-01, -1.20000000e-01, 0.00000000e+00,
-                                  0.00000000e+00, 0.00000000e+00, 0.00000000e+00, -4.03000000e+00,
-                                  -6.22000000e+00, -5.18000000e+00, -7.00000000e-02, -7.00000000e-02,
-                                  -7.00000000e-02, -1.81800000e+01, -2.16600000e+01, -3.69900000e+01,
-                                  -1.55000000e+00, -1.55000000e+00, -1.55000000e+00,
-                                  0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-                                  0.00000000e+00, 0.00000000e+00, 0.00000000e+00};
+        vehicle_parameters_new = { 17, 24.2, 26.07, 0.23, -0.23, -0.23, 0.23, 0.28, 0.28, 0.28,
+                                       112.815, 114.8, 0, 0, 2.2563, -4.03, -6.22, -5.18, -0.07, -0.07, -0.07,
+                                       -18.18, -21.66, -36.99, -1.55, -1.55, -1.55, 0, 0, 0, 0, 0, 0 };
 
         arm_base_f_ext = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         vehicle_simulate_argument = {uv_state, uv_input, vehicle_parameters_new, delta_seconds, arm_base_f_ext};
