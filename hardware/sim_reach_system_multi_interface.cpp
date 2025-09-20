@@ -51,7 +51,7 @@ namespace ros2_control_blue_reach_5
         utils_service.usage_cplusplus_checks("test", "libtest.so", "reach system");
         utils_service.current2torqueMap = utils_service.load_casadi_fun("current_to_torque_map", "libC2T.so");
         utils_service.torque2currentMap = utils_service.load_casadi_fun("torque_to_current_map", "libT2C.so");
-        utils_service.manipulator_dynamics = utils_service.load_casadi_fun("Mnext", "libMnext.so");
+        utils_service.manipulator_dynamics = utils_service.load_casadi_fun("Mnext_reg", "libMnext.so");
         utils_service.forward_kinematics = utils_service.load_casadi_fun("fkeval", "libFK.so");
         utils_service.forward_kinematics_com = utils_service.load_casadi_fun("fkcomeval", "libFKcom.so");
         utils_service.base_ext_R_to_vehicle = utils_service.load_casadi_fun("R_base", "libBase_ext_R_vehicle.so");
@@ -464,73 +464,16 @@ namespace ros2_control_blue_reach_5
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
 
-        std::vector<DM> rigid_p = {0,
-                                   0,
-                                   0,
-                                   0,
-                                   0,
-                                   0,
-                                   0,
-                                   0,
-                                   0,
-                                   0,
-                                   0,
-                                   0,
-                                   0.194,
-                                   0.429,
-                                   0.115,
-                                   0.333,
-                                   0.01,
-                                   0.01,
-                                   0.01,
-                                   0,
-                                   0,
-                                   0,
-                                   0.01,
-                                   0.01,
-                                   0.01,
-                                   0,
-                                   0,
-                                   0,
-                                   0.01,
-                                   0.01,
-                                   0.01,
-                                   0,
-                                   0,
-                                   0,
-                                   0.01,
-                                   0.01,
-                                   0.01,
-                                   0,
-                                   0,
-                                   0,
-                                   2.001,
-                                   2.001,
-                                   2.001,
-                                   2.001,
-                                   0.0,
-                                   0.0,
-                                   0.0,
-                                   0.0,
-                                   0,
-                                   0,
-                                   9.81,
-                                   0.0,
-                                   0.0,
-                                   0.0,
-                                   0.000,
-                                   0.19,
-                                   0.0,
-                                   -0.12,
-                                   3.141592653589793,
-                                   0.0,
-                                   0.0,
-                                   0.0,
-                                   1.0,
-                                   0,
-                                   0,
-                                   0,
-                                   0};
+        std::vector<DM> rigid_p = {
+            0.194, 0.429, 0.115, 0.333, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.01,
+            0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01,
+            0.01, 0.01, 0, 0, 0,
+            2, 2, 2, 2, 0, 0, 0, 0, // friction terms
+            0, 0, 9.81,             // gravity
+            0, 0, 0, 0, // payload center of mass wrt eff , payload mass
+            0.19, 0, -0.12, 3.14159, 0, 0, // base to vehicle transform
+            0, 0, 0, 0, 0, 0               // to world transform
+        };
         arm_state.clear();
         arm_state.reserve(10);
 
@@ -626,7 +569,7 @@ namespace ros2_control_blue_reach_5
         DM endeffector_damping = 400;
         DM endeffector_stiffness = 0;
         arm_simulate_argument = {arm_state, arm_torques, delta_seconds, rigid_p, endeffector_mass,
-            endeffector_damping, endeffector_stiffness, lock_mask, baumgarte_alpha};
+                                 endeffector_damping, endeffector_stiffness, lock_mask, baumgarte_alpha};
         arm_sim = utils_service.manipulator_dynamics(arm_simulate_argument);
         arm_next_states = arm_sim.at(0).nonzeros();
 
