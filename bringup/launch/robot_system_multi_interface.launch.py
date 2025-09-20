@@ -192,6 +192,7 @@ def launch_setup(context, *args, **kwargs):
     use_manipulator_hardware_bool = IfCondition(use_manipulator_hardware).evaluate(context)
     use_vehicle_hardware_bool = IfCondition(use_vehicle_hardware).evaluate(context)
 
+    is_hardware_uvms = use_manipulator_hardware_bool and use_vehicle_hardware_bool
 
     robot_prefixes, robot_base_links, robot_ix, no_robots = modify_controller_config(use_vehicle_hardware_bool,
                                                                                  use_manipulator_hardware_bool,
@@ -391,9 +392,11 @@ def launch_setup(context, *args, **kwargs):
         *chain_handlers, # event handlers that wire the sequence
         switch_after_all,
         rviz_after_switch,
-        # clp_after_switch
     ]
-    
+
+    if is_hardware_uvms:
+        simulator_actions.append(clp_after_switch)
+
     # Define simulator_agent
     simulator_agents = GroupAction(
         actions=simulator_actions,)
