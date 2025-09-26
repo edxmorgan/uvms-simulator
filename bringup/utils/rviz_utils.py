@@ -32,6 +32,15 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
     rviz_states_axes_configure(robot_prefixes, new_rviz_config)
     rviz_robots_path_configure(robot_prefixes, new_rviz_config)
 
+    rviz_add_mocap_pose_and_path(
+        new_rviz_config,
+        pose_topic="/mocap_pose",
+        path_topic="/mocap_path",
+        name_prefix="mocap_rb",
+        color="25; 255; 0",
+        enabled=True
+    )
+
     if use_vehicle_hardware:
         image_stream_display("video feed", "/alpha/image_raw",new_rviz_config, True)
 
@@ -129,6 +138,25 @@ def rviz_path_display(name, topic, rviz_config, color, enabled):
         "Value": True
     }
     rviz_config['Visualization Manager']['Displays'].append(path_config)
+
+def rviz_pose_display(name, topic, rviz_config, enabled=True, axes_len=1.0, axes_radius=0.1):
+    pose_cfg = {
+        "Class": "rviz_default_plugins/Pose",
+        "Enabled": enabled,
+        "Name": name,
+        "Shape": "Axes",
+        "Axes Length": axes_len,
+        "Axes Radius": axes_radius,
+        "Topic": {
+            "Depth": 10,
+            "Durability Policy": "Volatile",
+            "History Policy": "Keep Last",
+            "Reliability Policy": "Reliable",
+            "Value": topic
+        },
+        "Value": True
+    }
+    rviz_config["Visualization Manager"]["Displays"].append(pose_cfg)
 
 
 def rviz_axes_display(name, reference_frame, rviz_config, length, radius, enabled):
@@ -364,3 +392,14 @@ def add_wrench_entries(ix, rviz_config, enabled= True):
             'Value': f'/fts_broadcaster_{i}/wrench'
         }
         rviz_config['Visualization Manager']['Displays'].append(new_wrench)
+
+def rviz_add_mocap_pose_and_path(rviz_config,
+                                 pose_topic="/mocap_pose",
+                                 path_topic="/mocap_path",
+                                 name_prefix="mocap",
+                                 color="25; 255; 0",
+                                 enabled=True):
+    rviz_pose_display(f"{name_prefix}/Pose", pose_topic, rviz_config, enabled, 1.0, 0.1)
+    rviz_path_display(f"{name_prefix}/Path", path_topic, rviz_config, color, enabled)
+    rviz_config["Visualization Manager"]["Displays"][-1]["Line Style"] = "Billboards"
+    rviz_config["Visualization Manager"]["Displays"][-1]["Buffer Length"] = 100

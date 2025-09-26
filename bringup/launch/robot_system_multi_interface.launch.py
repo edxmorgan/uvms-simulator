@@ -16,7 +16,7 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler, ExecuteProcess, OpaqueFunction, GroupAction
 from launch.conditions import IfCondition
-from launch.event_handlers import OnProcessExit
+from launch.event_handlers import OnProcessExit, OnProcessStart
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -345,7 +345,25 @@ def launch_setup(context, *args, **kwargs):
         name="estimator_publisher",
         parameters=[mode_params],
     )
-    
+
+    optitrack_proc = ExecuteProcess(
+        cmd=['ros2', 'launch', 'mocap4r2_optitrack_driver', 'optitrack2.launch.py'],
+        output='screen',
+        shell=False,
+    )
+
+
+    mocap_node = Node(
+        package='simlab',
+        executable="mocap_publisher",
+        name="mocap_publisher",
+    )
+
+    mocap_after_optitrack = RegisterEventHandler(
+        OnProcessStart(target_action=optitrack_proc, on_start=[mocap_node])
+    )
+
+
     # 1) Collect all spawners in the exact order you want them to complete
     all_spawners = [
         *fts_spawner_nodes,
@@ -381,18 +399,34 @@ def launch_setup(context, *args, **kwargs):
         OnProcessExit(target_action=switch_proc, on_exit=[clp_node, estimator_node])
     )
 
-    # Define the simulator actions
+    # # Define the simulator actions
+    # simulator_actions = [
+    #     joint_state_broadcaster_spawner,
+    #     control_node,
+    #     mode,
+    #     run_plotjuggler,
+    #     robot_state_pub_node,
+    #     all_spawners[0],       # kick off the chain by launching only the first spawner explicitly
+    #     *chain_handlers, # event handlers that wire the sequence
+    #     switch_after_all,
+    #     rviz_after_switch,
+    # ]
+
     simulator_actions = [
         joint_state_broadcaster_spawner,
         control_node,
         mode,
         run_plotjuggler,
         robot_state_pub_node,
-        all_spawners[0],       # kick off the chain by launching only the first spawner explicitly
-        *chain_handlers, # event handlers that wire the sequence
+        optitrack_proc,          # start OptiTrack launch
+        all_spawners[0],
+        *chain_handlers,
         switch_after_all,
         rviz_after_switch,
+        # only start mocap_node after OptiTrack process starts
+        mocap_after_optitrack,
     ]
+
 
     if is_hardware_uvms:
         simulator_actions.append(clp_after_switch)
