@@ -110,7 +110,7 @@ Replace `/absolute/path/to/your_ros2_workspace` with the actual absolute path to
 If you find nanochat helpful in your research cite simply as:
 
 ```bibtex
-@misc{nanochat,
+@misc{uvms-simulator,
   author = {Edward Morgan},
   title = {uvms-simulator: A ros2_control framework for simulating and interfacing with the blueROV heavy and reach alpha 5 manipulator},
   year = {2023},
