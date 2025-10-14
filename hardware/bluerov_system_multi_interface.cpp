@@ -75,6 +75,7 @@ namespace ros2_control_blue_reach_5
         utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
         utils_service.from_thrust_to_pwm = utils_service.load_casadi_fun("getNpwm", "libThrust_PWM.so");
         utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
+        // utils_service.uv_dynamic_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libmodelbasedEKF_next.so");
         utils_service.pwm2rads = utils_service.load_casadi_fun("pwm_to_rads", "libPWM_RAD.so");
         utils_service.unwrap = utils_service.load_casadi_fun("unwrap", "libAngWrap.so");
 
@@ -922,6 +923,27 @@ namespace ros2_control_blue_reach_5
         // Call your CasADi function
         std::vector<casadi::DM> state_est = utils_service.uv_Exkalman_update(ekf_inputs);
 
+        casadi::DM u_uv_k = casadi::DM::zeros(6, 1);
+        {
+        u_uv_k(0) = hw_vehicle_struct.command_state_.Fx;
+        u_uv_k(1) = hw_vehicle_struct.command_state_.Fy;
+        u_uv_k(2) = hw_vehicle_struct.command_state_.Fz;
+        u_uv_k(3) = hw_vehicle_struct.command_state_.Tx;
+        u_uv_k(4) = hw_vehicle_struct.command_state_.Ty;
+        u_uv_k(5) = hw_vehicle_struct.command_state_.Tz;
+        };
+
+        casadi::Slice first12(0,12);
+
+        // shrink state and covariance
+        casadi::DM x12 = x_est_(first12, Slice());  
+        casadi::DM P12 = P_est_(first12, first12);  
+        casadi::DM Q12 = Q_(first12, first12);  
+
+
+        std::vector<casadi::DM> dynamic_ekf_inputs = {x12, u_uv_k, P12, dt_dm, y_k, Q12, R_};
+        // std::vector<casadi::DM> state_pred = utils_service.uv_dynamic_Exkalman_update(dynamic_ekf_inputs);
+
         // Extract result
         x_est_ = state_est[0];
         P_est_ = state_est[1];
@@ -1186,6 +1208,30 @@ namespace ros2_control_blue_reach_5
         // Publish the static transform
         static_tf_broadcaster_->sendTransform(static_dvl_transform);
 
+        // Create and send the static mocap markers transform
+        geometry_msgs::msg::TransformStamped static_mocap_transform;
+
+        static_mocap_transform.header.stamp = current_time;
+        static_mocap_transform.header.frame_id = hw_vehicle_struct.map_frame_id;
+        static_mocap_transform.child_frame_id = hw_vehicle_struct.robot_prefix + "mocap_link";
+
+        // Set translation based on current state
+        static_mocap_transform.transform.translation.x = -0.170;
+        static_mocap_transform.transform.translation.y = 0.000;
+        static_mocap_transform.transform.translation.z = 0.200;
+
+        // Rotate the pose about X UPRIGHT
+        q_rot_mocap.setRPY(0.0, 0.0, 0.0);
+
+        q_rot_mocap.normalize();
+
+        static_mocap_transform.transform.rotation.x = q_rot_mocap.x();
+        static_mocap_transform.transform.rotation.y = q_rot_mocap.y();
+        static_mocap_transform.transform.rotation.z = q_rot_mocap.z();
+        static_mocap_transform.transform.rotation.w = q_rot_mocap.w();
+
+        // Publish the static transform
+        static_tf_broadcaster_->sendTransform(static_mocap_transform);
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
             "Published static odom transform once during activation.");

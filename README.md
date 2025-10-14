@@ -105,11 +105,19 @@ Replace `/absolute/path/to/your_ros2_workspace` with the actual absolute path to
 
 ---
 
-## Citation
+## Cite
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15085171.svg)](https://doi.org/10.5281/zenodo.15085171)
+If you find nanochat helpful in your research cite simply as:
 
----
+```bibtex
+@misc{nanochat,
+  author = {Edward Morgan},
+  title = {uvms-simulator: A ros2_control framework for simulating and interfacing with the blueROV heavy and reach alpha 5 manipulator},
+  year = {2023},
+  publisher = {GitHub},
+  url = {https://github.com/edxmorgan/uvms-simulator}
+}
+```
 
 ## Resources & Contributing
 

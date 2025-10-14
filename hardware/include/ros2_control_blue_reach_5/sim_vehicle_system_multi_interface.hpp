@@ -116,7 +116,7 @@ namespace ros2_control_blue_reach_5
 
         using tf = tf2_msgs::msg::TFMessage;
 
-        tf2::Quaternion q_orig, q_rot, q_new, q_rot_dvl;
+        tf2::Quaternion q_orig, q_rot, q_new, q_rot_dvl, q_rot_mocap;
 
         std::shared_ptr<rclcpp::Publisher<tf>> transform_publisher_;
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>>

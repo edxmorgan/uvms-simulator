@@ -352,6 +352,13 @@ def launch_setup(context, *args, **kwargs):
         shell=False,
     )
 
+    # optitrack_proc = Node(
+    #     package='simlab',
+    #     executable="motive_publisher",
+    #     name="motive_publisher",
+    #     parameters=[mode_params],
+    # )
+
 
     mocap_node = Node(
         package='simlab',
@@ -398,19 +405,6 @@ def launch_setup(context, *args, **kwargs):
     clp_after_switch = RegisterEventHandler(
         OnProcessExit(target_action=switch_proc, on_exit=[clp_node, estimator_node])
     )
-
-    # # Define the simulator actions
-    # simulator_actions = [
-    #     joint_state_broadcaster_spawner,
-    #     control_node,
-    #     mode,
-    #     run_plotjuggler,
-    #     robot_state_pub_node,
-    #     all_spawners[0],       # kick off the chain by launching only the first spawner explicitly
-    #     *chain_handlers, # event handlers that wire the sequence
-    #     switch_after_all,
-    #     rviz_after_switch,
-    # ]
 
     simulator_actions = [
         joint_state_broadcaster_spawner,

@@ -38,8 +38,19 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         path_topic="/mocap_path",
         name_prefix="mocap_rb",
         color="25; 255; 0",
+        enabled=False
+    )
+
+    rviz_add_mocap_pose_and_path(
+        new_rviz_config,
+        pose_topic="/map_mocap_pose",
+        path_topic="/map_mocap_path",
+        name_prefix="map_mocap_rb",
+        color="255; 0; 0",
         enabled=True
     )
+
+
 
     if use_vehicle_hardware:
         image_stream_display("video feed", "/alpha/image_raw",new_rviz_config, True)
@@ -322,6 +333,7 @@ def rviz_states_axes_configure(robot_prefixes, rviz_config):
         rviz_axes_display(base_link, base_link, rviz_config, 0.1, 0.01, True)
         rviz_axes_display(robot_map_frame, f'{prefix}map', rviz_config, 0.1, 0.01, True)
         rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, True)
+        rviz_axes_display(f'{prefix}mocap_frame', f"{prefix}mocap_link", rviz_config, 0.1, 0.01, True)
         for i in range(5):
             rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
         
@@ -399,7 +411,7 @@ def rviz_add_mocap_pose_and_path(rviz_config,
                                  name_prefix="mocap",
                                  color="25; 255; 0",
                                  enabled=True):
-    rviz_pose_display(f"{name_prefix}/Pose", pose_topic, rviz_config, enabled, 1.0, 0.1)
+    rviz_pose_display(f"{name_prefix}/Pose", pose_topic, rviz_config, enabled, 0.15, 0.015)
     rviz_path_display(f"{name_prefix}/Path", path_topic, rviz_config, color, enabled)
     rviz_config["Visualization Manager"]["Displays"][-1]["Line Style"] = "Billboards"
     rviz_config["Visualization Manager"]["Displays"][-1]["Buffer Length"] = 100
