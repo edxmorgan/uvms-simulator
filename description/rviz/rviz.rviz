@@ -354,7 +354,7 @@ Visualization Manager:
 
   Enabled: true
   Global Options:
-    Background Color: 135; 206; 235
+    Background Color: 119; 118; 123
     Fixed Frame: world
     Frame Rate: 90
   Name: root

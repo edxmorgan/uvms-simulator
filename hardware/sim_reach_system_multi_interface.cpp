@@ -468,9 +468,12 @@ namespace ros2_control_blue_reach_5
             0.194, 0.429, 0.115, 0.333, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.01,
             0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01,
             0.01, 0.01, 0, 0, 0,
-            2, 2, 2, 2, 0, 0, 0, 0, // friction terms
-            0, 0, 9.81,             // gravity
-            0, 0, 0, 0, // payload center of mass wrt eff , payload mass
+            2, 2, 2, 2, // viscous friction coefficients
+            0, 0, 0, 0, // coulomb friction coefficients
+            0, 0, 0, 0, // Stribeck friction coefficients
+            0, 0, 0, 0, // Stribeck velocity coefficients
+            0, 0, 9.81,                    // gravity
+            0, 0, 0, 0,                    // payload center of mass wrt eff , payload mass
             0.19, 0, -0.12, 3.14159, 0, 0, // base to vehicle transform
             0, 0, 0, 0, 0, 0               // to world transform
         };
@@ -546,7 +549,10 @@ namespace ros2_control_blue_reach_5
         // build a single column mask of length 4
         casadi::DM lock_mask = casadi::DM::zeros(static_cast<int>(n_dyn), 1);
         for (std::size_t j = 0; j < n_dyn; ++j)
+        {
             lock_mask(j) = is_locked_[j] ? 1.0 : 0.0;
+            // lock_mask(j) = 0.0;
+        }
 
         // // optional log
         // RCLCPP_INFO_THROTTLE(
