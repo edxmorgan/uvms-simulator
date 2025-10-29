@@ -33,11 +33,11 @@
       </collision>
     </link>
 
-    <!-- <link name="bathymetry_seafloor">
+    <link name="bathymetry_seafloor">
       <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find ros2_control_blue_reach_5)/Bathymetry/meshes/hawaii.stl" scale="0.4 0.4 0.4"/>
+          <mesh filename="file://$(find ros2_control_blue_reach_5)/Bathymetry/meshes/hawaii_cropped.stl" scale="0.4 0.4 0.4"/>
         </geometry>
         <material name="gray">
           <color rgba="0.5 0.5 0.5 1.0"/>
@@ -46,10 +46,10 @@
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="file://$(find ros2_control_blue_reach_5)/Bathymetry/meshes/hawaii.stl" scale="0.4 0.4 0.4"/>
+          <mesh filename="file://$(find ros2_control_blue_reach_5)/Bathymetry/meshes/hawaii_cropped.stl" scale="0.4 0.4 0.4"/>
         </geometry>
       </collision>
-    </link> -->
+    </link>
 
 
     <joint name="world_bottom_joint" type="fixed">
@@ -58,11 +58,11 @@
       <origin xyz="0.0 0.0 -8.0" rpy="0 0 0"/>
     </joint>
 
-    <!-- <joint name="bathymetry_seafloor_joint" type="fixed">
+    <joint name="bathymetry_seafloor_joint" type="fixed">
       <child link="bathymetry_seafloor"/>
       <parent link="world_bottom" />
       <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
-    </joint> -->
+    </joint>
 
    <joint name="bathymetry_shipwreck_joint" type="fixed">
       <child link="bathymetry_shipwreck" />
