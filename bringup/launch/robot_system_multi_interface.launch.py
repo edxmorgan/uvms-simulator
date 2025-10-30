@@ -370,6 +370,15 @@ def launch_setup(context, *args, **kwargs):
         OnProcessStart(target_action=optitrack_proc, on_start=[mocap_node])
     )
 
+    mesh_collision_node = Node(
+        package="simlab",
+        executable="stl_collision_node",
+        name="stl_collision_node",
+        output="screen",
+        parameters=[{
+            "robot_description": robot_description_content,
+        }],
+    )
 
     # 1) Collect all spawners in the exact order you want them to complete
     all_spawners = [
@@ -419,6 +428,7 @@ def launch_setup(context, *args, **kwargs):
         rviz_after_switch,
         # only start mocap_node after OptiTrack process starts
         mocap_after_optitrack,
+        mesh_collision_node,
     ]
 
 

@@ -109,7 +109,13 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         rviz_point_cloud2('uv_vehicle_base',"/base_pointcloud",new_rviz_config, True, "255; 0; 0",
                           custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
 
-
+    # visualize /contact_markers from collision node
+    rviz_contact_markers_display(
+        new_rviz_config,
+        topic="/contact_markers",
+        name="Collision Contacts",
+        enabled=True
+    )
     add_wrench_entries(ix, new_rviz_config, True)
     with open(new_rviz_config_path,'w') as file:
         yaml.dump(new_rviz_config,file,Dumper=NoAliasDumper)
@@ -125,7 +131,7 @@ def rviz_path_display(name, topic, rviz_config, color, enabled):
         "Head Diameter": 0.3,
         "Head Length": 0.2,
         "Length": 0.3,
-        "Line Style": "Lines",
+        "Line Style": "Billboards",
         "Line Width": 0.03,
         "Name": name,
         "Offset": {
@@ -294,6 +300,28 @@ def imu_display(name, topic,rviz_config, enabled):
             "fixed_frame_orientation": True
         }
     rviz_config['Visualization Manager']['Displays'].append(imu_config)
+
+def rviz_contact_markers_display(rviz_config,
+                                 topic,
+                                 name,
+                                 enabled=True):
+    marker_cfg = {
+        "Class": "rviz_default_plugins/Marker",
+        "Enabled": enabled,
+        "Name": name,
+        "Namespaces": {},
+        "Queue Size": 100,
+        "Topic": {
+            "Depth": 5,
+            "Durability Policy": "Volatile",
+            "History Policy": "Keep Last",
+            "Reliability Policy": "Reliable",
+            "Value": topic
+        },
+        "Value": True
+    }
+    rviz_config["Visualization Manager"]["Displays"].append(marker_cfg)
+
 
 def generate_random_color(path_type=None, default=False):
     """

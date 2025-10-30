@@ -464,6 +464,8 @@ namespace ros2_control_blue_reach_5
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
 
+        double gravity = 0.0; //9.81 m/s^2
+
         std::vector<DM> rigid_p = {
             0.194, 0.429, 0.115, 0.333, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.01,
             0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01,
@@ -472,7 +474,7 @@ namespace ros2_control_blue_reach_5
             0, 0, 0, 0, // coulomb friction coefficients
             0, 0, 0, 0, // Stribeck friction coefficients
             0, 0, 0, 0, // Stribeck velocity coefficients
-            0, 0, 9.81,                    // gravity
+            0, 0, gravity,                    // gravity
             0, 0, 0, 0,                    // payload center of mass wrt eff , payload mass
             0.19, 0, -0.12, 3.14159, 0, 0, // base to vehicle transform
             0, 0, 0, 0, 0, 0               // to world transform
