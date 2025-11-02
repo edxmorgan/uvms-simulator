@@ -109,6 +109,44 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         rviz_point_cloud2('uv_vehicle_base',"/base_pointcloud",new_rviz_config, True, "255; 0; 0",
                           custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
 
+    rviz_point_cloud2(
+        name='environment_voxels',
+        topic='/env_voxels_cloud',
+        rviz_config=new_rviz_config,
+        enabled=True, 
+        color='255; 255; 255',
+        custom_properties={
+            "Alpha": 1,
+            "Autocompute Intensity Bounds": True,
+            "Autocompute Value Bounds": {"Max Value": 10, "Min Value": -10, "Value": True},
+            "Axis": "Z",
+            "Channel Name": "intensity",
+            "Class": "rviz_default_plugins/PointCloud2",
+            "Color Transformer": "AxisColor",
+            "Decay Time": 0,
+            "Invert Rainbow": False,
+            "Max Color": "255; 255; 255",
+            "Max Intensity": 4096,
+            "Min Color": "0; 0; 0",
+            "Min Intensity": 0,
+            "Position Transformer": "XYZ",
+            "Selectable": True,
+            "Size (Pixels)": 3,
+            "Size (m)": 0.009999999776482582,
+            "Style": "Flat Squares",
+            "Topic": {
+                "Depth": 5,
+                "Durability Policy": "Volatile",
+                "History Policy": "Keep Last",
+                "Reliability Policy": "Reliable",
+                "Value": "/env_voxels_cloud",
+            },
+            "Use Fixed Frame": True,
+            "Use rainbow": True,
+            "Value": True,
+        }
+    )
+    
     # visualize /contact_markers from collision node
     rviz_contact_markers_display(
         new_rviz_config,
