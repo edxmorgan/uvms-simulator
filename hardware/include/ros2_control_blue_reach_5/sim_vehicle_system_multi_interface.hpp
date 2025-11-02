@@ -50,6 +50,10 @@
 #include "tf2_ros/static_transform_broadcaster.h"
 #include <casadi/casadi.hpp>
 
+#include <geometry_msgs/msg/wrench_stamped.hpp>
+#include <rclcpp/subscription.hpp>
+#include <mutex>
+
 namespace ros2_control_blue_reach_5
 {
 
@@ -147,6 +151,16 @@ namespace ros2_control_blue_reach_5
         std::vector<double> vehicle_next_states;
         std::vector<casadi::DM> vehicle_parameters_new;
         std::vector<double> arm_base_f_ext;
+
+        // latest external contact wrench in body frame, Fx Fy Fz Tx Ty Tz
+        std::array<double, 6> contact_wrench_body_{0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+
+        // mutex to protect it across callback thread and write()
+        std::mutex contact_wrench_mutex_;
+
+        // ROS 2 subscription handle for contact_wrench_body
+        rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr contact_wrench_sub_;
+
     };
 
 } // namespace ros2_control_blue

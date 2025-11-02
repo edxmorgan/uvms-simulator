@@ -240,6 +240,21 @@ namespace ros2_control_blue_reach_5
 
             auto &transform_message = realtime_transform_publisher_->msg_;
             transform_message.transforms.resize(1);
+
+            contact_wrench_sub_ =
+                node_topics_interface_->create_subscription<geometry_msgs::msg::WrenchStamped>(
+                    "contact_wrench_body", // this matches CollisionNode::contact_wrench_pub topic
+                    rclcpp::QoS(10),
+                    [this](const geometry_msgs::msg::WrenchStamped::SharedPtr msg)
+                    {
+                        std::lock_guard<std::mutex> lock(contact_wrench_mutex_);
+                        contact_wrench_body_[0] = msg->wrench.force.x;
+                        contact_wrench_body_[1] = msg->wrench.force.y;
+                        contact_wrench_body_[2] = -msg->wrench.force.z;
+                        contact_wrench_body_[3] = msg->wrench.torque.x;
+                        contact_wrench_body_[4] = msg->wrench.torque.y;
+                        contact_wrench_body_[5] = -msg->wrench.torque.z;
+                    });
         }
         catch (const std::exception &e)
         {
@@ -685,10 +700,9 @@ namespace ros2_control_blue_reach_5
         // casadi::Slice first12(0,12);
 
         // // shrink state and covariance
-        // casadi::DM x12 = x_est_(first12, Slice());  
-        // casadi::DM P12 = P_est_(first12, first12);  
-        // casadi::DM Q12 = Q_(first12, first12);  
-
+        // casadi::DM x12 = x_est_(first12, Slice());
+        // casadi::DM P12 = P_est_(first12, first12);
+        // casadi::DM Q12 = Q_(first12, first12);
 
         // std::vector<casadi::DM> dynamic_ekf_inputs = {x12, u_uv_k, P12, dt_dm, y_k, Q12, R_};
         // std::vector<casadi::DM> state_pred = utils_service.uv_dynamic_Exkalman_update(dynamic_ekf_inputs);
@@ -779,9 +793,6 @@ namespace ros2_control_blue_reach_5
         uv_input.clear();
         uv_input.reserve(6);
 
-        arm_base_f_ext.clear();
-        arm_base_f_ext.reserve(6);
-
         uv_state.push_back(hw_vehicle_struct.current_state_.position_x);
         uv_state.push_back(hw_vehicle_struct.current_state_.position_y);
         uv_state.push_back(hw_vehicle_struct.current_state_.position_z);
@@ -818,11 +829,41 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position = hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position + thrusts_rads_double[i] * delta_seconds;
         }
 
-        vehicle_parameters_new = { 17, 24.2, 26.07, 0.23, -0.23, -0.23, 0.23, 0.28, 0.28, 0.28,
-                                       112.815, 114.8, 0, 0, 2.2563, -4.03, -6.22, -5.18, -0.07, -0.07, -0.07,
-                                       -18.18, -21.66, -36.99, -1.55, -1.55, -1.55, 0, 0, 0, 0, 0, 0 };
+        vehicle_parameters_new = {17, 24.2, 26.07, 0.23, -0.23, -0.23, 0.23, 0.28, 0.28, 0.28,
+                                  112.815, 114.8, 0, 0, 2.2563, -4.03, -6.22, -5.18, -0.07, -0.07, -0.07,
+                                  -18.18, -21.66, -36.99, -1.55, -1.55, -1.55, 0, 0, 0, 0, 0, 0};
 
-        arm_base_f_ext = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+                                  // pull latest external contact wrench from CollisionNode
+        std::array<double, 6> wrench_copy;
+        {
+            std::lock_guard<std::mutex> lock(contact_wrench_mutex_);
+            wrench_copy = contact_wrench_body_;
+        }
+
+        //         // Debug print the external wrench that would be applied to dynamics
+        // RCLCPP_INFO(
+        //     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+        //     "contact wrench body frame Fx=%.3f Fy=%.3f Fz=%.3f Tx=%.3f Ty=%.3f Tz=%.3f  dt=%.4f",
+        //     wrench_copy[0],
+        //     wrench_copy[1],
+        //     wrench_copy[2],
+        //     wrench_copy[3],
+        //     wrench_copy[4],
+        //     wrench_copy[5],
+        //     delta_seconds
+        // );
+
+        // Build arm_base_f_ext from wrench_copy
+        arm_base_f_ext.clear();
+        arm_base_f_ext.reserve(6);
+        arm_base_f_ext.push_back(wrench_copy[0]);  // Fx body
+        arm_base_f_ext.push_back(wrench_copy[1]);  // Fy body
+        arm_base_f_ext.push_back(wrench_copy[2]);  // Fz body
+        arm_base_f_ext.push_back(wrench_copy[3]);  // Tx body
+        arm_base_f_ext.push_back(wrench_copy[4]);  // Ty body
+        arm_base_f_ext.push_back(wrench_copy[5]);  // Tz body
+
+        // arm_base_f_ext = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         vehicle_simulate_argument = {uv_state, uv_input, vehicle_parameters_new, delta_seconds, arm_base_f_ext};
         vehicle_sim = utils_service.vehicle_dynamics(vehicle_simulate_argument);
         vehicle_next_states = vehicle_sim.at(0).nonzeros();

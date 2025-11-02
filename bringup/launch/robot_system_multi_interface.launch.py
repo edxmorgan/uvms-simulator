@@ -241,6 +241,9 @@ def launch_setup(context, *args, **kwargs):
         output="log",
         arguments=["-d", rviz_config_modified],
         condition=IfCondition(gui),
+        additional_env={
+            "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/liboctomap.so"
+        },
     )
 
     control_node = Node(
@@ -372,8 +375,18 @@ def launch_setup(context, *args, **kwargs):
 
     mesh_collision_node = Node(
         package="simlab",
-        executable="stl_collision_node",
-        name="stl_collision_node",
+        executable="collision_contact_node",
+        name="collision_contact_node",
+        output="screen",
+        parameters=[{
+            "robot_description": robot_description_content,
+        }],
+    )
+
+    voxelviz_node = Node(
+        package="simlab",
+        executable="voxelviz_node",
+        name="voxelviz_node",
         output="screen",
         parameters=[{
             "robot_description": robot_description_content,
@@ -429,6 +442,7 @@ def launch_setup(context, *args, **kwargs):
         # only start mocap_node after OptiTrack process starts
         mocap_after_optitrack,
         mesh_collision_node,
+        voxelviz_node,
     ]
 
 
