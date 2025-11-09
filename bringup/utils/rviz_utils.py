@@ -154,6 +154,14 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         name="Collision Contacts",
         enabled=True
     )
+    
+    # waypoint visualisation from planner
+    rviz_contact_markers_display(
+        new_rviz_config,
+        topic="/planned_waypoints_marker",
+        name="planned waypoints",
+        enabled=True
+    )
     add_wrench_entries(ix, new_rviz_config, True)
     with open(new_rviz_config_path,'w') as file:
         yaml.dump(new_rviz_config,file,Dumper=NoAliasDumper)

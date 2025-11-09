@@ -303,6 +303,7 @@ def launch_setup(context, *args, **kwargs):
             'no_efforts': 11,
             'record_data': record_data_bool,
             'controllers': controllers,
+            "robot_description": robot_description_content
         }
         
         vehicle_thruster_pwm_ctrl = [n.controller_name for n in thruster_pwm_spawner_nodes]
@@ -337,10 +338,10 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
         shell=False,
     )
-    clp_node = Node(
+    rgb2clpts_node = Node(
         package='simlab',
-        executable="cloudpoint_publisher",
-        name="cloudpoint_publisher"
+        executable="rgb2cloudpoint_publisher",
+        name="rgb2cloudpoint_publisher"
     )
     estimator_node = Node(
         package='simlab',
@@ -425,7 +426,7 @@ def launch_setup(context, *args, **kwargs):
     )
     # 4b) start clp after the switch
     clp_after_switch = RegisterEventHandler(
-        OnProcessExit(target_action=switch_proc, on_exit=[clp_node, estimator_node])
+        OnProcessExit(target_action=switch_proc, on_exit=[rgb2clpts_node, estimator_node])
     )
 
     simulator_actions = [
