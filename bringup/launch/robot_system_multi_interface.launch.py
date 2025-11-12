@@ -289,7 +289,7 @@ def launch_setup(context, *args, **kwargs):
     # start task selected
     mode = OpaqueFunction(function=lambda context: [])
 
-    if task in {'interactive', 'manual', 'motion_plan', 'joint', 'direct_thrusters'}:
+    if task in {'interactive', 'manual', 'joint', 'direct_thrusters'}:
         try:
             FindPackageShare("simlab").find("simlab")
         except Exception as e:
@@ -313,7 +313,6 @@ def launch_setup(context, *args, **kwargs):
         task_map = {
             'interactive': ('interactive_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
             'manual': ('joystick_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
-            'motion_plan': ('motion_plan_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
             'joint': ('joint_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
             'direct_thrusters': ('direct_thruster_controller', [*manipulator_effort_ctrl, *vehicle_thruster_pwm_ctrl]),
         }
@@ -342,12 +341,6 @@ def launch_setup(context, *args, **kwargs):
         package='simlab',
         executable="rgb2cloudpoint_publisher",
         name="rgb2cloudpoint_publisher"
-    )
-    estimator_node = Node(
-        package='simlab',
-        executable="estimator_publisher",
-        name="estimator_publisher",
-        parameters=[mode_params],
     )
 
     optitrack_proc = ExecuteProcess(
@@ -426,7 +419,7 @@ def launch_setup(context, *args, **kwargs):
     )
     # 4b) start clp after the switch
     clp_after_switch = RegisterEventHandler(
-        OnProcessExit(target_action=switch_proc, on_exit=[rgb2clpts_node, estimator_node])
+        OnProcessExit(target_action=switch_proc, on_exit=[rgb2clpts_node])
     )
 
     simulator_actions = [
@@ -447,8 +440,8 @@ def launch_setup(context, *args, **kwargs):
     ]
 
 
-    if is_hardware_uvms:
-        simulator_actions.append(clp_after_switch)
+    # if is_hardware_uvms:
+    #     simulator_actions.append(clp_after_switch)
 
     # Define simulator_agent
     simulator_agents = GroupAction(
