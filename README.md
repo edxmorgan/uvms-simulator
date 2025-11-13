@@ -1,25 +1,35 @@
-# Underwater Vehicle & Manipulator Simulator and Hardware Framework
+# Underwater Vehicle and Manipulator Simulator and Hardware Framework 🌊🤖
 
-A ros2_control framework for simulating and interfacing with the **BlueROV Heavy** and **Reach Alpha 5** manipulator.
-<!-- 
-[![Demo Video](http://img.youtube.com/vi/euiBjbILtgo/0.jpg)](http://www.youtube.com/watch?v=euiBjbILtgo "Demo Video")
-uvms_env
- -->
+ROS2 control framework for simulating and interfacing with the **BlueROV2 Heavy** and **Reach Alpha 5** manipulator.
 
-<!-- ![alt text]() -->
 <img src="doc/uvms_env.png" width="840"/>
-<!-- --- -->
+
+---
 
 ## Features
 
-- **Realistic Dynamics:** Close to real simulation of underwater vehicle and manipulator behavior.
-- **Multi-Agent Support:** Simulate multiple agents in a shared environment.
-- **Hardware-in-the-Loop Support:** Interface with real blueROV heavy robot, including A50 DVL and reach alpha 5 manipulator.
-- **Internal Kalman Filter:** Implements sensor fusion for robust state estimate.
+* 🌊 **Realistic Dynamics**
+  Physics based UVMS modeling built on validated dynamic equations.
+
+* 🤖 **Multi Agent Simulation**
+  Run multiple vehicles and manipulators in a shared environment.
+
+* 🔧 **Hardware in the Loop**
+  Interface with the BlueROV2 Heavy, A50 DVL, and Reach Alpha 5 for real world testing.
+
+* 🧭 **Sensor Fusion**
+  Internal Kalman filter for combined IMU, DVL, and model based state estimation.
 
 ---
-## Kinematics & Dynamics
-This project derives its kinematic and dynamic models from [diff_uv](https://github.com/edxmorgan/diff_uv) and [diff_uvms](https://github.com/edxmorgan/diff_uvms), which provides the essential dynamic matrices used for control, stability analysis, and model identification.
+
+## Kinematics and Dynamics
+
+This framework uses dynamic and kinematic models from
+
+* [diff_uv](https://github.com/edxmorgan/diff_uv)
+* [diff_uvms](https://github.com/edxmorgan/diff_uvms)
+
+These provide Jacobians, dynamic matrices, and model terms for control, stability analysis, and identification.
 
 ---
 
@@ -27,108 +37,113 @@ This project derives its kinematic and dynamic models from [diff_uv](https://git
 
 ### Prerequisites
 
-1. **Install ROS2:**  
-   Follow the [ROS2 Installation Guide](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html).
+1. **Install ROS2**
+   [https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html)
 
-2. **Ensure `$ROS_DISTRO` is Set:**  
-   Confirm that the environment variable `$ROS_DISTRO` is correctly set:
+2. **Check ROS distro**
+
    ```bash
    echo $ROS_DISTRO
    ```
-   If not, set it to your ROS2 distribution (e.g., `jazzy`):
+
+   If empty:
+
    ```bash
    export ROS_DISTRO=jazzy
    ```
 
-3. **Install Required Dependencies:**  
-   Use your package manager to install dependencies:
+3. **Install system dependencies**
+
    ```bash
    sudo apt update
    ```
+
    ```bash
    sudo apt-get install git-lfs \
-       ros-$ROS_DISTRO-hardware-interface ros-$ROS_DISTRO-xacro ros-$ROS_DISTRO-gpio-controllers\
-       ros-$ROS_DISTRO-controller-manager ros-$ROS_DISTRO-joint-state-broadcaster ros-$ROS_DISTRO-rviz-imu-plugin\
+       ros-$ROS_DISTRO-hardware-interface ros-$ROS_DISTRO-xacro ros-$ROS_DISTRO-gpio-controllers \
+       ros-$ROS_DISTRO-controller-manager ros-$ROS_DISTRO-joint-state-broadcaster ros-$ROS_DISTRO-rviz-imu-plugin \
        ros-$ROS_DISTRO-joint-state-publisher-gui ros-$ROS_DISTRO-forward-command-controller \
        ros-$ROS_DISTRO-ros2-control ros-$ROS_DISTRO-mavros ros-$ROS_DISTRO-mavros-msgs \
-       ros-$ROS_DISTRO-nav2-msgs ros-$ROS_DISTRO-force-torque-sensor-broadcaster ros-$ROS_DISTRO-tf-transformations \
+       ros-$ROS_DISTRO-nav2-msgs ros-$ROS_DISTRO-force-torque-sensor-broadcaster ros-$ROS_DISTRO-tf-transformations
    ```
+
    ```bash
    sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
    sudo apt install ros-$ROS_DISTRO-plotjuggler-ros
    ```
 
-5. **Install CasADi:**  
-   Follow the [CasADi Installation Instructions](https://github.com/casadi/casadi/wiki/InstallationLinux).
+4. **CasADi**
 
-   Set LD_LIBRARY_PATH for CasADi:If you encounter errors indicating that libcasadi.so cannot be found, update your LD_LIBRARY_PATH to include the directory containing libcasadi.so. For example:
+   Follow installation here:
+   [https://github.com/casadi/casadi/wiki/InstallationLinux](https://github.com/casadi/casadi/wiki/InstallationLinux)
+
+   If needed:
+
    ```bash
    export LD_LIBRARY_PATH=/path/to/casadi/build/lib:$LD_LIBRARY_PATH
    ```
 
-### Installation Steps
+---
 
-1. **Clone the Repository:**  
-   In your ROS2 workspace's `src` directory, clone the project:
-   ```bash
-   cd /absolute/path/to/your_ros2_workspace/src
-   git clone https://github.com/edxmorgan/uvms-simulator.git
-   vcs import < uvms-simulator/dependency_repos.repos
-   ```
+## Installation
 
-2. **Install Dependencies:**  
-   From the root of your workspace, install any missing dependencies:
-   ```bash
-   cd /absolute/path/to/your_ros2_workspace
-   sudo rosdep init
-   rosdep update
-   rosdep install --from-paths src --ignore-src -r -y
-   ```
+### Clone and import repositories
 
-3. **Build the Workspace:**  
-   Compile the project:
-   ```bash
-   colcon build
-   ```
+```bash
+cd ros2_ws/src
+git clone https://github.com/edxmorgan/uvms-simulator.git
+vcs import < uvms-simulator/dependency_repos.repos
+```
 
-4. **Source the Setup File:**  
-   Update your environment:
-   ```bash
-   source install/setup.bash
-   ```
+### Install missing dependencies
 
-Replace `/absolute/path/to/your_ros2_workspace` with the actual absolute path to your ROS2 workspace.
+```bash
+cd ..
+sudo rosdep init
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
+```
+
+### Build the workspace
+
+```bash
+colcon build
+source install/setup.bash
+```
 
 ---
 
-## Documentation & Use Cases
+## Documentation
 
-- **User Guide:** [User Documentation](doc/userdoc.rst)
-- **HIL Setup:** [Hardware-in-the-Loop Instructions](doc/hil_setup.rst)
-- **Interactive Control:** For Interactive, manual control and coverage examples, see [uvms_simlab](https://github.com/edxmorgan/uvms_simlab).
+* 📘 **User Guide**
+  `doc/userdoc.rst`
+
+* 🔌 **Hardware in the Loop Setup**
+  `doc/hil_setup.rst`
+
+* 🎮 **Interactive control and coverage examples**
+  [https://github.com/edxmorgan/uvms_simlab](https://github.com/edxmorgan/uvms_simlab)
 
 ---
 
 ## Cite
 
-If you find nanochat helpful in your research cite simply as:
-
 ```bibtex
 @misc{uvms-simulator,
   author = {Edward Morgan},
-  title = {uvms-simulator: A ros2_control framework for simulating and interfacing with the blueROV heavy and reach alpha 5 manipulator},
+  title = {uvms-simulator: A ros2_control framework for simulating and interfacing with the BlueROV2 Heavy and Reach Alpha 5 manipulator},
   year = {2023},
   publisher = {GitHub},
   url = {https://github.com/edxmorgan/uvms-simulator}
 }
 ```
 
-## Resources & Contributing
-
-- [ROS Control](https://control.ros.org/rolling/index.html)
-- [Reach Robotics SDK](https://github.com/Reach-Robotics/reach_robotics_sdk/tree/master)
-- [Blue Robotics](https://github.com/Bluerobotics)
-
-Contributions are welcome! Please open an issue or submit a pull request.
-
 ---
+
+## Resources
+
+* [https://control.ros.org](https://control.ros.org)
+* [https://github.com/Reach-Robotics](https://github.com/Reach-Robotics)
+* [https://github.com/BlueRobotics](https://github.com/BlueRobotics)
+
+Contributions are welcome. Open an issue or submit a pull request.

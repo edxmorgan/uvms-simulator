@@ -829,11 +829,17 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position = hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position + thrusts_rads_double[i] * delta_seconds;
         }
 
-        vehicle_parameters_new = {17, 24.2, 26.07, 0.23, -0.23, -0.23, 0.23, 0.28, 0.28, 0.28,
-                                  112.815, 114.8, 0, 0, 2.2563, -4.03, -6.22, -5.18, -0.07, -0.07, -0.07,
-                                  -18.18, -21.66, -36.99, -1.55, -1.55, -1.55, 0, 0, 0, 0, 0, 0};
+        vehicle_parameters_new = {4.13633390e+01, 1.63674732e+01, 6.48957664e+01, 1.40707511e+00,
+                                  -5.20860517e-01, -5.20860517e-01, 1.40707511e+00, 1.13036903e+00,
+                                  8.25118403e-01, 2.68318609e+00, 1.05000000e+02, 9.75022556e+01,
+                                  8.43601466e-01, 1.38105948e-01, 4.14145523e+00, -1.29783571e+02,
+                                  -7.27250797e+01, -9.13930976e+01, -2.64006947e+00, -1.57922658e+00,
+                                  -3.07660471e+00, 3.17537322e+02, 2.96535656e+02, -7.68397570e+01,
+                                  -2.51274348e-01, -3.74208835e-01, -2.68503473e+00, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
-                                  // pull latest external contact wrench from CollisionNode
+
+                                  
+        // pull latest external contact wrench from CollisionNode
         std::array<double, 6> wrench_copy;
         {
             std::lock_guard<std::mutex> lock(contact_wrench_mutex_);
@@ -856,12 +862,12 @@ namespace ros2_control_blue_reach_5
         // Build arm_base_f_ext from wrench_copy
         arm_base_f_ext.clear();
         arm_base_f_ext.reserve(6);
-        arm_base_f_ext.push_back(wrench_copy[0]);  // Fx body
-        arm_base_f_ext.push_back(wrench_copy[1]);  // Fy body
-        arm_base_f_ext.push_back(wrench_copy[2]);  // Fz body
-        arm_base_f_ext.push_back(wrench_copy[3]);  // Tx body
-        arm_base_f_ext.push_back(wrench_copy[4]);  // Ty body
-        arm_base_f_ext.push_back(wrench_copy[5]);  // Tz body
+        arm_base_f_ext.push_back(wrench_copy[0]); // Fx body
+        arm_base_f_ext.push_back(wrench_copy[1]); // Fy body
+        arm_base_f_ext.push_back(wrench_copy[2]); // Fz body
+        arm_base_f_ext.push_back(wrench_copy[3]); // Tx body
+        arm_base_f_ext.push_back(wrench_copy[4]); // Ty body
+        arm_base_f_ext.push_back(wrench_copy[5]); // Tz body
 
         // arm_base_f_ext = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         vehicle_simulate_argument = {uv_state, uv_input, vehicle_parameters_new, delta_seconds, arm_base_f_ext};
