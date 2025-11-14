@@ -117,7 +117,7 @@ source install/setup.bash
   `doc/hil_setup.rst`
 
 * 🎮 **Interactive control and coverage examples**
-  [https://github.com/edxmorgan/uvms_simlab](https://github.com/edxmorgan/uvms_simlab)
+  [https://github.com/edxmorgan/uvms-simlab](https://github.com/edxmorgan/uvms-simlab)
 
 ---
 
@@ -145,4 +145,4 @@ source install/setup.bash
 
 ## Join the community
 
-Contributions of any size are welcome—bug fixes, controller ideas, sensor plugins, or documentation improvements. Open an issue, start a discussion on ROS Discourse, or tag the repo in your demo videos so more UVMS researchers can find it. Star ⭐ the project if you build something cool with it! 
+Contributions of any size are welcome—bug fixes, controller ideas, sensor plugins, or documentation improvements.
