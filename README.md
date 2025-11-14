@@ -1,24 +1,19 @@
-# Underwater Vehicle and Manipulator Simulator and Hardware Framework 🌊🤖
+# Underwater Vehicle & Manipulator Simulator 🌊🤖
 
-ROS2 control framework for simulating and interfacing with the **BlueROV2 Heavy** and **Reach Alpha 5** manipulator.
+`uvms-simulator` is a ROS 2 control framework for simulating and interfacing with the **BlueROV2 Heavy** and **Reach Alpha 5** manipulator. It powers the [uvms_simlab](https://github.com/edxmorgan/uvms_simlab) interactive toolkit and hundreds of hours of HIL experiments. Give it a ⭐ if it powers your UVMS research!
 
 <img src="doc/uvms_env.png" width="840"/>
 
 ---
 
-## Features
+## Highlights
 
-* 🌊 **Realistic Dynamics**
-  Physics based UVMS modeling built on validated dynamic equations.
-
-* 🤖 **Multi Agent Simulation**
-  Run multiple vehicles and manipulators in a shared environment.
-
-* 🔧 **Hardware in the Loop**
-  Interface with the BlueROV2 Heavy, A50 DVL, and Reach Alpha 5 for real world testing.
-
-* 🧭 **Sensor Fusion**
-  Internal Kalman filter for combined IMU, DVL, and model based state estimation.
+* 🌊 **Validated hydrodynamics** – full 6‑DoF rigid-body dynamics, added masses, and thruster models derived from `diff_uv` and `diff_uvms`.
+* 🤖 **Multi-agent ready** – spin up several BlueROVs with manipulators sharing the same world and controllers.
+* 🔧 **Hardware-in-the-loop** – flip launch args to connect to a real BlueROV2 Heavy, Reach Alpha 5, and A50 DVL.
+* 🧭 **Sensor fusion stack** – onboard EKF fuses IMU, DVL, and model-based predictions for state estimates.
+* 🛠️ **ROS 2 control native** – forward command controllers, custom hardware interfaces, and ros2_control configs included.
+* 📊 **Data & viz hooks** – RViz configs, TF publishers, and loggers to accelerate benchmarking.
 
 ---
 
@@ -146,4 +141,8 @@ source install/setup.bash
 * [https://github.com/Reach-Robotics](https://github.com/Reach-Robotics)
 * [https://github.com/BlueRobotics](https://github.com/BlueRobotics)
 
-Contributions are welcome. Open an issue or submit a pull request.
+---
+
+## Join the community
+
+Contributions of any size are welcome—bug fixes, controller ideas, sensor plugins, or documentation improvements. Open an issue, start a discussion on ROS Discourse, or tag the repo in your demo videos so more UVMS researchers can find it. Star ⭐ the project if you build something cool with it! 
