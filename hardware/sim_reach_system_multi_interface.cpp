@@ -464,7 +464,7 @@ namespace ros2_control_blue_reach_5
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
 
-        double gravity = 9.81; // 9.81 m/s^2
+        double gravity = 0.0; // 9.81 m/s^2
 
         std::vector<DM> rigid_p = {
             1.94000000e-01, 4.29000000e-01, 1.14999999e-01, 3.32999998e-01,
