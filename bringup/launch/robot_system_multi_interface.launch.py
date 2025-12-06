@@ -246,6 +246,17 @@ def launch_setup(context, *args, **kwargs):
         },
     )
 
+    overlay_text_node = Node(
+        package='rviz_2d_overlay_plugins',
+        executable='string_to_overlay_text',
+        name='string_to_overlay_text_1',
+        output='screen',
+        parameters=[
+            {"string_topic": "chatter"},
+            {"fg_color": "b"}, # colors can be: r,g,b,w,k,p,y (red,green,blue,white,black,pink,yellow)
+        ],
+    )
+    
     control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
@@ -253,7 +264,6 @@ def launch_setup(context, *args, **kwargs):
         arguments=['--ros-args', '--log-level', 'controller_manager:=ERROR'],
         output="both",
     )
-
 
     # Joint State Broadcaster Spawner
     joint_state_broadcaster_spawner = Node(
@@ -415,7 +425,7 @@ def launch_setup(context, *args, **kwargs):
     # 4) After the switch
     # 4a) start RViz if requested
     rviz_after_switch = RegisterEventHandler(
-        OnProcessExit(target_action=switch_proc, on_exit=[rviz_node])
+        OnProcessExit(target_action=switch_proc, on_exit=[rviz_node, overlay_text_node])
     )
     # 4b) start clp after the switch
     clp_after_switch = RegisterEventHandler(
