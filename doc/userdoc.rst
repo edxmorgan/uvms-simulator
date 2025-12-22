@@ -67,7 +67,7 @@ Tutorial Steps
 
    - ``interactive``: RViz markers and planner execution.
    - ``manual``: PS4 teleop with PID control.
-   - ``joint``: Skeleton node for custom joint-space commands.
+   - ``joint``: Skeleton node for custom joint-space torque commands.
    - ``direct_thrusters``: Direct PWM commands via keyboard.
 
 4. **Record rosbag2 MCAP data (optional)**

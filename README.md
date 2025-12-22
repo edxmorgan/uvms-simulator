@@ -20,7 +20,7 @@
 - 🌀🖱️ **Direct RViz manipulation** – interactive markers for vehicle and arm-base targets.
 - 🗺️ **SE(3) planning + execution** – OMPL planners with FCL validity checks, Ruckig time-parameterized motion, and RViz path markers.
 - 🧱 **Collision + clearance viz** – FCL contact markers, environment AABB bounds, and workspace/vehicle point clouds.
-- 🎮 **Control modes** – PS4 teleop, joint-space control, or direct thruster PWM via keyboard.
+- 🎮 **Control modes** – PS4 teleop, joint-space torque control, or direct thruster PWM via keyboard.
 - 📡 **Mocap integrations** – OptiTrack/mocap4r2 publishing with live pose/path trails.
 - 🌊 **Environment + perception tools** – voxelized bathymetry clouds and optional RGB-to-pointcloud.
 - 📓 **Data logging** – rosbag2 MCAP recorder via `record_data:=true`.
@@ -194,7 +194,7 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
 | --- | --- | --- | --- |
 | `interactive` | `interactive_controller` | RViz markers + planner execution | RViz mouse/menus |
 | `manual` | `joystick_controller` | PS4 teleop with PID control | PS4 controller |
-| `joint` | `joint_controller` | Skeleton node for custom joint-space commands | Your node/scripts |
+| `joint` | `joint_controller` | Skeleton node for custom joint-space torque commands | Your node/scripts |
 | `direct_thrusters` | `direct_thruster_controller` | Direct PWM commands | Keyboard |
 
 ## Project layout 🧭
@@ -216,7 +216,7 @@ uvms_simlab/
 ├── simlab/se3_ompl_planner.py        # OMPL SE(3) planning
 ├── simlab/cartesian_ruckig.py        # Ruckig trajectory generation
 ├── simlab/joystick_control.py        # PS4 teleop node
-├── simlab/joint_control.py           # Joint-space control
+├── simlab/joint_control.py           # Joint-space torque control
 ├── simlab/direct_thruster_control.py # Thruster PWM keyboard control
 ├── simlab/collision_contact.py       # FCL contact markers + clearance
 ├── simlab/voxel_viz.py               # Bathymetry voxel clouds
