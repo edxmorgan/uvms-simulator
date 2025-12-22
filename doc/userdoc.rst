@@ -2,18 +2,19 @@
 
 .. _ros2_control_RA5BHS_userdoc:
 
-************************************************
-Reach Alpha Blue Heavy Dynamics Simulator
-************************************************
+**********************************************************************
+Underwater Vehicle & Manipulator Simulator (BlueROV2 Heavy + Reach Alpha 5)
+**********************************************************************
 
-The *Reach Alpha Blue Heavy Dynamics Simulator* includes an interface plugin that supports multiple state and command interfaces.
+The *Underwater Vehicle & Manipulator Simulator* includes an interface plugin that supports multiple state and command interfaces.
+Pair it with the companion `uvms_simlab` package for interactive control, planning, and logging.
 
 Tutorial Steps
 --------------------------
 
 1. **Verify the Simulator Descriptions**
 
-   To check that the *Reach Alpha Blue Heavy Sim* descriptions are working correctly, use the following launch command:
+   To check that the simulator descriptions are working correctly, use the following launch command:
 
    .. code-block:: shell
 
@@ -22,9 +23,9 @@ Tutorial Steps
    ..  .. note:: //
    ..  It is normal to see the message ``Warning: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist``. This warning appears because the ``joint_state_publisher_gui`` node needs a moment to start. The ``joint_state_publisher_gui`` provides a GUI to generate a random configuration for the robot, which will be displayed in *RViz*.
 
-2. **Start the Reach Alpha 5 Example**
+2. **Start the main bringup**
 
-   Open a terminal, source your ROS2 workspace, and execute the launch file with:
+   Open a terminal, source your ROS 2 workspace, and execute the launch file with:
 
    .. code-block:: shell
 
@@ -32,11 +33,19 @@ Tutorial Steps
 
    Useful launch-file options:
 
-   - ``use_manipulator_hardware:=false``: Starts the simulator and connects to a real reach alpha hardware manipulator in the loop. Default value is ``false``
+   - ``use_manipulator_hardware:=false``: Use the simulated manipulator. Set to ``true`` for real Reach Alpha hardware.
 
-   - ``use_vehicle_hardware:=false``: Starts the simulator and connects to a real bluerov2 heavy underwater vehicle in the loop. Default value is ``false``
+   - ``use_vehicle_hardware:=false``: Use the simulated vehicle. Set to ``true`` for real BlueROV2 Heavy hardware.
+
+   - ``task:=interactive``: Task mode (requires `uvms_simlab` for control modes).
 
    - ``sim_robot_count:=n``: Starts the simulator by spawning n number of underwater vehicle manipulator systems.
+
+   - ``record_data:=true``: Start the rosbag2 MCAP recorder.
+
+   - ``gui:=false``: Run without RViz.
+
+   - ``controllers:=pid``: Comma-separated list of controllers to be used.
 
    example launch command with options 
 
@@ -46,7 +55,30 @@ Tutorial Steps
 
    The launch file will load and start the robot hardware, controllers, and open *RViz*. You will see extensive output from the hardware implementation in the terminal, showing its internal states.
 
-3. **Verify Running Controllers**
+3. **Pick a task mode (requires uvms_simlab)**
+
+   `uvms_simlab` is a companion ROS 2 package in the same workspace that provides the control nodes below.
+
+   .. code-block:: shell
+
+      ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=interactive
+
+   Common task modes:
+
+   - ``interactive``: RViz markers and planner execution.
+   - ``manual``: PS4 teleop with PID control.
+   - ``joint``: Skeleton node for custom joint-space commands.
+   - ``direct_thrusters``: Direct PWM commands via keyboard.
+
+4. **Record rosbag2 MCAP data (optional)**
+
+   .. code-block:: shell
+
+      ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py record_data:=true
+
+   Bags are saved to ``uvms_bag_YYYYmmdd_HHMMSS`` in the working directory.
+
+5. **Verify Running Controllers**
 
    To check which controllers are currently active, run:
 
