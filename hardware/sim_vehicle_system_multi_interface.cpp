@@ -121,26 +121,22 @@ namespace ros2_control_blue_reach_5
         std::size_t seed_val = std::hash<std::string>{}(hw_vehicle_struct.robot_prefix);
         std::mt19937 gen(seed_val + 23);
 
-        // std::uniform_real_distribution<> dis_x(0.0, 0.0);
-        // std::uniform_real_distribution<> dis_y(0.0, 0.0);
-        // std::uniform_real_distribution<> dis_z(0.0, 0.0);
+        std::uniform_real_distribution<> dis_x(-5.0, 5.0);
+        std::uniform_real_distribution<> dis_y(-5.0, 5.0);
+        std::uniform_real_distribution<> dis_z(0.0, 0.0);
+        std::uniform_real_distribution<double> dis_yaw(-M_PI, M_PI);
 
-        // map_position_x = dis_x(gen);
-        // map_position_y = dis_y(gen);
-        // map_position_z = dis_z(gen);
+        map_position_x = dis_x(gen);
+        map_position_y = dis_y(gen);
+        map_position_z = dis_z(gen);
+        map_orientation_yaw = dis_yaw(gen);
 
-        map_position_x = 0.0;
-        map_position_y = 0.0;
-        map_position_z = 0.0;
-
-        map_orientaion_w = 1.0;
-        map_orientaion_x = 0.0;
-        map_orientaion_y = 0.0;
-        map_orientaion_z = 0.0;
-
-        // std::uniform_real_distribution<> robot_dis_x(0.0, -10.0);
-        // std::uniform_real_distribution<> robot_dis_y(0.0, 10.0);
-        // std::uniform_real_distribution<> robot_dis_z(0.0, 0.0);
+        // roll = 0, pitch = 0
+        double half = 0.5 * map_orientation_yaw;
+        map_orientation_w = std::cos(half);
+        map_orientation_x = 0.0;
+        map_orientation_y = 0.0;
+        map_orientation_z = std::sin(half);
 
         blue::dynamics::Vehicle::Pose_vel initial_state{
             0.0, 0.0, 0.0,      // position: x, y, z
@@ -933,10 +929,10 @@ namespace ros2_control_blue_reach_5
         static_map_transform.transform.translation.z = map_position_z;
 
         // Set rotation based on current state (quaternion)
-        static_map_transform.transform.rotation.x = map_orientaion_x;
-        static_map_transform.transform.rotation.y = map_orientaion_y;
-        static_map_transform.transform.rotation.z = map_orientaion_z;
-        static_map_transform.transform.rotation.w = map_orientaion_w;
+        static_map_transform.transform.rotation.x = map_orientation_x;
+        static_map_transform.transform.rotation.y = map_orientation_y;
+        static_map_transform.transform.rotation.z = map_orientation_z;
+        static_map_transform.transform.rotation.w = map_orientation_w;
         // Publish the static transform
         static_tf_broadcaster_->sendTransform(static_map_transform);
 

@@ -351,7 +351,34 @@ Visualization Manager:
       Plane Cell Count: 50
       Reference Frame: world_bottom
       Value: true
-
+    - Align Bottom: false
+      Background Alpha: 0.5
+      Background Color: 0; 0; 0
+      Class: rviz_2d_overlay_plugins/TextOverlay
+      Enabled: true
+      Foreground Alpha: 0.800000011920929
+      Foreground Color: 25; 255; 240
+      Invert Shadow: false
+      Name: TextOverlay
+      Overtake BG Color Properties: true
+      Overtake FG Color Properties: false
+      Overtake Position Properties: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /chatter_overlay_text
+      Value: true
+      font: Sans Serif
+      height: 128
+      hor_alignment: left
+      hor_dist: 28
+      line width: 216
+      text size: 22
+      ver_alignment: top
+      ver_dist: 29
+      width: 980
   Enabled: true
   Global Options:
     Background Color: 119; 118; 123

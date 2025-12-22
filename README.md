@@ -60,7 +60,7 @@ These provide Jacobians, dynamic matrices, and model terms for control, stabilit
        ros-$ROS_DISTRO-joint-state-publisher-gui ros-$ROS_DISTRO-forward-command-controller \
        ros-$ROS_DISTRO-ros2-control ros-$ROS_DISTRO-mavros ros-$ROS_DISTRO-mavros-msgs \
        ros-$ROS_DISTRO-nav2-msgs ros-$ROS_DISTRO-force-torque-sensor-broadcaster ros-$ROS_DISTRO-tf-transformations \
-       ros-$ROS_DISTRO-rviz-2d-overlay-plugins ros-$ROS_DISTRO-rviz-2d-overlay-msgs
+       ros-$ROS_DISTRO-rviz-2d-overlay-plugins ros-$ROS_DISTRO-rviz-2d-overlay-msgs ros-$ROS_DISTRO-rosbag2
    ```
 
    ```bash

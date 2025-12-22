@@ -122,7 +122,6 @@ def launch_setup(context, *args, **kwargs):
     gui = LaunchConfiguration("gui").perform(context)
     sim_robot_count = LaunchConfiguration("sim_robot_count").perform(context)
     record_data = LaunchConfiguration("record_data").perform(context)
-    record_data_bool = IfCondition(record_data).evaluate(context)  
     controllers_list_str = LaunchConfiguration('controllers').perform(context)
     task = task.lower()
     use_pwm = str(task in {'direct_thrusters'})
@@ -199,7 +198,6 @@ def launch_setup(context, *args, **kwargs):
                                                                                   robot_controllers_read_file,
                                                                                     robot_controllers_modified_file,
                                                                                       int(sim_robot_count))
-    
     rviz_config_read = PathJoinSubstitution(
         [
             FindPackageShare("ros2_control_blue_reach_5"),
@@ -311,7 +309,6 @@ def launch_setup(context, *args, **kwargs):
             'robots_prefix': robot_prefixes,
             'no_robot': len(robot_prefixes),
             'no_efforts': 11,
-            'record_data': record_data_bool,
             'controllers': controllers,
             "robot_description": robot_description_content
         }
@@ -351,6 +348,13 @@ def launch_setup(context, *args, **kwargs):
         package='simlab',
         executable="rgb2cloudpoint_publisher",
         name="rgb2cloudpoint_publisher"
+    )
+    bag_recorder_node = Node(
+        package='simlab',
+        executable="bag_recorder_node",
+        name="bag_recorder_node",
+        parameters=[mode_params],
+        condition=IfCondition(record_data),
     )
 
     optitrack_proc = ExecuteProcess(
@@ -447,6 +451,7 @@ def launch_setup(context, *args, **kwargs):
         mocap_after_optitrack,
         mesh_collision_node,
         voxelviz_node,
+        bag_recorder_node,
     ]
 
 

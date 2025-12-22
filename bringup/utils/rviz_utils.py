@@ -392,12 +392,9 @@ def rviz_robots_path_configure(robot_prefixes, rviz_config):
     enabled = True
     for idx, prefix in enumerate(robot_prefixes):
         if idx == 0:
-            path_color = generate_random_color('ref_path', True)
             traj_color = generate_random_color('robot_path', True)
         else:
-            path_color = generate_random_color()
             traj_color = generate_random_color()
-        rviz_path_display(f"{prefix}/desiredPath", f"/{prefix}desiredPath", rviz_config, path_color, enabled)
         rviz_path_display(f"{prefix}/robotPath", f"/{prefix}robotPath", rviz_config, traj_color, enabled)
 
 def rviz_states_axes_configure(robot_prefixes, rviz_config):
@@ -407,7 +404,7 @@ def rviz_states_axes_configure(robot_prefixes, rviz_config):
         rviz_axes_display(base_link, base_link, rviz_config, 0.1, 0.01, True)
         rviz_axes_display(robot_map_frame, f'{prefix}map', rviz_config, 0.1, 0.01, True)
         rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, True)
-        rviz_axes_display(f'{prefix}mocap_frame', f"{prefix}mocap_link", rviz_config, 0.1, 0.01, True)
+        rviz_axes_display(f'{prefix}mocap_frame', f"{prefix}mocap_link", rviz_config, 0.1, 0.01, False)
         for i in range(5):
             rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
         

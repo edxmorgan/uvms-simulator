@@ -115,8 +115,8 @@ namespace ros2_control_blue_reach_5
         blue::dynamics::Vehicle hw_vehicle_struct;
         std::string system_name;
 
-        double map_position_x, map_position_y, map_position_z;
-        double map_orientaion_w, map_orientaion_x, map_orientaion_y, map_orientaion_z;
+        double map_position_x, map_position_y, map_position_z, map_orientation_yaw;
+        double map_orientation_w, map_orientation_x, map_orientation_y, map_orientation_z;
 
         using tf = tf2_msgs::msg::TFMessage;
 
