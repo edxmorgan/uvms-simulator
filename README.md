@@ -99,7 +99,7 @@ These provide Jacobians, dynamic matrices, and model terms for control, stabilit
 
 **Other**
 
-- OMPL with Python bindings (`install-ompl-ubuntu.sh --python` from Kavraki Lab works well).
+- OMPL with Python bindings (`install-ompl-ubuntu.sh --python` from [ompl](https://github.com/ompl/ompl/blob/main/install-ompl-ubuntu.sh.in)).
 - Optional hardware: BlueROV2 Heavy + Reach Alpha 5 + Blue Robotics A50 DVL (or any robot stack you map through the provided interfaces).
 
 ## Quick start ⚡
