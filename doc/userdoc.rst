@@ -90,14 +90,25 @@ Tutorial Steps
 
    .. code-block:: shell
 
-      gravity_broadcaster_robot_1__axis_c[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
-      gravity_broadcaster_robot_1__axis_e[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
-      fts_broadcaster_1   [force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
-      gravity_broadcaster_robot_1__axis_a[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
-      joint_state_broadcaster[joint_state_broadcaster/JointStateBroadcaster] active    
-      uvms_controller     [uvms_controller/UvmsController] active    
-      gravity_broadcaster_robot_1__axis_d[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active    
-      gravity_broadcaster_robot_1__axis_b[force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster] active
+      manipulation_effort_controller_robot_1_   forward_command_controller/ForwardCommandController           active
+      vehicle_effort_controller_robot_1_        gpio_controllers/GpioCommandController                        active
+      vehicle_thrusters_pwm_controller_robot_1_ forward_command_controller/ForwardCommandController           inactive
+      joint_state_broadcaster                   joint_state_broadcaster/JointStateBroadcaster                 active
+      fts_broadcaster_1                         force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      manipulation_effort_controller_robot_2_   forward_command_controller/ForwardCommandController           active
+      gravity_broadcaster_robot_2__axis_e       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      vehicle_thrusters_pwm_controller_robot_2_ forward_command_controller/ForwardCommandController           inactive
+      gravity_broadcaster_robot_1__axis_e       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      gravity_broadcaster_robot_1__axis_d       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      gravity_broadcaster_robot_1__axis_c       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      gravity_broadcaster_robot_2__axis_c       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      gravity_broadcaster_robot_1__axis_b       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      gravity_broadcaster_robot_1__axis_a       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      vehicle_effort_controller_robot_2_        gpio_controllers/GpioCommandController                        active
+      fts_broadcaster_2                         force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      gravity_broadcaster_robot_2__axis_d       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      gravity_broadcaster_robot_2__axis_a       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
+      gravity_broadcaster_robot_2__axis_b       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
 
    Observe how this output changes based on the launch file arguments used.
 
