@@ -1,6 +1,6 @@
 # Underwater Vehicle & Manipulator Simulator 🌊🤖
 
-`uvms-simulator` is a ROS 2 control framework for simulating and interfacing with the **BlueROV2 Heavy** and **Reach Alpha 5** manipulator. It powers the [uvms_simlab](https://github.com/edxmorgan/uvms-simlab) interactive toolkit (a companion ROS 2 package that enhances this simulator) and hundreds of hours of HIL experiments.
+`uvms-simulator` is a ROS 2 control framework for simulating and interfacing with the **BlueROV2 Heavy** and **Reach Alpha 5** manipulator. The companion package [uvms_simlab](https://github.com/edxmorgan/uvms-simlab) extends the simulator with interactive control, planning, visualization, and logging, and has been used in extensive HIL experiments.
 
 <img src="doc/uvms_env.png" width="840"/>
 
