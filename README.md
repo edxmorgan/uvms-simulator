@@ -6,24 +6,24 @@
 
 ## Highlights
 
-- 🌊 **Validated hydrodynamics** – full 6‑DoF rigid-body dynamics, added masses, and thruster models derived from `diff_uv` and `diff_uvms`.
-- 🤖 **Multi-agent ready** – spin up several BlueROVs with manipulators sharing the same world and controllers.
-- 🔧 **Hardware-in-the-loop** – flip launch args to connect to a real BlueROV2 Heavy, Reach Alpha 5, and A50 DVL.
-- 🧭 **Sensor fusion stack** – onboard EKF fuses IMU, DVL, and model-based predictions for state estimates.
-- 🛠️ **ROS 2 control native** – forward command controllers, custom hardware interfaces, and ros2_control configs included.
-- 📊 **Data + viz tooling** – RViz configs, TF publishers, PlotJuggler layouts, and bag-ready topics to accelerate benchmarking.
+- **Validated hydrodynamics** – full 6‑DoF rigid-body dynamics, added masses, and thruster models derived from `diff_uv` and `diff_uvms`.
+- **Multi-agent ready** – spin up several BlueROVs with manipulators sharing the same world and controllers.
+- **Hardware-in-the-loop** – flip launch args to connect to a real BlueROV2 Heavy, Reach Alpha 5, and A50 DVL.
+- **Sensor fusion stack** – onboard EKF fuses IMU, DVL, and model-based predictions for state estimates.
+- **ROS 2 control native** – forward command controllers, custom hardware interfaces, and ros2_control configs included.
+- **Data + viz tooling** – RViz configs, TF publishers, PlotJuggler layouts, and bag-ready topics to accelerate benchmarking.
 
 ## Simlab toolkit
 
 `uvms_simlab` is a separate package in the same workspace. It adds the interactive control, planning, and logging layers listed below.
 
-- 🌀🖱️ **Direct RViz manipulation** – interactive markers for vehicle and arm-base targets.
-- 🗺️ **SE(3) planning + execution** – OMPL planners with FCL validity checks, Ruckig time-parameterized motion, and RViz path markers.
-- 🧱 **Collision + clearance viz** – FCL contact markers, environment AABB bounds, and workspace/vehicle point clouds.
-- 🎮 **Control modes** – PS4 teleop, joint-space torque control, or direct thruster PWM via keyboard.
-- 📡 **Mocap integrations** – OptiTrack/mocap4r2 publishing with live pose/path trails.
-- 🌊 **Environment + perception tools** – voxelized bathymetry clouds and optional RGB-to-pointcloud.
-- 📓 **Data logging** – rosbag2 MCAP recorder via `record_data:=true`.
+- **Direct RViz manipulation** – interactive markers for vehicle and arm-base targets.
+- **SE(3) planning + execution** – OMPL planners with FCL validity checks, Ruckig time-parameterized motion, and RViz path markers.
+- **Collision + clearance viz** – FCL contact markers, environment AABB bounds, and workspace/vehicle point clouds.
+- **Control modes** – PS4 teleop, joint-space torque control, or direct thruster PWM via keyboard.
+- **Mocap integrations** – OptiTrack/mocap4r2 publishing with live pose/path trails.
+- **Environment + perception tools** – voxelized bathymetry clouds and optional RGB-to-pointcloud.
+- **Data logging** – rosbag2 MCAP recorder via `record_data:=true`.
 
 ## Kinematics and Dynamics
 
@@ -102,7 +102,7 @@ These provide Jacobians, dynamic matrices, and model terms for control, stabilit
 - OMPL with Python bindings (`install-ompl-ubuntu.sh --python` from [ompl](https://github.com/ompl/ompl/blob/main/install-ompl-ubuntu.sh.in)).
 - Optional hardware: BlueROV2 Heavy + Reach Alpha 5 + Blue Robotics A50 DVL (or any robot stack you map through the provided interfaces).
 
-## Quick start ⚡
+## Quick start
 
 1. **Clone and import repositories**
 
@@ -146,7 +146,7 @@ These provide Jacobians, dynamic matrices, and model terms for control, stabilit
    source install/setup.bash
    ```
 
-## Launch recipes 🚢
+## Launch recipes
 
 **Interactive planner & RViz**
 
@@ -188,7 +188,7 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
 
 > 💡 Hardware swap: set `use_vehicle_hardware:=true` and `use_manipulator_hardware:=true` to put your BlueROV2 Heavy, Reach Alpha 5, and A50 DVL directly into the loop.
 
-## Task modes 🎛️
+## Task modes
 
 | task | Simlab node | What it does | Input |
 | --- | --- | --- | --- |
@@ -197,7 +197,7 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
 | `joint` | `joint_controller` | Skeleton node for custom joint-space torque commands | Your node/scripts |
 | `direct_thrusters` | `direct_thruster_controller` | Direct PWM commands | Keyboard |
 
-## Project layout 🧭
+## Project layout
 
 ```
 uvms-simulator/
@@ -249,6 +249,6 @@ uvms_simlab/
 - [https://github.com/Reach-Robotics](https://github.com/Reach-Robotics)
 - [https://github.com/BlueRobotics](https://github.com/BlueRobotics)
 
-## Contributing & community 🤝
+## Contributing 🤝
 
-Have a planner, sensor, or teleop workflow that should live here? Open an issue or PR. Contributions of any size are welcome—bug fixes, controller ideas, sensor plugins, or documentation improvements.
+Contributions are welcome, controller ideas, sensor plugins, or documentation improvements.
