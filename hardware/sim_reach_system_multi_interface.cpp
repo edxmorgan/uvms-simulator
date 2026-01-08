@@ -485,8 +485,24 @@ namespace ros2_control_blue_reach_5
             0, 0, gravity,                 // gravity
             0, 0, 0, 0,                    // payload center of mass wrt eff , payload mass
             0.19, 0, -0.12, 3.14159, 0, 0, // base to vehicle transform
-            0, 0, 0, 0, 0, 0               // to world transform])
+            0, 0, 0, 0, 0, 0,               // to world transform])
+            0.00, 0.00, 0.04, 0.00, 0.00, 0.00
         };
+
+        // std::vector<DM> rigid_p = {
+        //     0.194, 0.429, 0.115, 0.333, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.01,
+        //     0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01,
+        //     0.01, 0.01, 0, 0, 0,
+        //     2, 2, 2, 2, // viscous friction coefficients
+        //     0, 0, 0, 0, // coulomb friction coefficients
+        //     0, 0, 0, 0, // Stribeck friction coefficients
+        //     0, 0, 0, 0, // Stribeck velocity coefficients
+        //     0, 0, 9.81,                    // gravity
+        //     0, 0, 0, 0,                    // payload center of mass wrt eff , payload mass
+        //     0.19, 0, -0.12, 3.14159, 0, 0, // base to vehicle transform
+        //     0, 0, 0, 0, 0, 0 ,              // to world transform
+        //     0, 0, 0, 0, 0, 0
+        // };
         arm_state.clear();
         arm_state.reserve(10);
 
