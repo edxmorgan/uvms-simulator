@@ -483,7 +483,9 @@ namespace ros2_control_blue_reach_5
     DM base_T = DM::vertcat({0.190, 0.000, -0.120, 3.141592653589793, 0.000, 0.000});
     DM world_T = DM::vertcat({0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 
-    std::vector<DM> fk_args = {q, base_T, world_T};
+     DM tipOffset = DM::vertcat({0.0, 0.0, 0.04, 0.0, 0.0, 0.0});
+
+    std::vector<DM> fk_args = {q, base_T, world_T, tipOffset};
     T_i_ = utils_service.forward_kinematics(fk_args);
 
     DM c_sample = DM::vertcat({5e-12, -1e-12, 16e-12,
@@ -492,7 +494,8 @@ namespace ros2_control_blue_reach_5
                                -0.030e-12, -12e-12, -98e-12});
     DM r_com_body = DM::vertcat({0.0, 0.0, 0.0});
 
-    std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T};
+
+    std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T, tipOffset};
     T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
 
     // Time step for this cycle
