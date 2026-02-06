@@ -100,14 +100,6 @@ def generate_launch_description():
         )
     )
 
-    declared_arguments.append(
-        DeclareLaunchArgument(
-            "controllers",
-            default_value="pid",
-            description="Comma-separated list of controllers to be used",
-        )
-    )
-
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
 
 def launch_setup(context, *args, **kwargs):
@@ -122,7 +114,6 @@ def launch_setup(context, *args, **kwargs):
     gui = LaunchConfiguration("gui").perform(context)
     sim_robot_count = LaunchConfiguration("sim_robot_count").perform(context)
     record_data = LaunchConfiguration("record_data").perform(context)
-    controllers_list_str = LaunchConfiguration('controllers').perform(context)
     task = task.lower()
     use_pwm = str(task in {'direct_thrusters'})
 
@@ -291,9 +282,6 @@ def launch_setup(context, *args, **kwargs):
         shell=True
     )
 
-    controllers = parse_controller_list(controllers_list_str, no_robots)
-    logger.info(f"Controller list: {controllers}" )
-
     # start task selected
     mode = OpaqueFunction(function=lambda context: [])
 
@@ -309,7 +297,6 @@ def launch_setup(context, *args, **kwargs):
             'robots_prefix': robot_prefixes,
             'no_robot': len(robot_prefixes),
             'no_efforts': 11,
-            'controllers': controllers,
             "robot_description": robot_description_content
         }
         
@@ -401,6 +388,16 @@ def launch_setup(context, *args, **kwargs):
         }],
     )
 
+    env_obstacles_node = Node(
+        package="simlab",
+        executable="env_obscles_node",
+        name="env_obscles_node",
+        output="screen",
+        parameters=[{
+            "robot_description": robot_description_content,
+        }],
+    )
+
     # 1) Collect all spawners in the exact order you want them to complete
     all_spawners = [
         *fts_spawner_nodes,
@@ -451,6 +448,7 @@ def launch_setup(context, *args, **kwargs):
         mocap_after_optitrack,
         mesh_collision_node,
         voxelviz_node,
+        env_obstacles_node,
         bag_recorder_node,
     ]
 

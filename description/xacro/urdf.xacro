@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <xacro:macro name="bluerov2_heavy_alpha_urdf" params="prefix x:=0.0 y:=0.0 z:=2.0 rot_r:=0.0 rot_p:=0.0 rot_y:=0.0">
+  <xacro:macro name="bluerov2_heavy_alpha_urdf" params="robot_name prefix x:=0.0 y:=0.0 z:=2.0 rot_r:=0.0 rot_p:=0.0 rot_y:=0.0">
 
     <link name="${prefix}manipulator_mount_link">
       <visual>
@@ -84,7 +84,10 @@
 
     <!-- Imports -->
     <xacro:include filename="$(find ros2_control_blue_reach_5)/alpha/urdf/alpha_5.urdf.xacro" />
-    <xacro:include filename="$(find ros2_control_blue_reach_5)/blue/xacro/bluerov2_heavy_reach/urdf.xacro" />
+
+
+    <xacro:include filename="$(find ros2_control_blue_reach_5)/blue/xacro/bluerov2_heavy_reach/${robot_name}_urdf.xacro" />
+    <xacro:include filename="$(find ros2_control_blue_reach_5)/blue/xacro/bluerov2_heavy_reach/${robot_name}_urdf.xacro" />
 
 
     <!-- Instantiate the Alpha -->
