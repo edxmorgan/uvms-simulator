@@ -3,6 +3,10 @@ repositories:
     type: git
     url: https://github.com/edxmorgan/uvms-simlab
 
+  simlab_msgs:
+    type: git
+    url: https://github.com/edxmorgan/simlab_msgs
+
   mocap4ros2_optitrack:
     type: git
     url: https://github.com/edxmorgan/mocap4ros2_optitrack.git
