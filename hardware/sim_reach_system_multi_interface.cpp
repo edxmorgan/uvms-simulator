@@ -466,6 +466,7 @@ namespace ros2_control_blue_reach_5
         time_seconds = time.seconds();
 
         double gravity = 0.0; // 9.81 m/s^2
+        double payload_mass = 0.0;
 
         std::vector<DM> rigid_p = {
             1.94000000e-01, 4.29000000e-01, 1.14999999e-01, 3.32999998e-01,
@@ -483,26 +484,12 @@ namespace ros2_control_blue_reach_5
             -0.00000000e+00, -0.00000000e+00, -0.00000000e+00, -0.00000000e+00,
             0, 0, 0, 0,
             0, 0, gravity,                 // gravity
-            0, 0, 0, 0,                    // payload center of mass wrt eff , payload mass
+            0, 0, 0, payload_mass,                    // payload center of mass wrt eff , payload mass
             0.19, 0, -0.12, 3.14159, 0, 0, // base to vehicle transform
             0, 0, 0, 0, 0, 0,               // to world transform])
             0.00, 0.00, 0.04, 0.00, 0.00, 0.00
         };
 
-        // std::vector<DM> rigid_p = {
-        //     0.194, 0.429, 0.115, 0.333, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.01,
-        //     0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01, 0.01, 0.01, 0, 0, 0, 0.01,
-        //     0.01, 0.01, 0, 0, 0,
-        //     2, 2, 2, 2, // viscous friction coefficients
-        //     0, 0, 0, 0, // coulomb friction coefficients
-        //     0, 0, 0, 0, // Stribeck friction coefficients
-        //     0, 0, 0, 0, // Stribeck velocity coefficients
-        //     0, 0, 9.81,                    // gravity
-        //     0, 0, 0, 0,                    // payload center of mass wrt eff , payload mass
-        //     0.19, 0, -0.12, 3.14159, 0, 0, // base to vehicle transform
-        //     0, 0, 0, 0, 0, 0 ,              // to world transform
-        //     0, 0, 0, 0, 0, 0
-        // };
         arm_state.clear();
         arm_state.reserve(10);
 
@@ -584,12 +571,12 @@ namespace ros2_control_blue_reach_5
         // RCLCPP_INFO_THROTTLE(
         //     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
         //     *node_frames_interface_->get_clock(), 500,
-        //     "efforts = [%.3e %.3e %.3e %.3e | ee %.3e], mask = [%d %d %d %d]",
-        //     hw_joint_struct_[0].command_state_.effort,
-        //     hw_joint_struct_[1].command_state_.effort,
-        //     hw_joint_struct_[2].command_state_.effort,
-        //     hw_joint_struct_[3].command_state_.effort,
-        //     hw_joint_struct_[4].command_state_.effort,
+        //     "position = [%.3e %.3e %.3e %.3e | ee %.3e], mask = [%d %d %d %d]",
+        //     hw_joint_struct_[0].current_state_.position,
+        //     hw_joint_struct_[1].current_state_.position,
+        //     hw_joint_struct_[2].current_state_.position,
+        //     hw_joint_struct_[3].current_state_.position,
+        //     hw_joint_struct_[4].current_state_.position,
         //     static_cast<int>(is_locked_[0]),
         //     static_cast<int>(is_locked_[1]),
         //     static_cast<int>(is_locked_[2]),

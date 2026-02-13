@@ -398,6 +398,18 @@ def launch_setup(context, *args, **kwargs):
         }],
     )
 
+    planner_action_server_node = None
+    if task == "interactive":
+        planner_action_server_node = Node(
+            package="simlab",
+            executable="planner_action_server_node",
+            name="planner_action_server_node",
+            output="screen",
+            parameters=[{
+                "robot_description": robot_description_content,
+            }],
+        )
+
     # 1) Collect all spawners in the exact order you want them to complete
     all_spawners = [
         *fts_spawner_nodes,
@@ -451,6 +463,9 @@ def launch_setup(context, *args, **kwargs):
         env_obstacles_node,
         bag_recorder_node,
     ]
+
+    if planner_action_server_node is not None:
+        simulator_actions.append(planner_action_server_node)
 
 
     # if is_hardware_uvms:
