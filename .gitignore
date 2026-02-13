@@ -32,4 +32,5 @@
 *.out
 *.app
 
-dynamics_params.hpp
+dynamics_params.hpp__pycache__/
+*.pyc
