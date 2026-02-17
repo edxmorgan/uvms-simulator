@@ -133,13 +133,17 @@ namespace ros2_control_blue_reach_5
         std::vector<bool>   is_locked_;
         std::vector<double> on_db_;
         std::vector<double> off_db_;
+        std::vector<double>  s_lock_current;
 
         std::vector<casadi::DM> arm_state;
         std::vector<casadi::DM> arm_torques;
 
         std::vector<DM> arm_simulate_argument;
+        std::vector<DM> simulate_joint_lock_argument;
+        std::vector<DM> joint_lock_sim;
         std::vector<DM> arm_sim;
         std::vector<double> arm_next_states;
+        
 
         // cache FK outputs computed in read
         std::vector<casadi::DM> T_i_;

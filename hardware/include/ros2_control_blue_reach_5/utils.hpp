@@ -33,6 +33,7 @@ namespace casadi_reach_alpha_5
         uint8_t utils_id;       // Unique identifier for the utils
         Function vehicle_dynamics; // vehicle dynamics
         Function manipulator_dynamics; // manipulator dynamics
+        Function manipulator_joint_lock_dynamics; //manipulator lock dynamics
         Function forward_kinematics; // forward kinematics
         Function forward_kinematics_com; // forward kinematics center of mass
         Function torque2currentMap; // forward motor utils
