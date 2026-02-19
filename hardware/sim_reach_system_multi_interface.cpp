@@ -52,7 +52,7 @@ namespace ros2_control_blue_reach_5
         utils_service.current2torqueMap = utils_service.load_casadi_fun("current_to_torque_map", "libC2T.so");
         utils_service.torque2currentMap = utils_service.load_casadi_fun("torque_to_current_map", "libT2C.so");
         utils_service.manipulator_dynamics = utils_service.load_casadi_fun("Mnext_reg", "libMnext.so");
-        utils_service.manipulator_joint_lock_dynamics = utils_service.load_casadi_fun("soft_lock_hysteresis", "libLock_f.so");
+        utils_service.manipulator_joint_lock_dynamics = utils_service.load_casadi_fun("hard_lock_hysteresis", "libLock_f.so");
         utils_service.forward_kinematics = utils_service.load_casadi_fun("fkeval", "libFK.so");
         utils_service.forward_kinematics_com = utils_service.load_casadi_fun("fkcomeval", "libFKcom.so");
         utils_service.base_ext_R_to_vehicle = utils_service.load_casadi_fun("R_base", "libBase_ext_R_vehicle.so");
@@ -467,7 +467,7 @@ namespace ros2_control_blue_reach_5
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
 
-        double gravity = 9.81; // 9.81 m/s^2
+        double gravity = 0.0; // 9.81 m/s^2
         double payload_mass = 0.0;
 
         std::vector<DM> rigid_p = {
@@ -544,20 +544,43 @@ namespace ros2_control_blue_reach_5
             arm_torques.push_back(tau_safe);
         };
 
-        double k_on_val = 100.0;
-        double k_off_val = 100.0;
-        double eps_val = 1e-4;
-        simulate_joint_lock_argument = {arm_torques, s_lock_current, on_db_, off_db_, k_on_val, k_off_val, eps_val};
-        joint_lock_sim = utils_service.manipulator_joint_lock_dynamics(simulate_joint_lock_argument);
-        s_lock_current = joint_lock_sim.at(0).nonzeros();
-        
-        constexpr std::size_t n_dyn_lock = 4;
-        casadi::DM lock_mask = casadi::DM::zeros(static_cast<int>(n_dyn_lock), 1);
-        for (std::size_t j = 0; j < n_dyn_lock; ++j)
+        // number of dynamic joints in the model
+        constexpr std::size_t n_dyn = 4;
+
+        // update hysteresis for the 4 dynamic joints
+        for (std::size_t j = 0; j < n_dyn; ++j)
         {
-            lock_mask(j) = s_lock_current[j];
+            // const double u = arm_torques[j];
+            const double u = arm_torques[j].scalar();
+
+            if (!is_locked_[j] && std::abs(u) < on_db_[j])
+            {
+                is_locked_[j] = true;
+            }
+            else if (is_locked_[j] && std::abs(u) > off_db_[j])
+            {
+                is_locked_[j] = false;
+            }
+        }
+
+        // build a single column mask of length 4
+        casadi::DM lock_mask = casadi::DM::zeros(static_cast<int>(n_dyn), 1);
+        for (std::size_t j = 0; j < n_dyn; ++j)
+        {
+            lock_mask(j) = is_locked_[j] ? 1.0 : 0.0;
             // lock_mask(j) = 0.0;
         }
+
+        // simulate_joint_lock_argument = {arm_torques, s_lock_current, on_db_, off_db_};
+        // joint_lock_sim = utils_service.manipulator_joint_lock_dynamics(simulate_joint_lock_argument);
+        // s_lock_current = joint_lock_sim.at(0).nonzeros();
+        
+        // casadi::DM lock_mask = casadi::DM::zeros(static_cast<int>(n_dyn), 1);
+        // for (std::size_t j = 0; j < n_dyn; ++j)
+        // {
+        //     lock_mask(j) = s_lock_current[j];
+        //     // lock_mask(j) = 0.0;
+        // }
         // // optional log
         // RCLCPP_INFO_THROTTLE(
         //     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
