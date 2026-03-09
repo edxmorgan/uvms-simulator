@@ -1484,6 +1484,11 @@ namespace ros2_control_blue_reach_5
 
     void BlueRovSystemMultiInterfaceHardware::startCameraStream()
     {
+        if (camera_thread_running_)
+        {
+            return;
+        }
+
         // Ensure GStreamer is initialized exactly once.
         static bool gst_initialized = false;
         if (!gst_initialized)
@@ -1516,6 +1521,9 @@ namespace ros2_control_blue_reach_5
         {
             RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                          "Failed to get appsink element from camera pipeline");
+            gst_element_set_state(gst_pipeline_, GST_STATE_NULL);
+            gst_object_unref(gst_pipeline_);
+            gst_pipeline_ = nullptr;
             return;
         }
         gst_appsink_ = GST_APP_SINK(appsink_elem);
@@ -1529,12 +1537,10 @@ namespace ros2_control_blue_reach_5
     {
         while (camera_thread_running_)
         {
-            // Pull a sample from the appsink (blocking call).
-            GstSample *sample = gst_app_sink_pull_sample(gst_appsink_);
+            // Use a bounded wait so deactivation can stop the thread promptly.
+            GstSample *sample = gst_app_sink_try_pull_sample(gst_appsink_, 100 * GST_MSECOND);
             if (!sample)
             {
-                RCLCPP_WARN(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                            "No sample received from appsink");
                 continue;
             }
 
@@ -1564,11 +1570,7 @@ namespace ros2_control_blue_reach_5
                 continue;
             }
 
-            gst_buffer_unmap(buffer, &map);
-            gst_sample_unref(sample);
-            // Get caps and map buffer like you already do, then:
-            auto loaned = image_pub_->borrow_loaned_message();
-            auto &msg = loaned.get();
+            sensor_msgs::msg::Image msg;
             msg.header.stamp = node_topics_interface_->now();
             msg.header.frame_id = hw_vehicle_struct.robot_prefix + "camera_link";
             msg.height = height;
@@ -1576,26 +1578,59 @@ namespace ros2_control_blue_reach_5
             msg.encoding = "bgr8";
             msg.is_bigendian = false;
             msg.step = width * 3;
-            msg.data.resize(msg.step * height); // one copy
+            const std::size_t image_size = static_cast<std::size_t>(msg.step) * static_cast<std::size_t>(height);
+            if (map.size < image_size)
+            {
+                gst_buffer_unmap(buffer, &map);
+                gst_sample_unref(sample);
+                RCLCPP_WARN(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                            "Camera frame smaller than expected: got %zu bytes, expected %zu bytes",
+                            static_cast<std::size_t>(map.size), image_size);
+                continue;
+            }
+
+            msg.data.resize(image_size);
             std::memcpy(msg.data.data(), map.data, msg.data.size());
-            realtime_image_pub_->trylock() ? (realtime_image_pub_->msg_ = msg, realtime_image_pub_->unlockAndPublish())
-                                           : image_pub_->publish(std::move(loaned));
+
+            gst_buffer_unmap(buffer, &map);
+            gst_sample_unref(sample);
+
+            if (realtime_image_pub_ && realtime_image_pub_->trylock())
+            {
+                realtime_image_pub_->msg_ = msg;
+                realtime_image_pub_->unlockAndPublish();
+            }
+            else
+            {
+                image_pub_->publish(std::move(msg));
+            }
         }
     }
 
     void BlueRovSystemMultiInterfaceHardware::stopCameraStream()
     {
         camera_thread_running_ = false;
+
+        if (gst_pipeline_)
+        {
+            gst_element_set_state(gst_pipeline_, GST_STATE_NULL);
+        }
+
         if (camera_thread_.joinable())
         {
             camera_thread_.join();
         }
+
+        if (gst_appsink_)
+        {
+            gst_object_unref(GST_OBJECT(gst_appsink_));
+            gst_appsink_ = nullptr;
+        }
+
         if (gst_pipeline_)
         {
-            gst_element_set_state(gst_pipeline_, GST_STATE_NULL);
             gst_object_unref(gst_pipeline_);
             gst_pipeline_ = nullptr;
-            gst_appsink_ = nullptr;
         }
     }
 
@@ -1615,6 +1650,9 @@ namespace ros2_control_blue_reach_5
 
     ros2_control_blue_reach_5::BlueRovSystemMultiInterfaceHardware::~BlueRovSystemMultiInterfaceHardware()
     {
+        stopCameraStream();
+        dvl_driver_.stop();
+
         if (executor_)
         {
             executor_->cancel();
@@ -1642,6 +1680,9 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_cleanup(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        stopCameraStream();
+        dvl_driver_.stop();
+
         if (executor_)
         {
             executor_->cancel();
@@ -1650,6 +1691,10 @@ namespace ros2_control_blue_reach_5
         {
             spin_thread_.join();
         }
+        tfListener_.reset();
+        tfBuffer_.reset();
+        node_topics_interface_.reset();
+        executor_.reset();
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                     "Cleaned up executor and spin thread.");
         return hardware_interface::CallbackReturn::SUCCESS;

@@ -134,7 +134,8 @@ void Driver::request(std::vector<PacketId> & packet_types, DeviceId device) cons
       "Cannot send a request to the manipulator without an active connection!");
   }
 
-  std::vector<unsigned char> request_types(packet_types.size());
+  std::vector<unsigned char> request_types;
+  request_types.reserve(packet_types.size());
 
   // Cast to unsigned char
   for (auto type : packet_types) {

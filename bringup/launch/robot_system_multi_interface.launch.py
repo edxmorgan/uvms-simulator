@@ -116,6 +116,12 @@ def launch_setup(context, *args, **kwargs):
     record_data = LaunchConfiguration("record_data").perform(context)
     task = task.lower()
     use_pwm = str(task in {'direct_thrusters'})
+    valid_tasks = {'interactive', 'manual', 'joint', 'direct_thrusters'}
+
+    if task not in valid_tasks:
+        raise RuntimeError(
+            f"Unsupported task '{task}'. Expected one of: {', '.join(sorted(valid_tasks))}."
+        )
 
     # Define the robot description command
     robot_description_content = Command(
@@ -284,40 +290,38 @@ def launch_setup(context, *args, **kwargs):
 
     # start task selected
     mode = OpaqueFunction(function=lambda context: [])
+    mode_params = {
+        'robots_prefix': robot_prefixes,
+        'no_robot': len(robot_prefixes),
+        'no_efforts': 11,
+        "robot_description": robot_description_content
+    }
 
-    if task in {'interactive', 'manual', 'joint', 'direct_thrusters'}:
-        try:
-            FindPackageShare("simlab").find("simlab")
-        except Exception as e:
-            raise RuntimeError(
-                "uvms simlab package not found. If you intend to run the coverage example, interactive marker mode, or manual control via PS4 joystick, please install uvms_simlab from https://github.com/edxmorgan/uvms_simlab"
-            ) from e
+    try:
+        FindPackageShare("simlab").find("simlab")
+    except Exception as e:
+        raise RuntimeError(
+            "uvms simlab package not found. If you intend to run the coverage example, interactive marker mode, or manual control via PS4 joystick, please install uvms_simlab from https://github.com/edxmorgan/uvms_simlab"
+        ) from e
 
-        mode_params = {
-            'robots_prefix': robot_prefixes,
-            'no_robot': len(robot_prefixes),
-            'no_efforts': 11,
-            "robot_description": robot_description_content
-        }
-        
-        vehicle_thruster_pwm_ctrl = [n.controller_name for n in thruster_pwm_spawner_nodes]
-        vehicle_effort_ctrl = [n.controller_name for n in vehicle_effort_spawner_nodes]
-        manipulator_effort_ctrl = [n.controller_name for n in manip_effort_spawner_nodes]
+    vehicle_thruster_pwm_ctrl = [n.controller_name for n in thruster_pwm_spawner_nodes]
+    vehicle_effort_ctrl = [n.controller_name for n in vehicle_effort_spawner_nodes]
+    manipulator_effort_ctrl = [n.controller_name for n in manip_effort_spawner_nodes]
 
-        task_map = {
-            'interactive': ('interactive_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
-            'manual': ('joystick_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
-            'joint': ('joint_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
-            'direct_thrusters': ('direct_thruster_controller', [*manipulator_effort_ctrl, *vehicle_thruster_pwm_ctrl]),
-        }
+    task_map = {
+        'interactive': ('interactive_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
+        'manual': ('joystick_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
+        'joint': ('joint_controller', [*manipulator_effort_ctrl, *vehicle_effort_ctrl]),
+        'direct_thrusters': ('direct_thruster_controller', [*manipulator_effort_ctrl, *vehicle_thruster_pwm_ctrl]),
+    }
 
-        exec_name, start_ctrls = task_map[task]
-        mode = Node(
-            package='simlab',
-            executable=exec_name,
-            name=exec_name,
-            parameters=[mode_params],
-        )
+    exec_name, start_ctrls = task_map[task]
+    mode = Node(
+        package='simlab',
+        executable=exec_name,
+        name=exec_name,
+        parameters=[mode_params],
+    )
 
     switch_cmd = [
         "ros2", "control", "switch_controllers",

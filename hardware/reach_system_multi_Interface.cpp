@@ -815,6 +815,9 @@ namespace ros2_control_blue_reach_5
 
   void ReachSystemMultiInterfaceHardware::pollState(const int freq) const
   {
+    const std::chrono::duration<double> poll_period =
+      freq > 0 ? std::chrono::duration<double>(1.0 / static_cast<double>(freq)) : std::chrono::duration<double>(0.1);
+
     while (running_.load())
     {
       driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kLinearJaws);
@@ -835,7 +838,7 @@ namespace ros2_control_blue_reach_5
       driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kBendShoulder);
       driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kRotateBase);
 
-      std::this_thread::sleep_for(std::chrono::seconds(1 / freq));
+      std::this_thread::sleep_for(poll_period);
     }
   }
 

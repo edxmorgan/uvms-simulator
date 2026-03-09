@@ -273,7 +273,7 @@ namespace blue::dynamics
         tf2::Quaternion q;
         q.setW(orientation_w);
         q.setX(orientation_x);
-        q.setY(orientation_x);
+        q.setY(orientation_y);
         q.setZ(orientation_z);
 
         q.normalize();
@@ -368,7 +368,7 @@ namespace blue::dynamics
         tf2::Quaternion q;
         q.setW(orientation_w);
         q.setX(orientation_x);
-        q.setY(orientation_x);
+        q.setY(orientation_y);
         q.setZ(orientation_z);
 
         q.normalize();

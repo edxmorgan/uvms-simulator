@@ -233,10 +233,8 @@ namespace ros2_control_blue_reach_5
         }
         executor_.reset();
         node_frames_interface_.reset();
-        return hardware_interface::CallbackReturn::SUCCESS;
         RCLCPP_INFO( // NOLINT
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Shutting down the AlphaHardware system interface.");
-
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
@@ -394,8 +392,10 @@ namespace ros2_control_blue_reach_5
     }
 
     hardware_interface::return_type SimReachSystemMultiInterfaceHardware::read(
-        const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
+        const rclcpp::Time &time, const rclcpp::Duration &period)
     {
+        delta_seconds = period.seconds();
+        time_seconds = time.seconds();
 
         DM q = DM::vertcat({hw_joint_struct_[0].current_state_.position,
                             hw_joint_struct_[1].current_state_.position,

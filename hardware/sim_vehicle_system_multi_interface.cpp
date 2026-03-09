@@ -750,14 +750,15 @@ namespace ros2_control_blue_reach_5
 
         if (hw_vehicle_struct.use_pwm)
         {
-            DM pwm_commands = DM({hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm,
-                                  hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm,
-                                  hw_vehicle_struct.hw_thrust_structs_[2].command_state_.command_pwm,
-                                  hw_vehicle_struct.hw_thrust_structs_[3].command_state_.command_pwm,
-                                  hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm,
-                                  hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm,
-                                  hw_vehicle_struct.hw_thrust_structs_[8].command_state_.command_pwm,
-                                  hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm});
+            std::vector<double> pwm_command_values;
+            pwm_command_values.reserve(hw_vehicle_struct.hw_thrust_structs_.size());
+
+            for (const auto &thruster : hw_vehicle_struct.hw_thrust_structs_)
+            {
+                pwm_command_values.push_back(thruster.command_state_.command_pwm);
+            }
+
+            DM pwm_commands = DM(pwm_command_values);
 
             std::vector<DM> thrusts_commands = utils_service.pwm_to_thrusts(pwm_commands);
             // std::vector<double> thrusts_commands_doubles = thrusts_commands.at(0).nonzeros();
