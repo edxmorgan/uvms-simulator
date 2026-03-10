@@ -13,6 +13,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+import os
+import tempfile
+
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler, ExecuteProcess, OpaqueFunction, GroupAction
 from launch.conditions import IfCondition
@@ -27,6 +30,12 @@ from bringup.utils.controller_config import modify_controller_config, parse_cont
 
 # Create a logger for the launch file
 logger = launch.logging.get_logger('robot_system_multi_interface_launch')
+
+
+def _runtime_file_path(file_name: str) -> str:
+    runtime_dir = os.path.join(tempfile.gettempdir(), "ros2_control_blue_reach_5")
+    os.makedirs(runtime_dir, exist_ok=True)
+    return os.path.join(runtime_dir, file_name)
 
 
 def generate_launch_description():
@@ -99,6 +108,62 @@ def generate_launch_description():
             description="record robot data",
         )
     )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "mode_enabled",
+            default_value="true",
+            description="Start the task-specific simlab control node.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "use_mocap",
+            default_value="true",
+            description="Start the OptiTrack bridge and mocap publisher.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "launch_plotjuggler",
+            default_value="true",
+            description="Start PlotJuggler.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "launch_overlay_text",
+            default_value="true",
+            description="Start the RViz overlay text bridge.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "launch_collision_contact",
+            default_value="true",
+            description="Start collision and clearance visualization.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "launch_voxelviz",
+            default_value="true",
+            description="Start voxelized environment visualization.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "launch_env_obstacles",
+            default_value="true",
+            description="Start environment obstacle publishing.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "launch_planner_action_server",
+            default_value="false",
+            description="Start the planner action server even without the interactive controller.",
+        )
+    )
 
     return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
 
@@ -114,6 +179,14 @@ def launch_setup(context, *args, **kwargs):
     gui = LaunchConfiguration("gui").perform(context)
     sim_robot_count = LaunchConfiguration("sim_robot_count").perform(context)
     record_data = LaunchConfiguration("record_data").perform(context)
+    mode_enabled = LaunchConfiguration("mode_enabled").perform(context)
+    use_mocap = LaunchConfiguration("use_mocap").perform(context)
+    launch_plotjuggler = LaunchConfiguration("launch_plotjuggler").perform(context)
+    launch_overlay_text = LaunchConfiguration("launch_overlay_text").perform(context)
+    launch_collision_contact = LaunchConfiguration("launch_collision_contact").perform(context)
+    launch_voxelviz = LaunchConfiguration("launch_voxelviz").perform(context)
+    launch_env_obstacles = LaunchConfiguration("launch_env_obstacles").perform(context)
+    launch_planner_action_server = LaunchConfiguration("launch_planner_action_server").perform(context)
     task = task.lower()
     use_pwm = str(task in {'direct_thrusters'})
     valid_tasks = {'interactive', 'manual', 'joint', 'direct_thrusters'}
@@ -173,20 +246,17 @@ def launch_setup(context, *args, **kwargs):
             "robot_multi_interface_forward_controllers.yaml",
         ]
     )
-    robot_controllers_modified = PathJoinSubstitution(
-        [
-            FindPackageShare("ros2_control_blue_reach_5"),
-            "config",
-            "robot_multi_interface_forward_controllers_modified.yaml",
-        ]
-    )
-
     # resolve PathJoinSubstitution to a string
     robot_controllers_read_file = str(robot_controllers_read.perform(context))
-    robot_controllers_modified_file = str(robot_controllers_modified.perform(context))
+    runtime_tag = f"{task}_{sim_robot_count}_{os.getpid()}"
+    robot_controllers_modified_file = _runtime_file_path(
+        f"robot_multi_interface_forward_controllers_{runtime_tag}.yaml"
+    )
 
     use_manipulator_hardware_bool = IfCondition(use_manipulator_hardware).evaluate(context)
     use_vehicle_hardware_bool = IfCondition(use_vehicle_hardware).evaluate(context)
+    use_mocap_bool = IfCondition(use_mocap).evaluate(context)
+    launch_planner_action_server_bool = IfCondition(launch_planner_action_server).evaluate(context)
 
     is_hardware_uvms = use_manipulator_hardware_bool and use_vehicle_hardware_bool
 
@@ -202,16 +272,9 @@ def launch_setup(context, *args, **kwargs):
             "rviz.rviz",
         ]
     )
-    rviz_config_modified = PathJoinSubstitution(
-        [
-            FindPackageShare("ros2_control_blue_reach_5"),
-            "rviz",
-            "rviz_modified.rviz",
-        ]
-    )
     # resolve PathJoinSubstitution to a string
     rviz_config_read_file = str(rviz_config_read.perform(context))
-    rviz_config_modified_file = str(rviz_config_modified.perform(context))
+    rviz_config_modified_file = _runtime_file_path(f"rviz_{runtime_tag}.rviz")
     
     rviz_file_configure(use_vehicle_hardware_bool, 
                         use_manipulator_hardware_bool,
@@ -234,7 +297,7 @@ def launch_setup(context, *args, **kwargs):
         executable="rviz2",
         name="rviz2",
         output="log",
-        arguments=["-d", rviz_config_modified],
+        arguments=["-d", rviz_config_modified_file],
         condition=IfCondition(gui),
         additional_env={
             "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/liboctomap.so"
@@ -250,12 +313,13 @@ def launch_setup(context, *args, **kwargs):
             {"string_topic": "chatter"},
             {"fg_color": "b"}, # colors can be: r,g,b,w,k,p,y (red,green,blue,white,black,pink,yellow)
         ],
+        condition=IfCondition(launch_overlay_text),
     )
     
     control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
-        parameters=[robot_controllers_modified, robot_description],
+        parameters=[robot_controllers_modified_file, robot_description],
         arguments=['--ros-args', '--log-level', 'controller_manager:=ERROR'],
         output="both",
     )
@@ -285,7 +349,8 @@ def launch_setup(context, *args, **kwargs):
     run_plotjuggler = ExecuteProcess(
         cmd=['ros2', 'run', 'plotjuggler', 'plotjuggler > /dev/null 2>&1'],
         output='screen',
-        shell=True
+        shell=True,
+        condition=IfCondition(launch_plotjuggler),
     )
 
     # start task selected
@@ -321,6 +386,7 @@ def launch_setup(context, *args, **kwargs):
         executable=exec_name,
         name=exec_name,
         parameters=[mode_params],
+        condition=IfCondition(mode_enabled),
     )
 
     switch_cmd = [
@@ -380,6 +446,7 @@ def launch_setup(context, *args, **kwargs):
         parameters=[{
             "robot_description": robot_description_content,
         }],
+        condition=IfCondition(launch_collision_contact),
     )
 
     voxelviz_node = Node(
@@ -390,20 +457,22 @@ def launch_setup(context, *args, **kwargs):
         parameters=[{
             "robot_description": robot_description_content,
         }],
+        condition=IfCondition(launch_voxelviz),
     )
 
     env_obstacles_node = Node(
         package="simlab",
-        executable="env_obscles_node",
-        name="env_obscles_node",
+        executable="env_obstacles_node",
+        name="env_obstacles_node",
         output="screen",
         parameters=[{
             "robot_description": robot_description_content,
         }],
+        condition=IfCondition(launch_env_obstacles),
     )
 
     planner_action_server_node = None
-    if task == "interactive":
+    if task == "interactive" or launch_planner_action_server_bool:
         planner_action_server_node = Node(
             package="simlab",
             executable="planner_action_server_node",
@@ -455,18 +524,21 @@ def launch_setup(context, *args, **kwargs):
         mode,
         run_plotjuggler,
         robot_state_pub_node,
-        optitrack_proc,          # start OptiTrack launch
         all_spawners[0],
         *chain_handlers,
         switch_after_all,
         rviz_after_switch,
-        # only start mocap_node after OptiTrack process starts
-        mocap_after_optitrack,
         mesh_collision_node,
         voxelviz_node,
         env_obstacles_node,
         bag_recorder_node,
     ]
+
+    if use_mocap_bool:
+        simulator_actions.extend([
+            optitrack_proc,
+            mocap_after_optitrack,
+        ])
 
     if planner_action_server_node is not None:
         simulator_actions.append(planner_action_server_node)
