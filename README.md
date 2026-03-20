@@ -30,7 +30,7 @@
 This framework uses dynamic and kinematic models from:
 
 - [diff_uv](https://github.com/edxmorgan/diff_uv)
-- [diff_uvms](https://github.com/edxmorgan/diff_uvms)
+- [floating-KinDyn](https://github.com/edxmorgan/floating-KinDyn)
 
 These provide Jacobians, dynamic matrices, and model terms for control, stability analysis, and identification.
 
