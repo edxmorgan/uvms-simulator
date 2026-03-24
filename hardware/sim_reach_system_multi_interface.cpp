@@ -544,6 +544,17 @@ namespace ros2_control_blue_reach_5
             arm_torques.push_back(tau_safe);
         };
 
+        channel_abs_power_ = 0.0;
+
+        for (int j = 0; j < 5; ++j)
+        {
+            const double tau = arm_torques[j].scalar();
+            const double qdot = hw_joint_struct_[j].current_state_.velocity;
+            channel_abs_power_ += std::abs(tau * qdot);
+        }
+
+        channel_abs_energy_ += channel_abs_power_ * delta_seconds;
+
         // number of dynamic joints in the model
         constexpr std::size_t n_dyn = 4;
 

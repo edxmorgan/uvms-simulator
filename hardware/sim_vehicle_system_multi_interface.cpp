@@ -811,6 +811,34 @@ namespace ros2_control_blue_reach_5
         uv_input.push_back(hw_vehicle_struct.command_state_.Ty);
         uv_input.push_back(hw_vehicle_struct.command_state_.Tz);
 
+        // Body velocity vector
+        const double surge = hw_vehicle_struct.current_state_.u;
+        const double sway  = hw_vehicle_struct.current_state_.v;
+        const double heave = hw_vehicle_struct.current_state_.w;
+        const double roll_rate  = hw_vehicle_struct.current_state_.p;
+        const double pitch_rate = hw_vehicle_struct.current_state_.q;
+        const double yaw_rate   = hw_vehicle_struct.current_state_.r;
+
+        // Commanded body wrench
+        const double Fx = hw_vehicle_struct.command_state_.Fx;
+        const double Fy = hw_vehicle_struct.command_state_.Fy;
+        const double Fz = hw_vehicle_struct.command_state_.Fz;
+        const double Tx = hw_vehicle_struct.command_state_.Tx;
+        const double Ty = hw_vehicle_struct.command_state_.Ty;
+        const double Tz = hw_vehicle_struct.command_state_.Tz;
+
+        // Instantaneous mechanical power
+        control_power_ =
+            std::abs(Fx * surge) +
+            std::abs(Fy * sway) +
+            std::abs(Fz * heave) +
+            std::abs(Tx * roll_rate) +
+            std::abs(Ty * pitch_rate) +
+            std::abs(Tz * yaw_rate);
+
+        // Energy accumulations
+        control_energy_      += control_power_ * delta_seconds;
+
         std::vector<DM> FTinputs = {thrust_config, uv_input};
         std::vector<DM> thrust_outputs = utils_service.genForces2propThrust(FTinputs);
         std::vector<double> thrusts = thrust_outputs.at(0).nonzeros();

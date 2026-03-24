@@ -161,6 +161,9 @@ namespace ros2_control_blue_reach_5
         // ROS 2 subscription handle for contact_wrench_body
         rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr contact_wrench_sub_;
 
+        double control_energy_{0.0};
+        double control_power_{0.0};
+
     };
 
 } // namespace ros2_control_blue

@@ -1040,8 +1040,9 @@ namespace ros2_control_blue_reach_5
     }
 
     hardware_interface::return_type BlueRovSystemMultiInterfaceHardware::write(
-        const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
+        const rclcpp::Time & /*time*/, const rclcpp::Duration & period)
     {
+        delta_seconds = period.seconds();
         DM user_forces = DM::zeros(6, 1);
         user_forces(0) = hw_vehicle_struct.command_state_.Fx;
         user_forces(1) = hw_vehicle_struct.command_state_.Fy;
@@ -1049,6 +1050,32 @@ namespace ros2_control_blue_reach_5
         user_forces(3) = hw_vehicle_struct.command_state_.Tx;
         user_forces(4) = hw_vehicle_struct.command_state_.Ty;
         user_forces(5) = hw_vehicle_struct.command_state_.Tz;
+
+        const double surge      = hw_vehicle_struct.current_state_.u;
+        const double sway       = hw_vehicle_struct.current_state_.v;
+        const double heave      = hw_vehicle_struct.current_state_.w;
+        const double roll_rate  = hw_vehicle_struct.current_state_.p;
+        const double pitch_rate = hw_vehicle_struct.current_state_.q;
+        const double yaw_rate   = hw_vehicle_struct.current_state_.r;
+
+        const double Fx = hw_vehicle_struct.command_state_.Fx;
+        const double Fy = hw_vehicle_struct.command_state_.Fy;
+        const double Fz = hw_vehicle_struct.command_state_.Fz;
+        const double Tx = hw_vehicle_struct.command_state_.Tx;
+        const double Ty = hw_vehicle_struct.command_state_.Ty;
+        const double Tz = hw_vehicle_struct.command_state_.Tz;
+
+        // Channel-wise absolute mechanical power
+        control_power_ =
+            std::abs(Fx * surge) +
+            std::abs(Fy * sway) +
+            std::abs(Fz * heave) +
+            std::abs(Tx * roll_rate) +
+            std::abs(Ty * pitch_rate) +
+            std::abs(Tz * yaw_rate);
+
+        // Accumulate energy
+        control_energy_ += control_power_ * delta_seconds;
 
         RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                      "Got thruster commands: %f %f %f %f %f %f",

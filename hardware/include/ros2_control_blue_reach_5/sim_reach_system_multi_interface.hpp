@@ -151,6 +151,9 @@ namespace ros2_control_blue_reach_5
 
         // Store the utils function for the robot joints
         casadi_reach_alpha_5::Utils utils_service;
+
+        double channel_abs_power_{0.0};
+        double channel_abs_energy_{0.0};
     };
 
 } // namespace ros2_control_blue_reach_5

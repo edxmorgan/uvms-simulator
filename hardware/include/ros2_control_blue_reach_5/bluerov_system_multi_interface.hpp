@@ -204,8 +204,8 @@ namespace ros2_control_blue_reach_5
         void publishDVLVelocity(const rclcpp::Time &time);
         std::array<double, 36> convert3x3To6x6Covariance(const blue::dynamics::Covariance &linear_cov);
 
-        double delta_seconds = 0.0;
-        double time_seconds = 0.0;
+        double delta_seconds;
+        double time_seconds;
 
         // --- Kalman Filter state variables ---
         casadi::DM x_est_; // State vector: e.g. [px, py, pz, roll, pitch, yaw, u, v, w, p, q, r]
@@ -270,6 +270,9 @@ namespace ros2_control_blue_reach_5
         casadi::DM unwrap_yaw_rt;
         bool first_imu_read = true;
         std::vector<casadi::DM> vehicle_parameters;
+        
+        double control_energy_{0.0};
+        double control_power_{0.0};
     };
 
 } // namespace ros2_control_blue
