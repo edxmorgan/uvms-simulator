@@ -444,7 +444,7 @@ namespace ros2_control_blue_reach_5
     time_seconds = time.seconds();
     // Get access to the real-time states
     const std::lock_guard<std::mutex> lock(access_async_states_);
-    channel_abs_power_ = 0.0;
+    control_power_ = 0.0;
     for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
     {
       hw_joint_struct_[i].current_state_.position = hw_joint_struct_[i].async_state_.position;
@@ -467,7 +467,7 @@ namespace ros2_control_blue_reach_5
       hw_joint_struct_[i].current_state_.effort = torque.at(0).scalar();
       hw_joint_struct_[i].current_state_.computed_effort = hw_joint_struct_[i].command_state_.effort;
 
-      channel_abs_power_ += std::abs(hw_joint_struct_[i].current_state_.effort * hw_joint_struct_[i].current_state_.velocity);
+      control_power_ += std::abs(hw_joint_struct_[i].current_state_.effort * hw_joint_struct_[i].current_state_.velocity);
       hw_joint_struct_[i].current_state_.sim_time = time_seconds;
       hw_joint_struct_[i].current_state_.sim_period = delta_seconds;
 
@@ -477,7 +477,7 @@ namespace ros2_control_blue_reach_5
       payload_Izz = 0.0;
     };
 
-    channel_abs_energy_ += channel_abs_power_ * delta_seconds;
+    control_energy_ += control_power_ * delta_seconds;
 
     DM q = DM::vertcat({hw_joint_struct_[0].current_state_.position,
                         hw_joint_struct_[1].current_state_.position,

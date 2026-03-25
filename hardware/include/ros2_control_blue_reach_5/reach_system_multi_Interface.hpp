@@ -211,8 +211,8 @@ namespace ros2_control_blue_reach_5
 
     std::mutex access_async_states_;
 
-    double channel_abs_power_{0.0};
-    double channel_abs_energy_{0.0};
+    double control_power_{0.0};
+    double control_energy_{0.0};
   };
 
 } // namespace ros2_control_blue_reach_5
