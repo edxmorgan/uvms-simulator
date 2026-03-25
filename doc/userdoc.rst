@@ -45,8 +45,6 @@ Tutorial Steps
 
    - ``gui:=false``: Run without RViz.
 
-   - ``controllers:=pid``: Comma-separated list of controllers to be used.
-
    example launch command with options 
 
    .. code-block:: shell
