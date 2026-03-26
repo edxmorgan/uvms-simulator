@@ -379,6 +379,34 @@ Visualization Manager:
       ver_alignment: top
       ver_dist: 29
       width: 980
+    - Align Bottom: false
+      Background Alpha: 0.44999998807907104
+      Background Color: 0; 0; 0
+      Class: rviz_2d_overlay_plugins/TextOverlay
+      Enabled: true
+      Foreground Alpha: 0.949999988079071
+      Foreground Color: 255; 230; 51
+      Invert Shadow: false
+      Name: RobotMetricsOverlay
+      Overtake BG Color Properties: true
+      Overtake FG Color Properties: false
+      Overtake Position Properties: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /robot_metrics_overlay_text
+      Value: true
+      font: Sans Serif
+      height: 320
+      hor_alignment: right
+      hor_dist: 28
+      line width: 216
+      text size: 14
+      ver_alignment: top
+      ver_dist: 170
+      width: 620
   Enabled: true
   Global Options:
     Background Color: 119; 118; 123
