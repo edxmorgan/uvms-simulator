@@ -315,7 +315,7 @@ def launch_setup(context, *args, **kwargs):
         ],
         condition=IfCondition(launch_overlay_text),
     )
-    
+
     control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",

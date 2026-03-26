@@ -295,6 +295,8 @@
         <state_interface name="P_p_p"/>
         <state_interface name="P_q_q"/>
         <state_interface name="P_r_r"/>
+        <state_interface name="control_power_abs"/>
+        <state_interface name="control_energy_abs"/>
 
       </gpio>
 

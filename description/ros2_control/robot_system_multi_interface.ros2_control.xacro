@@ -376,6 +376,8 @@
         <state_interface name="payload.Ixx"/>
         <state_interface name="payload.Iyy"/>
         <state_interface name="payload.Izz"/>
+        <state_interface name="control_power_abs"/>
+        <state_interface name="control_energy_abs"/>
       </gpio>
 
     </ros2_control>

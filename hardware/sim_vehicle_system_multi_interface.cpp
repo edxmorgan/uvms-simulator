@@ -178,12 +178,12 @@ namespace ros2_control_blue_reach_5
 
         for (const hardware_interface::ComponentInfo &gpio : get_hardware_info().gpios)
         {
-            // SimVehicleSystemMultiInterfaceHardware has exactly 81 gpio state interfaces
-            if (gpio.state_interfaces.size() != 81)
+            // SimVehicleSystemMultiInterfaceHardware has exactly 83 gpio state interfaces
+            if (gpio.state_interfaces.size() != 83)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
-                    "GPIO '%s'has %zu state interfaces. 81 expected.", gpio.name.c_str(),
+                    "GPIO '%s'has %zu state interfaces. 83 expected.", gpio.name.c_str(),
                     gpio.state_interfaces.size());
                 return hardware_interface::CallbackReturn::ERROR;
             }
@@ -537,6 +537,10 @@ namespace ros2_control_blue_reach_5
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[79].name, &P_diag_[10]));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[80].name, &P_diag_[11]));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[81].name, &control_power_));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[82].name, &control_energy_));
         return state_interfaces;
     }
 
