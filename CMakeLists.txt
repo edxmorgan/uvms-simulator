@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 project(ros2_control_blue_reach_5 LANGUAGES CXX)
 
+# ROS Jazzy dependencies still rely on FindBoost in some exported CMake files.
+# Keep the legacy behavior enabled so CMake 3.30+ does not warn during configure.
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 OLD)
+endif()
+
 if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
   add_compile_options(-Wall -Wextra)
 endif()

@@ -63,12 +63,20 @@ def generate_launch_description():
             description="Spawn with n numbers of robot agents",
         )
     )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "same_initial_conditions",
+            default_value="false",
+            description="Start all simulated UVMS instances with the same initial pose/orientation.",
+        )
+    )
     # Initialize Arguments
     description_package = LaunchConfiguration("description_package")
     description_file = LaunchConfiguration("description_file")
     gui = LaunchConfiguration("gui")
     prefix = LaunchConfiguration("prefix")
     sim_robot_count = LaunchConfiguration("sim_robot_count")
+    same_initial_conditions = LaunchConfiguration("same_initial_conditions")
 
     # Get URDF via xacro
 
@@ -88,7 +96,10 @@ def generate_launch_description():
             prefix,
             " ",
             "sim_robot_count:=",
-            sim_robot_count  # Ensure sim_robot_count is evaluated here
+            sim_robot_count,
+            " ",
+            "same_initial_conditions:=",
+            same_initial_conditions,
         ]
     )
     robot_description = {"robot_description": robot_description_content}

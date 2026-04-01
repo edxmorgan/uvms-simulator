@@ -6,6 +6,7 @@
   <xacro:arg name="use_vehicle_hardware" default="false"/>
   <xacro:arg name="use_pwm" default="true"/>
   <xacro:arg name="sim_robot_count" default="1"/>
+  <xacro:arg name="same_initial_conditions" default="false"/>
   <xacro:arg name="serial_port" default="/dev/ttyUSB0"/>
   <xacro:arg name="state_update_frequency" default="250"/>
   <xacro:arg name="description_package" default="ros2_control_blue_reach_5"/>
@@ -15,6 +16,7 @@
   <!-- Properties -->
   <xacro:property name="description_package" value="$(arg description_package)"/>
   <xacro:property name="sim_robot_count" value="$(arg sim_robot_count)"/>
+  <xacro:property name="same_initial_conditions" value="$(arg same_initial_conditions)"/>
   <xacro:property name="serial_port" value="$(arg serial_port)"/>
   <xacro:property name="state_update_frequency" value="$(arg state_update_frequency)"/>
   <xacro:property name="use_manipulator_hardware" value="$(arg use_manipulator_hardware)"/>
@@ -48,8 +50,9 @@
       <!-- Compute circumference and radius -->
       <xacro:property name="circumference" value="${count * d_min}"/>
       <xacro:property name="radius" value="${circumference / (2 * pi)}"/>
-      <xacro:property name="x_pos" value="${radius * cos(angle)}"/>
-      <xacro:property name="y_pos" value="${radius * sin(angle)}"/>
+      <xacro:property name="x_pos" value="${0.0 if same_initial_conditions else radius * cos(angle)}"/>
+      <xacro:property name="y_pos" value="${0.0 if same_initial_conditions else radius * sin(angle)}"/>
+      <xacro:property name="yaw_pos" value="${0.0 if same_initial_conditions else angle}"/>
 
       <!-- Instantiate the robot -->
       <xacro:bluerov2_heavy_alpha_urdf
@@ -60,7 +63,7 @@
         z="0.0"
         rot_r="0.0"
         rot_p="0.0"
-        rot_y="${angle}"/>
+        rot_y="${yaw_pos}"/>
 
 
     <xacro:robot_system_multi_interface
@@ -79,6 +82,7 @@
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
+      same_initial_conditions="${same_initial_conditions}"
       use_pwm="${use_pwm}"/>
       
       <!-- Recursively call the macro for the next robot -->
@@ -118,6 +122,7 @@
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
+      same_initial_conditions="${same_initial_conditions}"
       use_pwm="${use_pwm}"/>
   </xacro:if>
 

@@ -16,6 +16,7 @@ def generate_launch_description():
         DeclareLaunchArgument("use_manipulator_hardware", default_value="false"),
         DeclareLaunchArgument("use_vehicle_hardware", default_value="false"),
         DeclareLaunchArgument("sim_robot_count", default_value="1"),
+        DeclareLaunchArgument("same_initial_conditions", default_value="false"),
         DeclareLaunchArgument("controller_name", default_value="pid"),
         DeclareLaunchArgument("planner_name", default_value="Bitstar"),
         DeclareLaunchArgument("goal_count", default_value="3"),
@@ -73,6 +74,9 @@ def generate_launch_description():
             "sim_robot_count:=",
             LaunchConfiguration("sim_robot_count"),
             " ",
+            "same_initial_conditions:=",
+            LaunchConfiguration("same_initial_conditions"),
+            " ",
             "use_pwm:=false",
         ]
     )
@@ -95,6 +99,7 @@ def generate_launch_description():
             "use_vehicle_hardware": LaunchConfiguration("use_vehicle_hardware"),
             "task": "interactive",
             "sim_robot_count": LaunchConfiguration("sim_robot_count"),
+            "same_initial_conditions": LaunchConfiguration("same_initial_conditions"),
             "gui": "false",
             "mode_enabled": "false",
             "record_data": "false",

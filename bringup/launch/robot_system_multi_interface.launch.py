@@ -95,6 +95,13 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument(
+            "same_initial_conditions",
+            default_value="false",
+            description="Start all simulated UVMS instances with the same initial pose/orientation.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
             "gui",
             default_value="true",
             description="Start RViz2 automatically with this launch file.",
@@ -178,6 +185,7 @@ def launch_setup(context, *args, **kwargs):
     state_update_frequency = LaunchConfiguration("state_update_frequency").perform(context)
     gui = LaunchConfiguration("gui").perform(context)
     sim_robot_count = LaunchConfiguration("sim_robot_count").perform(context)
+    same_initial_conditions = LaunchConfiguration("same_initial_conditions").perform(context)
     record_data = LaunchConfiguration("record_data").perform(context)
     mode_enabled = LaunchConfiguration("mode_enabled").perform(context)
     use_mocap = LaunchConfiguration("use_mocap").perform(context)
@@ -232,6 +240,9 @@ def launch_setup(context, *args, **kwargs):
             " ",
             "sim_robot_count:=",
             sim_robot_count,
+            " ",
+            "same_initial_conditions:=",
+            same_initial_conditions,
             " ",
             "use_pwm:=",
             use_pwm

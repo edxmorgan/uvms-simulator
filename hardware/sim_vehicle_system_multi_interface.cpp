@@ -110,6 +110,13 @@ namespace ros2_control_blue_reach_5
         const std::string use_pwm_str = get_hardware_info().hardware_parameters.at("use_pwm"); // e.g., "true", "false", "1", "0"
         hw_vehicle_struct.use_pwm =
             use_pwm_str == "true" || use_pwm_str == "True" || use_pwm_str == "1";
+        bool same_initial_conditions = false;
+        if (get_hardware_info().hardware_parameters.find("same_initial_conditions") != get_hardware_info().hardware_parameters.cend())
+        {
+            const std::string same_ic_str = get_hardware_info().hardware_parameters.at("same_initial_conditions");
+            same_initial_conditions =
+                same_ic_str == "true" || same_ic_str == "True" || same_ic_str == "1";
+        }
 
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************robot prefix: %s", hw_vehicle_struct.robot_prefix.c_str());
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************frame id: %s", hw_vehicle_struct.world_frame_id.c_str());
@@ -117,19 +124,29 @@ namespace ros2_control_blue_reach_5
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "use_pwm: %s", use_pwm_str.c_str());
 
-        // Use the robot_prefix as a seed
-        std::size_t seed_val = std::hash<std::string>{}(hw_vehicle_struct.robot_prefix);
-        std::mt19937 gen(seed_val + 23);
+        if (same_initial_conditions)
+        {
+            map_position_x = 0.0;
+            map_position_y = 0.0;
+            map_position_z = 0.0;
+            map_orientation_yaw = 0.0;
+        }
+        else
+        {
+            // Use the robot_prefix as a seed
+            std::size_t seed_val = std::hash<std::string>{}(hw_vehicle_struct.robot_prefix);
+            std::mt19937 gen(seed_val + 23);
 
-        std::uniform_real_distribution<> dis_x(-5.0, 5.0);
-        std::uniform_real_distribution<> dis_y(-5.0, 5.0);
-        std::uniform_real_distribution<> dis_z(0.0, 0.0);
-        std::uniform_real_distribution<double> dis_yaw(-M_PI, M_PI);
+            std::uniform_real_distribution<> dis_x(-5.0, 5.0);
+            std::uniform_real_distribution<> dis_y(-5.0, 5.0);
+            std::uniform_real_distribution<> dis_z(0.0, 0.0);
+            std::uniform_real_distribution<double> dis_yaw(-M_PI, M_PI);
 
-        map_position_x = dis_x(gen);
-        map_position_y = dis_y(gen);
-        map_position_z = dis_z(gen);
-        map_orientation_yaw = dis_yaw(gen);
+            map_position_x = dis_x(gen);
+            map_position_y = dis_y(gen);
+            map_position_z = dis_z(gen);
+            map_orientation_yaw = dis_yaw(gen);
+        }
 
         // roll = 0, pitch = 0
         double half = 0.5 * map_orientation_yaw;
