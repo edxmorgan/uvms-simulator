@@ -399,7 +399,7 @@ Visualization Manager:
         Value: /robot_metrics_overlay_text
       Value: true
       font: Sans Serif
-      height: 450
+      height: 360
       hor_alignment: right
       hor_dist: 28
       line width: 216

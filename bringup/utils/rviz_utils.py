@@ -29,6 +29,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
     new_rviz_config = copy.deepcopy(rviz_config)
 
     rviz_view_configure(robot_prefixes, robot_base_links, new_rviz_config, task)
+    rviz_robot_metrics_overlay_configure(robot_prefixes, new_rviz_config)
     rviz_states_axes_configure(robot_prefixes, new_rviz_config)
     rviz_robots_path_configure(robot_prefixes, new_rviz_config)
 
@@ -165,6 +166,44 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
     add_wrench_entries(ix, new_rviz_config, True)
     with open(new_rviz_config_path,'w') as file:
         yaml.dump(new_rviz_config,file,Dumper=NoAliasDumper)
+
+
+def rviz_robot_metrics_overlay_configure(robot_prefixes, rviz_config):
+    displays = rviz_config.get('Visualization Manager', {}).get('Displays', [])
+    overlay_height = int(114 * (len(robot_prefixes) + 1))
+
+    for display in displays:
+        if display.get('Name') != 'RobotMetricsOverlay':
+            continue
+
+        display['Background Alpha'] = 0.44999998807907104
+        display['Background Color'] = '0; 0; 0'
+        display['Class'] = 'rviz_2d_overlay_plugins/TextOverlay'
+        display['Enabled'] = True
+        display['Foreground Alpha'] = 0.949999988079071
+        display['Foreground Color'] = '255; 230; 51'
+        display['Invert Shadow'] = False
+        display['Overtake BG Color Properties'] = True
+        display['Overtake FG Color Properties'] = False
+        display['Overtake Position Properties'] = True
+        display['Topic'] = {
+            'Depth': 5,
+            'Durability Policy': 'Volatile',
+            'History Policy': 'Keep Last',
+            'Reliability Policy': 'Reliable',
+            'Value': '/robot_metrics_overlay_text',
+        }
+        display['Value'] = True
+        display['font'] = 'Sans Serif'
+        display['height'] = overlay_height
+        display['hor_alignment'] = 'right'
+        display['hor_dist'] = 28
+        display['line width'] = 216
+        display['text size'] = 14
+        display['ver_alignment'] = 'top'
+        display['ver_dist'] = 170
+        display['width'] = 620
+        break
 
 
 def rviz_path_display(name, topic, rviz_config, color, enabled):
