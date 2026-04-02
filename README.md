@@ -12,7 +12,7 @@ Exported package name: `ros2_control_blue_reach_5`
 - Multi-robot UVMS spawning
 - CasADi-backed vehicle and manipulator dynamics
 - RViz, TF, rosbag, PlotJuggler, and HIL bringup utilities
-- Per-robot reset and release services for simulated systems
+- Per-robot combined reset and release services for simulated UVMS robots
 
 ## Requirements
 
@@ -107,15 +107,13 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
 Reset simulated `robot_1_`:
 
 ```bash
-ros2 service call /robot_1_reset_sim_vehicle std_srvs/srv/Trigger
-ros2 service call /robot_1_reset_sim_manipulator std_srvs/srv/Trigger
+ros2 service call /robot_1_reset_sim_uvms std_srvs/srv/Trigger
 ```
 
 Release commands after reset:
 
 ```bash
-ros2 service call /robot_1_release_sim_vehicle std_srvs/srv/Trigger
-ros2 service call /robot_1_release_sim_manipulator std_srvs/srv/Trigger
+ros2 service call /robot_1_release_sim_uvms std_srvs/srv/Trigger
 ```
 
 List available endpoints:
@@ -124,10 +122,19 @@ List available endpoints:
 ros2 service list | grep -E 'reset_sim|release_sim'
 ```
 
+Low-level services are still available when needed:
+
+```bash
+ros2 service call /robot_1_reset_sim_manipulator std_srvs/srv/Trigger
+ros2 service call /robot_1_reset_sim_vehicle std_srvs/srv/Trigger
+ros2 service call /robot_1_release_sim_manipulator std_srvs/srv/Trigger
+ros2 service call /robot_1_release_sim_vehicle std_srvs/srv/Trigger
+```
+
 ## Notes
 
 - `interactive`, `manual`, and several operator-facing workflows depend on the companion package `uvms_simlab`.
-- Reset services are per robot prefix, for example `robot_2_` and `robot_3_`.
+- Reset and release services are per robot prefix, for example `robot_2_` and `robot_3_`.
 - Reset holds commands until the matching release service is called.
 
 ## Plugins

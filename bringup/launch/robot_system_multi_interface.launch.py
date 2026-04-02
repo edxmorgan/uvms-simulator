@@ -295,6 +295,17 @@ def launch_setup(context, *args, **kwargs):
                         rviz_config_read_file, 
                         rviz_config_modified_file, task)
 
+    reset_coordinator_proc = ExecuteProcess(
+        cmd=[
+            "python3",
+            "-m",
+            "bringup.sim_reset_coordinator",
+            "--robots-prefix",
+            ",".join(robot_prefixes),
+        ],
+        output="screen",
+    )
+
     # Nodes Definitions
     robot_state_pub_node = Node(
         package="robot_state_publisher",
@@ -530,6 +541,7 @@ def launch_setup(context, *args, **kwargs):
     )
 
     simulator_actions = [
+        reset_coordinator_proc,
         joint_state_broadcaster_spawner,
         control_node,
         mode,
