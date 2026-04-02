@@ -32,6 +32,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   nav2_msgs
   mavlink
   cv_bridge
+  std_srvs
   angles
 )
 

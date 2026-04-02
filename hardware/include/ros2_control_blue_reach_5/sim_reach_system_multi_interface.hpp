@@ -19,6 +19,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,7 @@
 #include "rclcpp/time.hpp"
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
+#include "std_srvs/srv/trigger.hpp"
 #include "ros2_control_blue_reach_5/visibility_control.h"
 
 #include "ros2_control_blue_reach_5/driver.hpp"
@@ -101,6 +103,9 @@ namespace ros2_control_blue_reach_5
             const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
     private:
+        void reset_joint_simulation_state();
+        void reset_joint_estimators();
+
         double payload_mass = 0;
         double payload_Ixx = 0;
         double payload_Iyy = 0;
@@ -123,12 +128,16 @@ namespace ros2_control_blue_reach_5
         std::shared_ptr<rclcpp::Node> node_frames_interface_;
         std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> executor_;
         std::thread spin_thread_;
+        std::mutex simulation_state_mutex_;
 
         rclcpp::Publisher<tf>::SharedPtr frame_transform_publisher_;
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>> realtime_frame_transform_publisher_;
+        rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
+        rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
 
         double delta_seconds{0.0};
         double time_seconds{0.0};
+        bool commands_held_{false};
 
         std::vector<bool>   is_locked_;
         std::vector<double> on_db_;

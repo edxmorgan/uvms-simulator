@@ -29,6 +29,95 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
+    void SimReachSystemMultiInterfaceHardware::reset_joint_estimators()
+    {
+        const std::size_t nj = get_hardware_info().joints.size();
+        x_est_list_.resize(nj);
+        P_est_list_.resize(nj);
+        Q_list_.resize(nj);
+        R_list_.resize(nj);
+        P_diag_list_.resize(nj);
+
+        for (std::size_t i = 0; i < nj; ++i)
+        {
+            x_est_list_[i] = casadi::DM::zeros(3, 1);
+
+            casadi::DM P = casadi::DM::eye(3) * 0.001;
+            P_est_list_[i] = P;
+
+            casadi::DM Q_vec = casadi::DM::zeros(3, 1);
+            Q_vec(0) = 0.001;
+            Q_vec(1) = 0.001;
+            Q_vec(2) = 0.001;
+            Q_list_[i] = casadi::DM::diag(Q_vec);
+
+            casadi::DM R_vec = casadi::DM::zeros(2, 1);
+            R_vec(0) = 0.01;
+            R_vec(1) = 0.005;
+            R_list_[i] = casadi::DM::diag(R_vec);
+
+            P_diag_list_[i] = {double(P(0, 0)), double(P(1, 1)), double(P(2, 2))};
+        }
+    }
+
+    void SimReachSystemMultiInterfaceHardware::reset_joint_simulation_state()
+    {
+        const std::size_t joint_count = hw_joint_struct_.size();
+        for (auto &joint : hw_joint_struct_)
+        {
+            joint.current_state_ = joint.default_state_;
+            joint.async_state_ = joint.default_state_;
+            joint.command_state_ = joint.default_state_;
+
+            joint.command_state_.velocity = 0.0;
+            joint.command_state_.acceleration = 0.0;
+            joint.command_state_.current = 0.0;
+            joint.command_state_.effort = 0.0;
+            joint.command_state_.computed_effort = 0.0;
+
+            joint.current_state_.velocity = 0.0;
+            joint.current_state_.acceleration = 0.0;
+            joint.current_state_.estimated_acceleration = 0.0;
+            joint.current_state_.current = 0.0;
+            joint.current_state_.effort = 0.0;
+            joint.current_state_.computed_effort = 0.0;
+            joint.current_state_.computed_effort_uncertainty = 0.0;
+            joint.current_state_.predicted_position = 0.0;
+            joint.current_state_.predicted_position_uncertainty = 0.0;
+            joint.current_state_.predicted_velocity = 0.0;
+            joint.current_state_.predicted_velocity_uncertainty = 0.0;
+            joint.current_state_.adaptive_predicted_position = 0.0;
+            joint.current_state_.adaptive_predicted_position_uncertainty = 0.0;
+            joint.current_state_.adaptive_predicted_velocity = 0.0;
+            joint.current_state_.adaptive_predicted_velocity_uncertainty = 0.0;
+            joint.current_state_.state_id = 0.0;
+            joint.current_state_.sim_time = 0.0;
+            joint.current_state_.sim_period = 0.0;
+            joint.current_state_.gravityF_x = 0.0;
+            joint.current_state_.gravityF_y = 0.0;
+            joint.current_state_.gravityF_z = 0.0;
+            joint.current_state_.gravityT_x = 0.0;
+            joint.current_state_.gravityT_y = 0.0;
+            joint.current_state_.gravityT_z = 0.0;
+        }
+
+        std::fill(is_locked_.begin(), is_locked_.end(), false);
+        control_power_ = 0.0;
+        control_energy_ = 0.0;
+        payload_mass = 0.0;
+        payload_Ixx = 0.0;
+        payload_Iyy = 0.0;
+        payload_Izz = 0.0;
+        delta_seconds = 0.0;
+        time_seconds = 0.0;
+        commands_held_ = true;
+        reset_joint_estimators();
+        RCLCPP_INFO(
+            rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+            "[%s] reset simulated manipulator state for %zu joints; commands held until release",
+            robot_prefix.c_str(), joint_count);
+    }
+
     hardware_interface::CallbackReturn SimReachSystemMultiInterfaceHardware::on_init(
         const hardware_interface::HardwareComponentInterfaceParams &params)
 
@@ -182,41 +271,38 @@ namespace ros2_control_blue_reach_5
                          "Failed TF publisher setup, %s", e.what());
             return hardware_interface::CallbackReturn::ERROR;
         }
-        // Initialize one EKF per joint
-        const std::size_t nj = get_hardware_info().joints.size();
-        x_est_list_.resize(nj);
-        P_est_list_.resize(nj);
-        Q_list_.resize(nj);
-        R_list_.resize(nj);
-        P_diag_list_.resize(nj);
+        reset_joint_estimators();
 
-        for (std::size_t i = 0; i < nj; ++i)
-        {
-            // state [pos, vel, acc]^T
-            x_est_list_[i] = casadi::DM::zeros(3, 1);
+        reset_service_ = node_frames_interface_->create_service<std_srvs::srv::Trigger>(
+            "/" + robot_prefix + "reset_sim_manipulator",
+            [this](
+                const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
+                std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+            {
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                reset_joint_simulation_state();
+                response->success = true;
+                response->message = "reset simulated manipulator state and held commands";
+            });
 
-            // covariance init
-            casadi::DM P = casadi::DM::eye(3) * 0.001;
-            P_est_list_[i] = P;
-
-            // process noise
-            casadi::DM Q_vec = casadi::DM::zeros(3, 1);
-            Q_vec(0) = 0.001; // pos
-            Q_vec(1) = 0.001; // vel
-            Q_vec(2) = 0.001; // acc
-            Q_list_[i] = casadi::DM::diag(Q_vec);
-
-            // measurement noise for [pos, vel]
-            casadi::DM R_vec = casadi::DM::zeros(2, 1);
-            R_vec(0) = 0.01;  // position variance
-            R_vec(1) = 0.005; // velocity variance
-            R_list_[i] = casadi::DM::diag(R_vec);
-
-            P_diag_list_[i] = {double(P(0, 0)), double(P(1, 1)), double(P(2, 2))};
-        }
+        release_service_ = node_frames_interface_->create_service<std_srvs::srv::Trigger>(
+            "/" + robot_prefix + "release_sim_manipulator",
+            [this](
+                const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
+                std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+            {
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                commands_held_ = false;
+                RCLCPP_INFO(
+                    rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                    "[%s] released simulated manipulator commands",
+                    robot_prefix.c_str());
+                response->success = true;
+                response->message = "released simulated manipulator commands";
+            });
 
         RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
-                    "Initialized %zu per joint EKFs.", nj);
+                    "Initialized %zu per joint EKFs.", get_hardware_info().joints.size());
 
         return hardware_interface::CallbackReturn::SUCCESS;
     }
@@ -373,6 +459,9 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn SimReachSystemMultiInterfaceHardware::on_activate(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+        reset_joint_simulation_state();
+        commands_held_ = false;
         // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Activating... please wait...");
@@ -398,6 +487,7 @@ namespace ros2_control_blue_reach_5
     hardware_interface::return_type SimReachSystemMultiInterfaceHardware::read(
         const rclcpp::Time &time, const rclcpp::Duration &period)
     {
+        std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
 
@@ -468,8 +558,30 @@ namespace ros2_control_blue_reach_5
     hardware_interface::return_type SimReachSystemMultiInterfaceHardware::write(
         const rclcpp::Time &time, const rclcpp::Duration &period)
     {
+        std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
+
+        if (commands_held_)
+        {
+            RCLCPP_INFO_THROTTLE(
+                rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                *node_frames_interface_->get_clock(),
+                2000,
+                "[%s] manipulator commands currently held after reset",
+                robot_prefix.c_str());
+            for (auto &joint : hw_joint_struct_)
+            {
+                joint.command_state_.velocity = 0.0;
+                joint.command_state_.acceleration = 0.0;
+                joint.command_state_.current = 0.0;
+                joint.command_state_.effort = 0.0;
+                joint.command_state_.computed_effort = 0.0;
+                joint.current_state_.sim_time = time_seconds;
+                joint.current_state_.sim_period = delta_seconds;
+            }
+            control_power_ = 0.0;
+        }
 
         double gravity = 0.0; // 9.81 m/s^2
         double payload_mass = 0.0;

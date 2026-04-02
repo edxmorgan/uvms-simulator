@@ -31,6 +31,7 @@
   <depend>mavros_msgs</depend>
   <depend>mavlink</depend>
   <depend>mocap4r2_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>angles</depend>
   <depend>rcl_interfaces</depend>
   <depend>cv_bridge</depend>

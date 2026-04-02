@@ -36,6 +36,55 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
+    void SimVehicleSystemMultiInterfaceHardware::reset_vehicle_estimators()
+    {
+        x_est_ = casadi::DM::zeros(18, 1);
+        P_est_ = casadi::DM::eye(18) * 0.001;
+        for (std::size_t i = 0; i < 18; ++i)
+        {
+            P_diag_[i] = double(P_est_(i, i));
+        }
+    }
+
+    void SimVehicleSystemMultiInterfaceHardware::reset_vehicle_simulation_state()
+    {
+        hw_vehicle_struct.current_state_ = hw_vehicle_struct.default_state_;
+        hw_vehicle_struct.async_state_ = hw_vehicle_struct.default_state_;
+        hw_vehicle_struct.command_state_ = hw_vehicle_struct.default_state_;
+        hw_vehicle_struct.estimate_state_ = hw_vehicle_struct.default_state_;
+        hw_vehicle_struct.depth_from_pressure2 = hw_vehicle_struct.default_state_.position_z;
+        hw_vehicle_struct.dvl_state = {};
+        hw_vehicle_struct.imu_state = {};
+        hw_vehicle_struct.sim_time = 0.0;
+        hw_vehicle_struct.sim_period = 0.0;
+        control_power_ = 0.0;
+        control_energy_ = 0.0;
+        delta_seconds = 0.0;
+        time_seconds = 0.0;
+
+        for (auto &thruster : hw_vehicle_struct.hw_thrust_structs_)
+        {
+            thruster.current_state_ = thruster.default_state_;
+            thruster.async_state_ = thruster.default_state_;
+            thruster.command_state_ = thruster.default_state_;
+            thruster.command_state_.command_pwm = thruster.neutral_pwm;
+            thruster.current_state_.rc_pwm = thruster.neutral_pwm;
+        }
+
+        {
+            std::lock_guard<std::mutex> wrench_lock(contact_wrench_mutex_);
+            contact_wrench_body_ = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        }
+
+        commands_held_ = true;
+        reset_vehicle_estimators();
+        RCLCPP_INFO(
+            rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+            "[%s] reset simulated vehicle state for %zu thrusters; commands held until release",
+            hw_vehicle_struct.robot_prefix.c_str(),
+            hw_vehicle_struct.hw_thrust_structs_.size());
+    }
+
     hardware_interface::CallbackReturn SimVehicleSystemMultiInterfaceHardware::on_init(
         const hardware_interface::HardwareComponentInterfaceParams &params)
     {
@@ -277,15 +326,7 @@ namespace ros2_control_blue_reach_5
             return CallbackReturn::ERROR;
         }
 
-        // Initialize state estimate vector (18x1)
-        x_est_ = casadi::DM::zeros(18, 1);
-        // Initialize state covariance as a 18x18 identity scaled by a small value.
-        P_est_ = casadi::DM::eye(18) * 0.001;
-        // right after P_ = diag(Q_vector) and R_ = diag(R_vector);
-        for (std::size_t i = 0; i < 18; ++i)
-        {
-            P_diag_[i] = double(P_est_(i, i));
-        }
+        reset_vehicle_estimators();
 
         // Process noise covariance: 18x18, scaled by 0.01
         casadi::DM Q_vector = casadi::DM::zeros(18, 1);
@@ -313,6 +354,34 @@ namespace ros2_control_blue_reach_5
         R_vector(5) = 0.005;                           // DVL vy noise variance
         R_vector(6) = 0.005;                           // DVL vz noise variance
         R_ = casadi::DM::diag(R_vector);
+
+        reset_service_ = node_topics_interface_->create_service<std_srvs::srv::Trigger>(
+            "/" + hw_vehicle_struct.robot_prefix + "reset_sim_vehicle",
+            [this](
+                const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
+                std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+            {
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                reset_vehicle_simulation_state();
+                response->success = true;
+                response->message = "reset simulated vehicle state and held commands";
+            });
+
+        release_service_ = node_topics_interface_->create_service<std_srvs::srv::Trigger>(
+            "/" + hw_vehicle_struct.robot_prefix + "release_sim_vehicle",
+            [this](
+                const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
+                std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+            {
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                commands_held_ = false;
+                RCLCPP_INFO(
+                    rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                    "[%s] released simulated vehicle commands",
+                    hw_vehicle_struct.robot_prefix.c_str());
+                response->success = true;
+                response->message = "released simulated vehicle commands";
+            });
 
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                     "Initialized P_est_, Q_, and R_ for Kalman filter.");
@@ -660,6 +729,9 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn SimVehicleSystemMultiInterfaceHardware::on_activate(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+        reset_vehicle_simulation_state();
+        commands_held_ = false;
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "Activating... please wait...");
 
@@ -682,6 +754,7 @@ namespace ros2_control_blue_reach_5
     hardware_interface::return_type SimVehicleSystemMultiInterfaceHardware::read(
         const rclcpp::Time & /*time*/, const rclcpp::Duration &period)
     {
+        std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
         // measurements
         casadi::DM y_k = casadi::DM::zeros(7, 1);
@@ -757,8 +830,31 @@ namespace ros2_control_blue_reach_5
     hardware_interface::return_type SimVehicleSystemMultiInterfaceHardware::write(
         const rclcpp::Time &time, const rclcpp::Duration &period)
     {
+        std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
+
+        if (commands_held_)
+        {
+            RCLCPP_INFO_THROTTLE(
+                rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                *node_topics_interface_->get_clock(),
+                2000,
+                "[%s] vehicle commands currently held after reset",
+                hw_vehicle_struct.robot_prefix.c_str());
+            hw_vehicle_struct.command_state_ = hw_vehicle_struct.default_state_;
+            hw_vehicle_struct.sim_time = time_seconds;
+            hw_vehicle_struct.sim_period = delta_seconds;
+            for (auto &thruster : hw_vehicle_struct.hw_thrust_structs_)
+            {
+                thruster.command_state_.command_pwm = thruster.neutral_pwm;
+                thruster.current_state_.sim_time = time_seconds;
+                thruster.current_state_.sim_period = delta_seconds;
+                thruster.current_state_.rc_pwm = thruster.neutral_pwm;
+            }
+            control_power_ = 0.0;
+        }
+
         // Define the 6×8 thrust configuration matrix.
         DM thrust_config = DM({{0.707, 0.707, -0.707, -0.707, 0.0, 0.0, 0.0, 0.0},
                                {-0.707, 0.707, -0.707, 0.707, 0.0, 0.0, 0.0, 0.0},
