@@ -1528,13 +1528,16 @@ namespace ros2_control_blue_reach_5
             gst_initialized = true;
         }
 
-        // Define the GStreamer pipeline string.
-        // Note: "h264parse" has been removed since it is unavailable.
+        // Keep the receive path low-latency: do not let RTP or appsink queues
+        // grow when the decoder/display side falls behind.
         std::string pipeline_str =
             "udpsrc port=5600 ! application/x-rtp, payload=96 "
-            "! rtph264depay ! avdec_h264 "
+            "! rtpjitterbuffer latency=0 drop-on-latency=true faststart-min-packets=1 "
+            "! rtph264depay "
+            "! queue max-size-buffers=1 max-size-time=0 max-size-bytes=0 leaky=downstream "
+            "! avdec_h264 max-threads=2 "
             "! videoconvert ! video/x-raw,format=(string)BGR "
-            "! appsink name=camera_sink emit-signals=true sync=false max-buffers=2 drop=true";
+            "! appsink name=camera_sink emit-signals=true sync=false async=false max-buffers=1 drop=true";
 
         // Create and start the pipeline.
         gst_pipeline_ = gst_parse_launch(pipeline_str.c_str(), nullptr);
