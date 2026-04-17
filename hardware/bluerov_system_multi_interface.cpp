@@ -1505,18 +1505,7 @@ namespace ros2_control_blue_reach_5
 
     ros2_control_blue_reach_5::BlueRovSystemMultiInterfaceHardware::~BlueRovSystemMultiInterfaceHardware()
     {
-        dvl_driver_.stop();
-
-        if (executor_)
-        {
-            executor_->cancel();
-        }
-        if (spin_thread_.joinable())
-        {
-            spin_thread_.join();
-        }
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                    "Executor stopped and spin thread joined.");
+        stop_background_work();
     }
 
     void BlueRovSystemMultiInterfaceHardware::stop_thrusters()
@@ -1534,7 +1523,26 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_cleanup(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
-        dvl_driver_.stop();
+        stop_background_work();
+        tfListener_.reset();
+        tfBuffer_.reset();
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                    "Cleaned up executor and spin thread.");
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::stop_background_work() noexcept
+    {
+        try
+        {
+            dvl_driver_.stop();
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_WARN(
+                rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                "Exception while stopping DVL driver: %s", e.what());
+        }
 
         if (executor_)
         {
@@ -1544,13 +1552,8 @@ namespace ros2_control_blue_reach_5
         {
             spin_thread_.join();
         }
-        tfListener_.reset();
-        tfBuffer_.reset();
         node_topics_interface_.reset();
         executor_.reset();
-        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                    "Cleaned up executor and spin thread.");
-        return hardware_interface::CallbackReturn::SUCCESS;
     }
 
 } // namespace ros2_control_blue_reach_5

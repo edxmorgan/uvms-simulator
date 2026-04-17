@@ -71,6 +71,9 @@ namespace ros2_control_blue_reach_5
     RCLCPP_SHARED_PTR_DEFINITIONS(ReachSystemMultiInterfaceHardware);
 
     ROS2_CONTROL_BLUE_REACH_5_PUBLIC
+    ~ReachSystemMultiInterfaceHardware() override;
+
+    ROS2_CONTROL_BLUE_REACH_5_PUBLIC
     hardware_interface::CallbackReturn on_init(
         const hardware_interface::HardwareComponentInterfaceParams &params) override;
 
@@ -203,11 +206,13 @@ namespace ros2_control_blue_reach_5
      */
 
     void pollState(int freq) const;
+    void stop_background_work() noexcept;
 
     // Driver things
     alpha::driver::Driver driver_;
     std::thread state_request_worker_;
     std::atomic<bool> running_{false};
+    bool driver_started_{false};
 
     std::mutex access_async_states_;
 

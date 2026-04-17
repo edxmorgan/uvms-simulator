@@ -77,7 +77,7 @@ namespace ros2_control_blue_reach_5
     {
 
     public:
-        ~BlueRovSystemMultiInterfaceHardware();
+        ~BlueRovSystemMultiInterfaceHardware() override;
         RCLCPP_SHARED_PTR_DEFINITIONS(BlueRovSystemMultiInterfaceHardware);
 
         ROS2_CONTROL_BLUE_REACH_5_PUBLIC
@@ -125,6 +125,7 @@ namespace ros2_control_blue_reach_5
             const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
     private:
+        void stop_background_work() noexcept;
         void light_callback(const std_msgs::msg::Float32::SharedPtr msg);
         void cameraMountPitch_callback(const std_msgs::msg::Float32::SharedPtr msg);
         rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr light_subscriber_;

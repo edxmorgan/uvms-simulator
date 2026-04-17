@@ -29,6 +29,11 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
+    SimReachSystemMultiInterfaceHardware::~SimReachSystemMultiInterfaceHardware()
+    {
+        stop_ros_interfaces();
+    }
+
     void SimReachSystemMultiInterfaceHardware::reset_joint_estimators()
     {
         const std::size_t nj = get_hardware_info().joints.size();
@@ -116,6 +121,22 @@ namespace ros2_control_blue_reach_5
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
             "[%s] reset simulated manipulator state for %zu joints; commands held until release",
             robot_prefix.c_str(), joint_count);
+    }
+
+    void SimReachSystemMultiInterfaceHardware::stop_ros_interfaces() noexcept
+    {
+        if (executor_)
+        {
+            executor_->cancel();
+        }
+        if (spin_thread_.joinable())
+        {
+            spin_thread_.join();
+        }
+        reset_service_.reset();
+        release_service_.reset();
+        executor_.reset();
+        node_frames_interface_.reset();
     }
 
     hardware_interface::CallbackReturn SimReachSystemMultiInterfaceHardware::on_init(
@@ -309,16 +330,7 @@ namespace ros2_control_blue_reach_5
 
     hardware_interface::CallbackReturn SimReachSystemMultiInterfaceHardware::on_cleanup(const rclcpp_lifecycle::State &)
     {
-        if (executor_)
-        {
-            executor_->cancel();
-        }
-        if (spin_thread_.joinable())
-        {
-            spin_thread_.join();
-        }
-        executor_.reset();
-        node_frames_interface_.reset();
+        stop_ros_interfaces();
         RCLCPP_INFO( // NOLINT
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Shutting down the AlphaHardware system interface.");
         return hardware_interface::CallbackReturn::SUCCESS;
