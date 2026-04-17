@@ -115,8 +115,6 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
 
 ## Camera
 
-The camera is an independent GStreamer node. It is not owned by the vehicle hardware interface.
-
 Camera launch arguments:
 
 - `launch_camera:=auto`: default. Starts the camera when `use_vehicle_hardware:=true` or `simulate_camera:=true`.
