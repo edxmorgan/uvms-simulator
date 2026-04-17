@@ -65,6 +65,24 @@ def _resolve_serial_port(serial_port: str, use_manipulator_hardware: bool) -> st
     return fallback_port
 
 
+def _parse_bool_arg(name: str, value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes", "on"}:
+        return True
+    if normalized in {"false", "0", "no", "off"}:
+        return False
+    raise RuntimeError(f"{name} must be one of: true, false.")
+
+
+def _simulated_camera_pipeline() -> str:
+    return (
+        "videotestsrc is-live=true pattern=ball "
+        "! video/x-raw,width=640,height=480,framerate=30/1 "
+        "! videoconvert ! video/x-raw,format=(string)BGR "
+        "! appsink name=camera_sink emit-signals=true sync=false async=false max-buffers=1 drop=true"
+    )
+
+
 def generate_launch_description():
     # Declare arguments
     declared_arguments = []
@@ -109,6 +127,20 @@ def generate_launch_description():
             "launch_camera",
             default_value="auto",
             description="Start the independent GStreamer camera node. Use true, false, or auto. auto follows use_vehicle_hardware.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "simulate_camera",
+            default_value="false",
+            description="Use a synthetic GStreamer test camera instead of the UDP hardware camera.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "camera_pipeline",
+            default_value="",
+            description="Optional custom GStreamer pipeline. Must end with appsink name=camera_sink.",
         )
     )
 
@@ -215,6 +247,8 @@ def launch_setup(context, *args, **kwargs):
     use_manipulator_hardware = LaunchConfiguration("use_manipulator_hardware").perform(context)
     use_vehicle_hardware = LaunchConfiguration("use_vehicle_hardware").perform(context)
     launch_camera = LaunchConfiguration("launch_camera").perform(context)
+    simulate_camera = LaunchConfiguration("simulate_camera").perform(context)
+    camera_pipeline = LaunchConfiguration("camera_pipeline").perform(context)
     task = LaunchConfiguration("task").perform(context)
     serial_port = LaunchConfiguration("serial_port").perform(context)
     state_update_frequency = LaunchConfiguration("state_update_frequency").perform(context)
@@ -304,15 +338,19 @@ def launch_setup(context, *args, **kwargs):
 
     use_mocap_bool = IfCondition(use_mocap).evaluate(context)
     launch_planner_action_server_bool = IfCondition(launch_planner_action_server).evaluate(context)
+    simulate_camera_bool = _parse_bool_arg("simulate_camera", simulate_camera)
     launch_camera_normalized = launch_camera.strip().lower()
     if launch_camera_normalized == "auto":
-        launch_camera_bool = use_vehicle_hardware_bool
+        launch_camera_bool = use_vehicle_hardware_bool or simulate_camera_bool
     elif launch_camera_normalized in {"true", "1", "yes", "on"}:
         launch_camera_bool = True
     elif launch_camera_normalized in {"false", "0", "no", "off"}:
         launch_camera_bool = False
     else:
         raise RuntimeError("launch_camera must be one of: auto, true, false.")
+    camera_pipeline = camera_pipeline.strip()
+    if not camera_pipeline and simulate_camera_bool:
+        camera_pipeline = _simulated_camera_pipeline()
 
     is_hardware_uvms = use_manipulator_hardware_bool and use_vehicle_hardware_bool
 
@@ -494,6 +532,7 @@ def launch_setup(context, *args, **kwargs):
         parameters=[{
             "image_topic": "/alpha/image_raw",
             "frame_id": f"{camera_prefix}camera_link",
+            **({"pipeline": camera_pipeline} if camera_pipeline else {}),
         }],
     )
 

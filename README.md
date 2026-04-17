@@ -42,6 +42,7 @@ sudo apt install git-lfs \
     ros-$ROS_DISTRO-rviz-2d-overlay-msgs \
     ros-$ROS_DISTRO-rosbag2 \
     ros-$ROS_DISTRO-plotjuggler-ros \
+    gstreamer1.0-plugins-base \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev
 ```
@@ -100,6 +101,80 @@ Hardware-in-the-loop:
 ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
     use_manipulator_hardware:=true \
     use_vehicle_hardware:=true
+```
+
+The main launch file uses `serial_port:=auto` by default for the Reach Alpha manipulator. Auto mode tries `/dev/serial/by-id/*`, `/dev/ttyUSB*`, then `/dev/ttyACM*`. If the manipulator is on a known device, pass it explicitly:
+
+```bash
+ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+    use_manipulator_hardware:=true \
+    use_vehicle_hardware:=false \
+    serial_port:=/dev/ttyUSB1
+```
+
+## Camera
+
+The camera is an independent GStreamer node. It is not owned by the vehicle hardware interface.
+
+Camera launch arguments:
+
+- `launch_camera:=auto`: default. Starts the camera when `use_vehicle_hardware:=true` or `simulate_camera:=true`.
+- `launch_camera:=true`: always starts the camera node.
+- `launch_camera:=false`: disables the camera node.
+- `simulate_camera:=false`: default. Uses the hardware UDP camera pipeline.
+- `simulate_camera:=true`: uses a synthetic GStreamer test pattern and publishes it as `/alpha/image_raw`.
+- `camera_pipeline:=""`: optional custom GStreamer pipeline. If set, it overrides the default pipeline. The pipeline must end with `appsink name=camera_sink`.
+
+Real vehicle hardware starts the camera automatically:
+
+```bash
+ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+    use_vehicle_hardware:=true
+```
+
+Use the real camera without real vehicle hardware:
+
+```bash
+ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+    use_manipulator_hardware:=true \
+    use_vehicle_hardware:=false \
+    sim_robot_count:=0 \
+    task:=manual \
+    launch_camera:=true
+```
+
+Simulate the camera when no camera hardware is connected:
+
+```bash
+ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+    use_manipulator_hardware:=true \
+    use_vehicle_hardware:=false \
+    sim_robot_count:=0 \
+    task:=manual \
+    simulate_camera:=true
+```
+
+The camera publishes `sensor_msgs/msg/Image` on `/alpha/image_raw`. RViz adds an enabled `video feed` Image display whenever the camera node is launched. To verify images are arriving:
+
+```bash
+ros2 topic hz /alpha/image_raw
+```
+
+Run only the standalone camera node:
+
+```bash
+ros2 run ros2_control_blue_reach_5 gstreamer_camera_node --ros-args \
+    -p image_topic:=/alpha/image_raw \
+    -p frame_id:=camera_link
+```
+
+Run only the standalone simulated camera:
+
+```bash
+ros2 run ros2_control_blue_reach_5 gstreamer_camera_node --ros-args \
+    -p image_topic:=/alpha/image_raw \
+    -p frame_id:=camera_link \
+    -p pipeline:='videotestsrc is-live=true pattern=ball ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! video/x-raw,format=(string)BGR ! appsink name=camera_sink emit-signals=true sync=false async=false max-buffers=1 drop=true'
 ```
 
 ## Reset
