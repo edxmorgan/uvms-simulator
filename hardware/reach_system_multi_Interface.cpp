@@ -34,6 +34,11 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
+  ReachSystemMultiInterfaceHardware::~ReachSystemMultiInterfaceHardware()
+  {
+    stop_background_work();
+  }
+
   hardware_interface::CallbackReturn ReachSystemMultiInterfaceHardware::on_init(
       const hardware_interface::HardwareComponentInterfaceParams &params)
   {
@@ -147,6 +152,7 @@ namespace ros2_control_blue_reach_5
     try
     {
       driver_.start(cfg_.serial_port_);
+      driver_started_ = true;
     }
     catch (const std::exception &e)
     {
@@ -199,6 +205,7 @@ namespace ros2_control_blue_reach_5
     {
       RCLCPP_ERROR(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
                    "Failed TF publisher setup, %s", e.what());
+      stop_background_work();
       return hardware_interface::CallbackReturn::ERROR;
     }
     RCLCPP_INFO( // NOLINT
@@ -248,20 +255,7 @@ namespace ros2_control_blue_reach_5
     RCLCPP_INFO( // NOLINT
         rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "Shutting down the AlphaHardware system interface.");
 
-    running_.store(false);
-    state_request_worker_.join();
-    driver_.stop();
-
-    if (executor_)
-    {
-      executor_->cancel();
-    }
-    if (spin_thread_.joinable())
-    {
-      spin_thread_.join();
-    }
-    executor_.reset();
-    node_frames_interface_.reset();
+    stop_background_work();
     return hardware_interface::CallbackReturn::SUCCESS;
   }
 
@@ -848,6 +842,42 @@ namespace ros2_control_blue_reach_5
 
       std::this_thread::sleep_for(poll_period);
     }
+  }
+
+  void ReachSystemMultiInterfaceHardware::stop_background_work() noexcept
+  {
+    running_.store(false);
+
+    if (state_request_worker_.joinable())
+    {
+      state_request_worker_.join();
+    }
+
+    if (driver_started_)
+    {
+      try
+      {
+        driver_.stop();
+      }
+      catch (const std::exception &e)
+      {
+        RCLCPP_WARN(
+            rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+            "Exception while stopping Reach serial driver: %s", e.what());
+      }
+      driver_started_ = false;
+    }
+
+    if (executor_)
+    {
+      executor_->cancel();
+    }
+    if (spin_thread_.joinable())
+    {
+      spin_thread_.join();
+    }
+    executor_.reset();
+    node_frames_interface_.reset();
   }
 
 } // namespace ros2_control_blue_reach_5

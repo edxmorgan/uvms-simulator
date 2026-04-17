@@ -59,6 +59,9 @@ namespace ros2_control_blue_reach_5
         RCLCPP_SHARED_PTR_DEFINITIONS(SimReachSystemMultiInterfaceHardware);
 
         ROS2_CONTROL_BLUE_REACH_5_PUBLIC
+        ~SimReachSystemMultiInterfaceHardware() override;
+
+        ROS2_CONTROL_BLUE_REACH_5_PUBLIC
         hardware_interface::CallbackReturn on_init(
             const hardware_interface::HardwareComponentInterfaceParams &params) override;
 
@@ -105,6 +108,7 @@ namespace ros2_control_blue_reach_5
     private:
         void reset_joint_simulation_state();
         void reset_joint_estimators();
+        void stop_ros_interfaces() noexcept;
 
         double payload_mass = 0;
         double payload_Ixx = 0;

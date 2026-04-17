@@ -36,6 +36,11 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
+    SimVehicleSystemMultiInterfaceHardware::~SimVehicleSystemMultiInterfaceHardware()
+    {
+        stop_ros_interfaces();
+    }
+
     void SimVehicleSystemMultiInterfaceHardware::reset_vehicle_estimators()
     {
         x_est_ = casadi::DM::zeros(18, 1);
@@ -83,6 +88,23 @@ namespace ros2_control_blue_reach_5
             "[%s] reset simulated vehicle state for %zu thrusters; commands held until release",
             hw_vehicle_struct.robot_prefix.c_str(),
             hw_vehicle_struct.hw_thrust_structs_.size());
+    }
+
+    void SimVehicleSystemMultiInterfaceHardware::stop_ros_interfaces() noexcept
+    {
+        if (executor_)
+        {
+            executor_->cancel();
+        }
+        if (spin_thread_.joinable())
+        {
+            spin_thread_.join();
+        }
+        reset_service_.reset();
+        release_service_.reset();
+        static_tf_broadcaster_.reset();
+        executor_.reset();
+        node_topics_interface_.reset();
     }
 
     hardware_interface::CallbackReturn SimVehicleSystemMultiInterfaceHardware::on_init(
@@ -387,6 +409,15 @@ namespace ros2_control_blue_reach_5
                     "Initialized P_est_, Q_, and R_ for Kalman filter.");
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "configure successful");
+        return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    hardware_interface::CallbackReturn SimVehicleSystemMultiInterfaceHardware::on_cleanup(const rclcpp_lifecycle::State &)
+    {
+        stop_ros_interfaces();
+        RCLCPP_INFO(
+            rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+            "Shutting down the simulated vehicle system interface.");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 

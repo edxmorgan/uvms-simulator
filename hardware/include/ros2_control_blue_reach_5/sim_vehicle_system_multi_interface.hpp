@@ -65,6 +65,9 @@ namespace ros2_control_blue_reach_5
         RCLCPP_SHARED_PTR_DEFINITIONS(SimVehicleSystemMultiInterfaceHardware);
 
         ROS2_CONTROL_BLUE_REACH_5_PUBLIC
+        ~SimVehicleSystemMultiInterfaceHardware() override;
+
+        ROS2_CONTROL_BLUE_REACH_5_PUBLIC
         hardware_interface::CallbackReturn on_init(
             const hardware_interface::HardwareComponentInterfaceParams &params) override;
 
@@ -72,9 +75,9 @@ namespace ros2_control_blue_reach_5
         hardware_interface::CallbackReturn on_configure(
             const rclcpp_lifecycle::State &previous_state) override;
 
-        // ROS2_CONTROL_BLUE_REACH_5_PUBLIC
-        // hardware_interface::CallbackReturn on_cleanup(
-        //     const rclcpp_lifecycle::State &previous_state) override;
+        ROS2_CONTROL_BLUE_REACH_5_PUBLIC
+        hardware_interface::CallbackReturn on_cleanup(
+            const rclcpp_lifecycle::State &previous_state) override;
 
         ROS2_CONTROL_BLUE_REACH_5_PUBLIC
         hardware_interface::return_type prepare_command_mode_switch(
@@ -111,6 +114,7 @@ namespace ros2_control_blue_reach_5
     private:
         void reset_vehicle_simulation_state();
         void reset_vehicle_estimators();
+        void stop_ros_interfaces() noexcept;
 
         // Store the utils function for the robot joints
         casadi_reach_alpha_5::Utils utils_service;
