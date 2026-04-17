@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+import glob
 import os
 import tempfile
 
@@ -38,6 +39,32 @@ def _runtime_file_path(file_name: str) -> str:
     return os.path.join(runtime_dir, file_name)
 
 
+def _resolve_serial_port(serial_port: str, use_manipulator_hardware: bool) -> str:
+    if serial_port.lower() != "auto":
+        return serial_port
+
+    candidate_patterns = (
+        "/dev/serial/by-id/*",
+        "/dev/ttyUSB*",
+        "/dev/ttyACM*",
+    )
+    candidates = []
+    for pattern in candidate_patterns:
+        candidates.extend(sorted(glob.glob(pattern)))
+
+    if candidates:
+        selected_port = candidates[0]
+        logger.info(f"serial_port:=auto selected {selected_port}")
+        return selected_port
+
+    fallback_port = "/dev/ttyUSB0"
+    if use_manipulator_hardware:
+        logger.warning(
+            f"serial_port:=auto found no serial device; falling back to {fallback_port}"
+        )
+    return fallback_port
+
+
 def generate_launch_description():
     # Declare arguments
     declared_arguments = []
@@ -51,8 +78,8 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "serial_port",
-            default_value="/dev/ttyUSB0",
-            description="Start robot with device port to hardware.",
+            default_value="auto",
+            description="Manipulator hardware serial port, or auto to use the first available serial device.",
         )
     )
     declared_arguments.append(
@@ -75,6 +102,13 @@ def generate_launch_description():
             "use_vehicle_hardware",
             default_value="false",
             description="Start simulation with a real vehicle hardware in the loop",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "launch_camera",
+            default_value="auto",
+            description="Start the independent GStreamer camera node. Use true, false, or auto. auto follows use_vehicle_hardware.",
         )
     )
 
@@ -180,6 +214,7 @@ def launch_setup(context, *args, **kwargs):
     prefix = LaunchConfiguration("prefix").perform(context)
     use_manipulator_hardware = LaunchConfiguration("use_manipulator_hardware").perform(context)
     use_vehicle_hardware = LaunchConfiguration("use_vehicle_hardware").perform(context)
+    launch_camera = LaunchConfiguration("launch_camera").perform(context)
     task = LaunchConfiguration("task").perform(context)
     serial_port = LaunchConfiguration("serial_port").perform(context)
     state_update_frequency = LaunchConfiguration("state_update_frequency").perform(context)
@@ -198,6 +233,9 @@ def launch_setup(context, *args, **kwargs):
     task = task.lower()
     use_pwm = str(task in {'direct_thrusters'})
     valid_tasks = {'interactive', 'manual', 'joint', 'direct_thrusters'}
+    use_manipulator_hardware_bool = IfCondition(use_manipulator_hardware).evaluate(context)
+    use_vehicle_hardware_bool = IfCondition(use_vehicle_hardware).evaluate(context)
+    serial_port = _resolve_serial_port(serial_port, use_manipulator_hardware_bool)
 
     if task not in valid_tasks:
         raise RuntimeError(
@@ -264,10 +302,17 @@ def launch_setup(context, *args, **kwargs):
         f"robot_multi_interface_forward_controllers_{runtime_tag}.yaml"
     )
 
-    use_manipulator_hardware_bool = IfCondition(use_manipulator_hardware).evaluate(context)
-    use_vehicle_hardware_bool = IfCondition(use_vehicle_hardware).evaluate(context)
     use_mocap_bool = IfCondition(use_mocap).evaluate(context)
     launch_planner_action_server_bool = IfCondition(launch_planner_action_server).evaluate(context)
+    launch_camera_normalized = launch_camera.strip().lower()
+    if launch_camera_normalized == "auto":
+        launch_camera_bool = use_vehicle_hardware_bool
+    elif launch_camera_normalized in {"true", "1", "yes", "on"}:
+        launch_camera_bool = True
+    elif launch_camera_normalized in {"false", "0", "no", "off"}:
+        launch_camera_bool = False
+    else:
+        raise RuntimeError("launch_camera must be one of: auto, true, false.")
 
     is_hardware_uvms = use_manipulator_hardware_bool and use_vehicle_hardware_bool
 
@@ -293,7 +338,8 @@ def launch_setup(context, *args, **kwargs):
                         robot_base_links, 
                         robot_ix, 
                         rviz_config_read_file, 
-                        rviz_config_modified_file, task)
+                        rviz_config_modified_file, task,
+                        launch_camera_bool)
 
     reset_coordinator_proc = ExecuteProcess(
         cmd=[
@@ -436,6 +482,21 @@ def launch_setup(context, *args, **kwargs):
         condition=IfCondition(record_data),
     )
 
+    camera_prefix = "robot_real_" if use_vehicle_hardware_bool else next(
+        (prefix for prefix in robot_prefixes if prefix != "robot_real_"),
+        robot_prefixes[0],
+    )
+    camera_node = Node(
+        package="ros2_control_blue_reach_5",
+        executable="gstreamer_camera_node",
+        name="gstreamer_camera_node",
+        output="screen",
+        parameters=[{
+            "image_topic": "/alpha/image_raw",
+            "frame_id": f"{camera_prefix}camera_link",
+        }],
+    )
+
     optitrack_proc = ExecuteProcess(
         cmd=['ros2', 'launch', 'mocap4r2_optitrack_driver', 'optitrack2.launch.py'],
         output='screen',
@@ -556,6 +617,9 @@ def launch_setup(context, *args, **kwargs):
         env_obstacles_node,
         bag_recorder_node,
     ]
+
+    if launch_camera_bool:
+        simulator_actions.append(camera_node)
 
     if use_mocap_bool:
         simulator_actions.extend([

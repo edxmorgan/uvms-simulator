@@ -31,7 +31,6 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   nav_msgs
   nav2_msgs
   mavlink
-  cv_bridge
   std_srvs
   angles
 )
@@ -76,20 +75,11 @@ add_library(
 )
 
 target_link_libraries(ros2_control_blue_reach_5 PUBLIC casadi)
-# Link against GStreamer libraries as well.
-target_link_libraries(ros2_control_blue_reach_5 PUBLIC
-  ${GSTREAMER_LIBRARIES}
-  ${GSTREAMER_APP_LIBRARIES}
-  ${cv_bridge_LIBRARIES}  # Link with cv_bridge libraries.
-)
 
 target_compile_features(ros2_control_blue_reach_5 PUBLIC cxx_std_17)
 target_include_directories(ros2_control_blue_reach_5 PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
   $<INSTALL_INTERFACE:include/ros2_control_blue_reach_5>
-  ${GSTREAMER_INCLUDE_DIRS}
-  ${GSTREAMER_APP_INCLUDE_DIRS}
-  ${cv_bridge_INCLUDE_DIRS}
 )
 ament_target_dependencies(
   ros2_control_blue_reach_5 PUBLIC
@@ -99,6 +89,26 @@ ament_target_dependencies(
 # Causes the visibility macros to use dllexport rather than dllimport,
 # which is appropriate when building the dll but not consuming it.
 target_compile_definitions(${PROJECT_NAME} PRIVATE "ROS2_CONTROL_BLUE_REACH_5_BUILDING_DLL")
+
+add_executable(gstreamer_camera_node
+  hardware/gstreamer_camera_node.cpp
+  hardware/gstreamer_camera_driver.cpp
+)
+target_compile_features(gstreamer_camera_node PUBLIC cxx_std_17)
+target_include_directories(gstreamer_camera_node PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
+  ${GSTREAMER_INCLUDE_DIRS}
+  ${GSTREAMER_APP_INCLUDE_DIRS}
+)
+target_link_libraries(gstreamer_camera_node PUBLIC
+  ${GSTREAMER_LIBRARIES}
+  ${GSTREAMER_APP_LIBRARIES}
+)
+ament_target_dependencies(gstreamer_camera_node PUBLIC
+  rclcpp
+  realtime_tools
+  sensor_msgs
+)
 
 # Export hardware plugins
 pluginlib_export_plugin_description_file(hardware_interface ros2_control_blue_reach_5.xml)
@@ -133,6 +143,10 @@ install(TARGETS ${PROJECT_NAME}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
+)
+
+install(TARGETS gstreamer_camera_node
+  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

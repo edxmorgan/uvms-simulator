@@ -35,7 +35,6 @@
   <depend>std_srvs</depend>
   <depend>angles</depend>
   <depend>rcl_interfaces</depend>
-  <depend>cv_bridge</depend>
 
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>uvms_controller</exec_depend>

@@ -15,19 +15,6 @@
 
 #include "ros2_control_blue_reach_5/bluerov_system_multi_interface.hpp"
 
-// Now include GStreamer, then immediately remove toxic macros
-extern "C"
-{
-#include <gst/gst.h>
-#include <gst/app/gstappsink.h>
-}
-#ifdef TRUE
-#undef TRUE
-#endif
-#ifdef FALSE
-#undef FALSE
-#endif
-
 #include "ros2_control_blue_reach_5/dvldriver.hpp"
 #include <angles/angles.h>
 #include <chrono>
@@ -369,12 +356,6 @@ namespace ros2_control_blue_reach_5
                 std::bind(&BlueRovSystemMultiInterfaceHardware::cameraMountPitch_callback, this, std::placeholders::_1));
 
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Subscribed to /alpha/cameraMountPitch with Reliable QoS");
-
-            // Initialize the ROS publisher for images.
-            image_pub_ = rclcpp::create_publisher<sensor_msgs::msg::Image>(node_topics_interface_, "/alpha/image_raw", rclcpp::SystemDefaultsQoS());
-            realtime_image_pub_ =
-                std::make_shared<realtime_tools::RealtimePublisher<sensor_msgs::msg::Image>>(
-                    image_pub_);
 
             // Initialize the realtime dvl publisher
             dvl_velocity_publisher_ = rclcpp::create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(node_topics_interface_,
@@ -838,9 +819,6 @@ namespace ros2_control_blue_reach_5
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Activating... please wait...");
 
-        // Start the camera stream.
-        startCameraStream();
-
         publishStaticPoseTransform();
 
         stop_thrusters();
@@ -855,8 +833,6 @@ namespace ros2_control_blue_reach_5
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Deactivating... please wait...");
 
-        // Stop the camera stream.
-        stopCameraStream();
         // Stop the thrusters before switching out of passthrough mode
         stop_thrusters();
 
@@ -1513,161 +1489,6 @@ namespace ros2_control_blue_reach_5
         }
     }
 
-    void BlueRovSystemMultiInterfaceHardware::startCameraStream()
-    {
-        if (camera_thread_running_)
-        {
-            return;
-        }
-
-        // Ensure GStreamer is initialized exactly once.
-        static bool gst_initialized = false;
-        if (!gst_initialized)
-        {
-            gst_init(nullptr, nullptr);
-            gst_initialized = true;
-        }
-
-        // Keep the receive path low-latency: do not let RTP or appsink queues
-        // grow when the decoder/display side falls behind.
-        std::string pipeline_str =
-            "udpsrc port=5600 ! application/x-rtp, payload=96 "
-            "! rtpjitterbuffer latency=0 drop-on-latency=true faststart-min-packets=1 "
-            "! rtph264depay "
-            "! queue max-size-buffers=1 max-size-time=0 max-size-bytes=0 leaky=downstream "
-            "! avdec_h264 max-threads=2 "
-            "! videoconvert ! video/x-raw,format=(string)BGR "
-            "! appsink name=camera_sink emit-signals=true sync=false async=false max-buffers=1 drop=true";
-
-        // Create and start the pipeline.
-        gst_pipeline_ = gst_parse_launch(pipeline_str.c_str(), nullptr);
-        if (!gst_pipeline_)
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                         "Failed to create GStreamer pipeline for camera stream");
-            return;
-        }
-        gst_element_set_state(gst_pipeline_, GST_STATE_PLAYING);
-
-        // Retrieve the appsink element by name.
-        GstElement *appsink_elem = gst_bin_get_by_name(GST_BIN(gst_pipeline_), "camera_sink");
-        if (!appsink_elem)
-        {
-            RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                         "Failed to get appsink element from camera pipeline");
-            gst_element_set_state(gst_pipeline_, GST_STATE_NULL);
-            gst_object_unref(gst_pipeline_);
-            gst_pipeline_ = nullptr;
-            return;
-        }
-        gst_appsink_ = GST_APP_SINK(appsink_elem);
-
-        // Start the camera thread.
-        camera_thread_running_ = true;
-        camera_thread_ = std::thread(&BlueRovSystemMultiInterfaceHardware::cameraLoop, this);
-    }
-
-    void BlueRovSystemMultiInterfaceHardware::cameraLoop()
-    {
-        while (camera_thread_running_)
-        {
-            // Use a bounded wait so deactivation can stop the thread promptly.
-            GstSample *sample = gst_app_sink_try_pull_sample(gst_appsink_, 100 * GST_MSECOND);
-            if (!sample)
-            {
-                continue;
-            }
-
-            // Get the buffer and its capabilities.
-            GstBuffer *buffer = gst_sample_get_buffer(sample);
-            GstCaps *caps = gst_sample_get_caps(sample);
-            if (!caps)
-            {
-                gst_sample_unref(sample);
-                continue;
-            }
-
-            // Retrieve width and height from the caps.
-            GstStructure *s = gst_caps_get_structure(caps, 0);
-            int width = 0, height = 0;
-            if (!gst_structure_get_int(s, "width", &width) || !gst_structure_get_int(s, "height", &height))
-            {
-                gst_sample_unref(sample);
-                continue;
-            }
-
-            // Map the buffer to read the image data.
-            GstMapInfo map;
-            if (!gst_buffer_map(buffer, &map, GST_MAP_READ))
-            {
-                gst_sample_unref(sample);
-                continue;
-            }
-
-            sensor_msgs::msg::Image msg;
-            msg.header.stamp = node_topics_interface_->now();
-            msg.header.frame_id = hw_vehicle_struct.robot_prefix + "camera_link";
-            msg.height = height;
-            msg.width = width;
-            msg.encoding = "bgr8";
-            msg.is_bigendian = false;
-            msg.step = width * 3;
-            const std::size_t image_size = static_cast<std::size_t>(msg.step) * static_cast<std::size_t>(height);
-            if (map.size < image_size)
-            {
-                gst_buffer_unmap(buffer, &map);
-                gst_sample_unref(sample);
-                RCLCPP_WARN(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                            "Camera frame smaller than expected: got %zu bytes, expected %zu bytes",
-                            static_cast<std::size_t>(map.size), image_size);
-                continue;
-            }
-
-            msg.data.resize(image_size);
-            std::memcpy(msg.data.data(), map.data, msg.data.size());
-
-            gst_buffer_unmap(buffer, &map);
-            gst_sample_unref(sample);
-
-            if (realtime_image_pub_ && realtime_image_pub_->trylock())
-            {
-                realtime_image_pub_->msg_ = msg;
-                realtime_image_pub_->unlockAndPublish();
-            }
-            else
-            {
-                image_pub_->publish(std::move(msg));
-            }
-        }
-    }
-
-    void BlueRovSystemMultiInterfaceHardware::stopCameraStream()
-    {
-        camera_thread_running_ = false;
-
-        if (gst_pipeline_)
-        {
-            gst_element_set_state(gst_pipeline_, GST_STATE_NULL);
-        }
-
-        if (camera_thread_.joinable())
-        {
-            camera_thread_.join();
-        }
-
-        if (gst_appsink_)
-        {
-            gst_object_unref(GST_OBJECT(gst_appsink_));
-            gst_appsink_ = nullptr;
-        }
-
-        if (gst_pipeline_)
-        {
-            gst_object_unref(gst_pipeline_);
-            gst_pipeline_ = nullptr;
-        }
-    }
-
     // Convert 3x3 covariance to 6x6 format
     std::array<double, 36> BlueRovSystemMultiInterfaceHardware::convert3x3To6x6Covariance(const blue::dynamics::Covariance &linear_cov)
     {
@@ -1684,7 +1505,6 @@ namespace ros2_control_blue_reach_5
 
     ros2_control_blue_reach_5::BlueRovSystemMultiInterfaceHardware::~BlueRovSystemMultiInterfaceHardware()
     {
-        stopCameraStream();
         dvl_driver_.stop();
 
         if (executor_)
@@ -1714,7 +1534,6 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_cleanup(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
-        stopCameraStream();
         dvl_driver_.stop();
 
         if (executor_)

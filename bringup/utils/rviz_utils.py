@@ -22,7 +22,7 @@ class NoAliasDumper(yaml.SafeDumper):
     
 def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_prefixes,
                          robot_base_links, ix, rviz_config_path,
-                         new_rviz_config_path, task)->None:
+                         new_rviz_config_path, task, launch_camera=False)->None:
     # Load the RViz configuration file
     with open(rviz_config_path,'r') as file:
         rviz_config = yaml.load(file,yaml.SafeLoader)
@@ -53,9 +53,10 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
 
 
 
-    if use_vehicle_hardware:
+    if launch_camera:
         image_stream_display("video feed", "/alpha/image_raw",new_rviz_config, True)
 
+    if use_vehicle_hardware:
         # IMU visualization
         imu_display(
             name="Imu",
