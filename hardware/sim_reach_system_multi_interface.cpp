@@ -61,7 +61,7 @@ namespace ros2_control_blue_reach_5
             R_vec(1) = 0.005;
             R_list_[i] = casadi::DM::diag(R_vec);
 
-            P_diag_list_[i] = {double(P(0, 0)), double(P(1, 1)), double(P(2, 2))};
+            P_diag_list_[i] = {0.001, 0.001, 0.001};
         }
     }
 
