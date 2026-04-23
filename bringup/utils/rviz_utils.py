@@ -171,7 +171,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
 
 def rviz_robot_metrics_overlay_configure(robot_prefixes, rviz_config):
     displays = rviz_config.get('Visualization Manager', {}).get('Displays', [])
-    overlay_height = int(114 * (len(robot_prefixes) + 1))
+    overlay_height = int(143 * (len(robot_prefixes) + 1))
 
     for display in displays:
         if display.get('Name') != 'RobotMetricsOverlay':
