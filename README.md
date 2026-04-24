@@ -205,9 +205,9 @@ ros2 service call /robot_1_release_sim_manipulator std_srvs/srv/Trigger
 ros2 service call /robot_1_release_sim_vehicle std_srvs/srv/Trigger
 ```
 
-## Sim Dynamics
+## Manipulator Payload and Gravity
 
-The simulated manipulator exposes runtime dynamics state through `${prefix}_arm_IOs`:
+The simulated manipulator exposes runtime payload and gravity state through `${prefix}_arm_IOs`:
 
 - `payload.mass`
 - `payload.Ixx`
