@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(ros2_control_blue_reach_5 LANGUAGES CXX)
+project(ros2_control_blue_reach_5 LANGUAGES C CXX)
 
 # ROS Jazzy dependencies still rely on FindBoost in some exported CMake files.
 # Keep the legacy behavior enabled so CMake 3.30+ does not warn during configure.
@@ -39,10 +39,15 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
 
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
+
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "srv/SetPayload.srv"
+)
 
 # --- Begin GStreamer additions ---
 find_package(PkgConfig REQUIRED)
@@ -55,9 +60,11 @@ message(STATUS "GStreamer App include dirs: ${GSTREAMER_APP_INCLUDE_DIRS}")
 message(STATUS "GStreamer App libraries: ${GSTREAMER_APP_LIBRARIES}")
 # --- End GStreamer additions ---
 
+set(PROJECT_LIB ${PROJECT_NAME}_hardware)
+
 ## COMPILE
 add_library(
-  ros2_control_blue_reach_5
+  ${PROJECT_LIB}
   SHARED
   hardware/sim_reach_system_multi_interface.cpp
   hardware/reach_system_multi_Interface.cpp
@@ -74,21 +81,25 @@ add_library(
   hardware/dvldriver.cpp
 )
 
-target_link_libraries(ros2_control_blue_reach_5 PUBLIC casadi)
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+target_link_libraries(${PROJECT_LIB} PUBLIC "${cpp_typesupport_target}")
 
-target_compile_features(ros2_control_blue_reach_5 PUBLIC cxx_std_17)
-target_include_directories(ros2_control_blue_reach_5 PUBLIC
+target_link_libraries(${PROJECT_LIB} PUBLIC casadi)
+
+target_compile_features(${PROJECT_LIB} PUBLIC cxx_std_17)
+target_include_directories(${PROJECT_LIB} PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
   $<INSTALL_INTERFACE:include/ros2_control_blue_reach_5>
 )
 ament_target_dependencies(
-  ros2_control_blue_reach_5 PUBLIC
+  ${PROJECT_LIB} PUBLIC
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
+set_target_properties(${PROJECT_LIB} PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
 # Causes the visibility macros to use dllexport rather than dllimport,
 # which is appropriate when building the dll but not consuming it.
-target_compile_definitions(${PROJECT_NAME} PRIVATE "ROS2_CONTROL_BLUE_REACH_5_BUILDING_DLL")
+target_compile_definitions(${PROJECT_LIB} PRIVATE "ROS2_CONTROL_BLUE_REACH_5_BUILDING_DLL")
 
 add_executable(gstreamer_camera_node
   hardware/gstreamer_camera_node.cpp
@@ -138,7 +149,7 @@ install(
 # Install the Python package "bringup"  ← ADDED
 ament_python_install_package(bringup)
 
-install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT_LIB}
   EXPORT export_ros2_control_blue_reach_5
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
@@ -156,4 +167,5 @@ endif()
 ## EXPORTS
 ament_export_targets(export_ros2_control_blue_reach_5 HAS_LIBRARY_TARGET)
 ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
+ament_export_dependencies(rosidl_default_runtime)
 ament_package()
