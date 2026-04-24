@@ -34,7 +34,7 @@
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 #include "std_srvs/srv/trigger.hpp"
-#include "ros2_control_blue_reach_5/srv/set_payload.hpp"
+#include "ros2_control_blue_reach_5/srv/set_sim_dynamics.hpp"
 #include "ros2_control_blue_reach_5/visibility_control.h"
 
 #include "ros2_control_blue_reach_5/driver.hpp"
@@ -115,6 +115,7 @@ namespace ros2_control_blue_reach_5
         double payload_Ixx = 0;
         double payload_Iyy = 0;
         double payload_Izz = 0;
+        double gravity_ = 0;
 
         std::string system_name;
 
@@ -139,7 +140,7 @@ namespace ros2_control_blue_reach_5
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>> realtime_frame_transform_publisher_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
-        rclcpp::Service<ros2_control_blue_reach_5::srv::SetPayload>::SharedPtr payload_service_;
+        rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
 
         double delta_seconds{0.0};
         double time_seconds{0.0};

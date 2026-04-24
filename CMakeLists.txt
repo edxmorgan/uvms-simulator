@@ -46,7 +46,7 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
 endforeach()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "srv/SetPayload.srv"
+  "srv/SetSimDynamics.srv"
 )
 
 # --- Begin GStreamer additions ---

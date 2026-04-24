@@ -206,28 +206,30 @@ ros2 service call /robot_1_release_sim_manipulator std_srvs/srv/Trigger
 ros2 service call /robot_1_release_sim_vehicle std_srvs/srv/Trigger
 ```
 
-## Sim Payload
+## Sim Dynamics
 
-The simulated manipulator exposes runtime payload state through `${prefix}_arm_IOs`:
+The simulated manipulator exposes runtime dynamics state through `${prefix}_arm_IOs`:
 
 - `payload.mass`
 - `payload.Ixx`
 - `payload.Iyy`
 - `payload.Izz`
 
-Update the simulated payload online with the per-robot service:
+Update the simulated manipulator dynamics online with the per-robot service:
 
 ```bash
-ros2 service call /robot_1_set_sim_payload ros2_control_blue_reach_5/srv/SetPayload \
-  "{mass: 0.15, ixx: 0.0, iyy: 0.0, izz: 0.0}"
+ros2 service call /robot_1_set_sim_dynamics ros2_control_blue_reach_5/srv/SetSimDynamics \
+  "{gravity: 9.81, mass: 0.15, ixx: 0.0, iyy: 0.0, izz: 0.0}"
 ```
 
 Notes:
 
 - This service is available for the simulated manipulator hardware interface.
-- `payload.mass` is used by the current sim manipulator dynamics path.
+- The service updates gravity and payload properties together so pick/place state and environment settings can be changed online from one endpoint.
+- `gravity` is used directly by the current sim manipulator dynamics path.
+- `payload.mass` is used directly by the current sim manipulator dynamics path.
 - `payload.Ixx`, `payload.Iyy`, and `payload.Izz` are exported as live state and can be updated online, but they are not yet consumed by the current dynamics model.
-- Resetting the simulated manipulator clears the payload back to zero.
+- Resetting the simulated manipulator clears both gravity and payload values back to zero.
 
 ## Notes
 
