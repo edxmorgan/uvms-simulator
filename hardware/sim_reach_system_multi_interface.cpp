@@ -135,6 +135,7 @@ namespace ros2_control_blue_reach_5
         }
         reset_service_.reset();
         release_service_.reset();
+        payload_service_.reset();
         executor_.reset();
         node_frames_interface_.reset();
     }
@@ -170,6 +171,10 @@ namespace ros2_control_blue_reach_5
         
 
         robot_prefix = get_hardware_info().hardware_parameters.at("prefix");
+        payload_mass = 0.0;
+        payload_Ixx = 0.0;
+        payload_Iyy = 0.0;
+        payload_Izz = 0.0;
 
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "robot_prefix : %s ", robot_prefix.c_str());
@@ -320,6 +325,33 @@ namespace ros2_control_blue_reach_5
                     robot_prefix.c_str());
                 response->success = true;
                 response->message = "released simulated manipulator commands";
+            });
+
+        payload_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::SetPayload>(
+            "/" + robot_prefix + "set_sim_payload",
+            [this](
+                const std::shared_ptr<ros2_control_blue_reach_5::srv::SetPayload::Request> request,
+                std::shared_ptr<ros2_control_blue_reach_5::srv::SetPayload::Response> response)
+            {
+                if (request->mass < 0.0 || request->ixx < 0.0 || request->iyy < 0.0 || request->izz < 0.0)
+                {
+                    response->success = false;
+                    response->message = "payload values must be non-negative";
+                    return;
+                }
+
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                payload_mass = request->mass;
+                payload_Ixx = request->ixx;
+                payload_Iyy = request->iyy;
+                payload_Izz = request->izz;
+
+                RCLCPP_INFO(
+                    rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                    "[%s] updated sim payload mass=%.3f ixx=%.6f iyy=%.6f izz=%.6f",
+                    robot_prefix.c_str(), payload_mass, payload_Ixx, payload_Iyy, payload_Izz);
+                response->success = true;
+                response->message = "updated simulated payload";
             });
 
         RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
@@ -596,7 +628,6 @@ namespace ros2_control_blue_reach_5
         }
 
         double gravity = 0.0; // 9.81 m/s^2
-        double payload_mass = 0.0;
 
         std::vector<DM> rigid_p = {
             1.94000000e-01, 4.29000000e-01, 1.14999999e-01, 3.32999998e-01,
@@ -614,7 +645,7 @@ namespace ros2_control_blue_reach_5
             -0.00000000e+00, -0.00000000e+00, -0.00000000e+00, -0.00000000e+00,
             0, 0, 0, 0,
             0, 0, gravity,                 // gravity
-            0, 0, 0, payload_mass,                    // payload center of mass wrt eff , payload mass
+            0, 0, 0, payload_mass,         // payload center of mass wrt eff , payload mass
             0.19, 0, -0.12, 3.14159, 0, 0, // base to vehicle transform
             0, 0, 0, 0, 0, 0,               // to world transform])
             0.00, 0.00, 0.04, 0.00, 0.00, 0.00

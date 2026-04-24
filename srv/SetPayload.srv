@@ -1,0 +1,7 @@
+float64 mass
+float64 ixx
+float64 iyy
+float64 izz
+---
+bool success
+string message
