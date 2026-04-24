@@ -18,7 +18,8 @@ Exported package name: `ros2_control_blue_reach_5`
 
 - Ubuntu with ROS 2 Jazzy
 - `colcon`, `rosdep`, `vcs`
-- CasADi available at runtime
+- CasADi built from source using the upstream instructions:
+  <https://github.com/casadi/casadi/wiki/SourceBuild>
 
 Core dependencies:
 
@@ -47,7 +48,7 @@ sudo apt install git-lfs \
     libgstreamer-plugins-base1.0-dev
 ```
 
-If CasADi is outside the default linker path:
+After installing CasADi, make sure its shared libraries are on the runtime linker path. If CasADi is outside the default linker path:
 
 ```bash
 export LD_LIBRARY_PATH=/path/to/casadi/build/lib:$LD_LIBRARY_PATH
@@ -113,8 +114,6 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
 ```
 
 ## Camera
-
-The camera is an independent GStreamer node. It is not owned by the vehicle hardware interface.
 
 Camera launch arguments:
 
