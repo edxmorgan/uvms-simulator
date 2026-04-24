@@ -206,6 +206,29 @@ ros2 service call /robot_1_release_sim_manipulator std_srvs/srv/Trigger
 ros2 service call /robot_1_release_sim_vehicle std_srvs/srv/Trigger
 ```
 
+## Sim Payload
+
+The simulated manipulator exposes runtime payload state through `${prefix}_arm_IOs`:
+
+- `payload.mass`
+- `payload.Ixx`
+- `payload.Iyy`
+- `payload.Izz`
+
+Update the simulated payload online with the per-robot service:
+
+```bash
+ros2 service call /robot_1_set_sim_payload ros2_control_blue_reach_5/srv/SetPayload \
+  "{mass: 0.15, ixx: 0.0, iyy: 0.0, izz: 0.0}"
+```
+
+Notes:
+
+- This service is available for the simulated manipulator hardware interface.
+- `payload.mass` is used by the current sim manipulator dynamics path.
+- `payload.Ixx`, `payload.Iyy`, and `payload.Izz` are exported as live state and can be updated online, but they are not yet consumed by the current dynamics model.
+- Resetting the simulated manipulator clears the payload back to zero.
+
 ## Notes
 
 - `interactive`, `manual`, and several operator-facing workflows depend on the companion package `uvms_simlab`.
