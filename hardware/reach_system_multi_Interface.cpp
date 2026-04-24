@@ -124,12 +124,12 @@ namespace ros2_control_blue_reach_5
 
     for (const hardware_interface::ComponentInfo &gpio : get_hardware_info().gpios)
     {
-      // ReachSystemMultiInterfaceHardware has exactly 6 gpio state interfaces
-      if (gpio.state_interfaces.size() != 6)
+      // ReachSystemMultiInterfaceHardware has exactly 7 gpio state interfaces
+      if (gpio.state_interfaces.size() != 7)
       {
         RCLCPP_FATAL(
             rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
-            "GPIO '%s'has %zu state interfaces. 6 expected.", gpio.name.c_str(),
+            "GPIO '%s'has %zu state interfaces. 7 expected.", gpio.name.c_str(),
             gpio.state_interfaces.size());
         return hardware_interface::CallbackReturn::ERROR;
       }
@@ -350,9 +350,11 @@ namespace ros2_control_blue_reach_5
     state_interfaces.emplace_back(hardware_interface::StateInterface(
         get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[3].name, &payload_Izz));
     state_interfaces.emplace_back(hardware_interface::StateInterface(
-        get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[4].name, &control_power_));
+        get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[4].name, &gravity_));
     state_interfaces.emplace_back(hardware_interface::StateInterface(
-        get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[5].name, &control_energy_));
+        get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[5].name, &control_power_));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+        get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[6].name, &control_energy_));
     return state_interfaces;
   }
 

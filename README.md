@@ -209,6 +209,7 @@ ros2 service call /robot_1_release_sim_vehicle std_srvs/srv/Trigger
 
 The simulated manipulator exposes runtime payload and gravity state through `${prefix}_arm_IOs`:
 
+- `gravity`
 - `payload.mass`
 - `payload.Ixx`
 - `payload.Iyy`
@@ -227,6 +228,7 @@ Notes:
 - The service updates gravity and payload properties together from one endpoint.
 - `gravity` is used directly by the current sim manipulator dynamics path.
 - `payload.mass` is used directly by the current sim manipulator dynamics path.
+- `gravity` is also exported through `${prefix}_arm_IOs` for downstream consumers such as `uvms-simlab`.
 - `payload.Ixx`, `payload.Iyy`, and `payload.Izz` are exported as live state and can be updated online, but they are not yet consumed by the current dynamics model.
 - Resetting the simulated manipulator clears both gravity and payload values back to zero.
 

@@ -141,6 +141,7 @@ namespace ros2_control_blue_reach_5
     double payload_Ixx = 0;
     double payload_Iyy = 0;
     double payload_Izz = 0;
+    double gravity_ = 0;
 
     std::string system_name;
 
