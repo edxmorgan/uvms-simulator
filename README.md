@@ -224,7 +224,7 @@ ros2 service call /robot_1_set_sim_dynamics ros2_control_blue_reach_5/srv/SetSim
 Notes:
 
 - This service is available for the simulated manipulator hardware interface.
-- The service updates gravity and payload properties together so pick/place state and environment settings can be changed online from one endpoint.
+- The service updates gravity and payload properties together from one endpoint.
 - `gravity` is used directly by the current sim manipulator dynamics path.
 - `payload.mass` is used directly by the current sim manipulator dynamics path.
 - `payload.Ixx`, `payload.Iyy`, and `payload.Izz` are exported as live state and can be updated online, but they are not yet consumed by the current dynamics model.
