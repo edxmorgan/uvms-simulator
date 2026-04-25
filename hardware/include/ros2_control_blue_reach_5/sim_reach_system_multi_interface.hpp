@@ -34,6 +34,7 @@
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 #include "std_srvs/srv/trigger.hpp"
+#include "ros2_control_blue_reach_5/srv/reset_sim_uvms.hpp"
 #include "ros2_control_blue_reach_5/srv/set_sim_dynamics.hpp"
 #include "ros2_control_blue_reach_5/visibility_control.h"
 
@@ -108,6 +109,8 @@ namespace ros2_control_blue_reach_5
 
     private:
         void reset_joint_simulation_state();
+        void reset_joint_simulation_state(
+            const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request);
         void reset_joint_estimators();
         void stop_ros_interfaces() noexcept;
 
@@ -138,7 +141,7 @@ namespace ros2_control_blue_reach_5
 
         rclcpp::Publisher<tf>::SharedPtr frame_transform_publisher_;
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>> realtime_frame_transform_publisher_;
-        rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
+        rclcpp::Service<ros2_control_blue_reach_5::srv::ResetSimUvms>::SharedPtr reset_service_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
 

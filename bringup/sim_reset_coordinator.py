@@ -6,6 +6,7 @@ import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
+from ros2_control_blue_reach_5.srv import ResetSimUvms
 from std_srvs.srv import Trigger
 
 
@@ -24,10 +25,10 @@ class SimResetCoordinator(Node):
 
         for prefix in self._robot_prefixes:
             self._reset_vehicle_clients[prefix] = self.create_client(
-                Trigger, f"/{prefix}reset_sim_vehicle", callback_group=self._callback_group
+                ResetSimUvms, f"/{prefix}reset_sim_vehicle", callback_group=self._callback_group
             )
             self._reset_manipulator_clients[prefix] = self.create_client(
-                Trigger, f"/{prefix}reset_sim_manipulator", callback_group=self._callback_group
+                ResetSimUvms, f"/{prefix}reset_sim_manipulator", callback_group=self._callback_group
             )
             self._release_vehicle_clients[prefix] = self.create_client(
                 Trigger, f"/{prefix}release_sim_vehicle", callback_group=self._callback_group
@@ -38,9 +39,9 @@ class SimResetCoordinator(Node):
 
             self._reset_services.append(
                 self.create_service(
-                    Trigger,
+                    ResetSimUvms,
                     f"/{prefix}reset_sim_uvms",
-                    lambda request, response, robot_prefix=prefix: self._handle_reset(robot_prefix, response),
+                    lambda request, response, robot_prefix=prefix: self._handle_reset_state(robot_prefix, request, response),
                     callback_group=self._callback_group,
                 )
             )
@@ -60,6 +61,31 @@ class SimResetCoordinator(Node):
         if client.wait_for_service(timeout_sec=timeout_sec):
             return True, ""
         return False, f"timeout waiting for {service_name}"
+
+    def _call_reset_state(self, client, service_name: str, request: ResetSimUvms.Request, timeout_sec: float = 5.0) -> tuple[bool, str]:
+        ok, message = self._wait_for_service(client, service_name, timeout_sec=timeout_sec)
+        if not ok:
+            return False, message
+
+        done_event = threading.Event()
+        future = client.call_async(request)
+
+        def _done_callback(_future):
+            done_event.set()
+
+        future.add_done_callback(_done_callback)
+        if not done_event.wait(timeout=timeout_sec):
+            return False, f"timeout calling {service_name}"
+
+        if future.cancelled():
+            return False, f"call cancelled for {service_name}"
+        if future.exception() is not None:
+            return False, f"{service_name} failed: {future.exception()}"
+
+        result = future.result()
+        if result is None:
+            return False, f"{service_name} returned no response"
+        return bool(result.success), result.message
 
     def _call_trigger(self, client, service_name: str, timeout_sec: float = 5.0) -> tuple[bool, str]:
         ok, message = self._wait_for_service(client, service_name, timeout_sec=timeout_sec)
@@ -86,26 +112,46 @@ class SimResetCoordinator(Node):
             return False, f"{service_name} returned no response"
         return bool(result.success), result.message
 
-    def _handle_reset(self, prefix: str, response: Trigger.Response) -> Trigger.Response:
-        self.get_logger().info(f"[{prefix}] combined reset requested")
-        steps = [
-            (self._reset_manipulator_clients[prefix], f"/{prefix}reset_sim_manipulator"),
-            (self._reset_vehicle_clients[prefix], f"/{prefix}reset_sim_vehicle"),
-        ]
-
+    def _handle_reset_state(
+        self,
+        prefix: str,
+        request: ResetSimUvms.Request,
+        response: ResetSimUvms.Response,
+    ) -> ResetSimUvms.Response:
+        self.get_logger().info(f"[{prefix}] combined state reset requested")
         messages = []
-        for client, service_name in steps:
-            ok, message = self._call_trigger(client, service_name)
+
+        if request.reset_manipulator:
+            service_name = f"/{prefix}reset_sim_manipulator"
+            ok, message = self._call_reset_state(
+                self._reset_manipulator_clients[prefix],
+                service_name,
+                request,
+            )
             messages.append(f"{service_name}: {message or ('ok' if ok else 'failed')}")
             if not ok:
                 response.success = False
                 response.message = "; ".join(messages)
-                self.get_logger().error(f"[{prefix}] combined reset failed: {response.message}")
+                self.get_logger().error(f"[{prefix}] combined state reset failed: {response.message}")
+                return response
+
+        if request.reset_vehicle:
+            service_name = f"/{prefix}reset_sim_vehicle"
+            ok, message = self._call_reset_state(
+                self._reset_vehicle_clients[prefix],
+                service_name,
+                request,
+            )
+            messages.append(f"{service_name}: {message or ('ok' if ok else 'failed')}")
+            if not ok:
+                response.success = False
+                response.message = "; ".join(messages)
+                self.get_logger().error(f"[{prefix}] combined state reset failed: {response.message}")
                 return response
 
         response.success = True
-        response.message = "; ".join(messages)
-        self.get_logger().info(f"[{prefix}] combined reset completed")
+        response.message = "; ".join(messages) if messages else "no reset targets requested"
+        self.get_logger().info(f"[{prefix}] combined state reset completed")
         return response
 
     def _handle_release(self, prefix: str, response: Trigger.Response) -> Trigger.Response:

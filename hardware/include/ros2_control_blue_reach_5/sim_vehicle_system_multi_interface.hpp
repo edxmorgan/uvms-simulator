@@ -35,6 +35,7 @@
 #include "rclcpp_lifecycle/state.hpp"
 #include "std_srvs/srv/trigger.hpp"
 #include "ros2_control_blue_reach_5/visibility_control.h"
+#include "ros2_control_blue_reach_5/srv/reset_sim_uvms.hpp"
 
 #include "ros2_control_blue_reach_5/state.hpp"
 #include "ros2_control_blue_reach_5/custom_hardware_interface_type_values.hpp"
@@ -113,6 +114,8 @@ namespace ros2_control_blue_reach_5
 
     private:
         void reset_vehicle_simulation_state();
+        void reset_vehicle_simulation_state(
+            const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request);
         void reset_vehicle_estimators();
         void stop_ros_interfaces() noexcept;
 
@@ -143,7 +146,7 @@ namespace ros2_control_blue_reach_5
         std::thread spin_thread_;
         std::shared_ptr<rclcpp::Node> node_topics_interface_;
         std::mutex simulation_state_mutex_;
-        rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_service_;
+        rclcpp::Service<ros2_control_blue_reach_5::srv::ResetSimUvms>::SharedPtr reset_service_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
         bool commands_held_{false};
 

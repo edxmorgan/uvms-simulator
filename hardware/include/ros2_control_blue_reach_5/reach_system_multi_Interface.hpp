@@ -45,6 +45,7 @@
 #include "ros2_control_blue_reach_5/state.hpp"
 #include "ros2_control_blue_reach_5/utils.hpp"
 #include "ros2_control_blue_reach_5/custom_hardware_interface_type_values.hpp"
+#include "ros2_control_blue_reach_5/srv/set_sim_dynamics.hpp"
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include <casadi/casadi.hpp>
 
@@ -166,6 +167,7 @@ namespace ros2_control_blue_reach_5
 
     rclcpp::Publisher<tf>::SharedPtr frame_transform_publisher_;
     std::shared_ptr<realtime_tools::RealtimePublisher<tf>> realtime_frame_transform_publisher_;
+    rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
 
     // cache FK outputs computed in read
     std::vector<casadi::DM> T_i_;

@@ -1,0 +1,24 @@
+bool reset_manipulator
+bool reset_vehicle
+bool hold_commands
+
+bool use_manipulator_state
+float64[5] manipulator_position
+float64[5] manipulator_velocity
+
+bool use_vehicle_state
+# Vehicle pose is [x, y, z, roll, pitch, yaw].
+float64[6] vehicle_pose
+# Vehicle twist is [u, v, w, p, q, r].
+float64[6] vehicle_twist
+# Vehicle wrench is [Fx, Fy, Fz, Tx, Ty, Tz].
+float64[6] vehicle_wrench
+
+float64 gravity
+float64 payload_mass
+float64 payload_ixx
+float64 payload_iyy
+float64 payload_izz
+---
+bool success
+string message

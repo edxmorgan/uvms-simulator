@@ -16,6 +16,7 @@
 #include "ros2_control_blue_reach_5/sim_reach_system_multi_interface.hpp"
 
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -50,16 +51,16 @@ namespace ros2_control_blue_reach_5
             casadi::DM P = casadi::DM::eye(3) * 0.001;
             P_est_list_[i] = P;
 
-            casadi::DM Q_vec = casadi::DM::zeros(3, 1);
-            Q_vec(0) = 0.001;
-            Q_vec(1) = 0.001;
-            Q_vec(2) = 0.001;
-            Q_list_[i] = casadi::DM::diag(Q_vec);
+            casadi::DM Q = casadi::DM::zeros(3, 3);
+            Q(0, 0) = 0.001;
+            Q(1, 1) = 0.001;
+            Q(2, 2) = 0.001;
+            Q_list_[i] = Q;
 
-            casadi::DM R_vec = casadi::DM::zeros(2, 1);
-            R_vec(0) = 0.01;
-            R_vec(1) = 0.005;
-            R_list_[i] = casadi::DM::diag(R_vec);
+            casadi::DM R = casadi::DM::zeros(2, 2);
+            R(0, 0) = 0.01;
+            R(1, 1) = 0.005;
+            R_list_[i] = R;
 
             P_diag_list_[i] = {0.001, 0.001, 0.001};
         }
@@ -122,6 +123,60 @@ namespace ros2_control_blue_reach_5
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
             "[%s] reset simulated manipulator state for %zu joints; commands held until release",
             robot_prefix.c_str(), joint_count);
+    }
+
+    void SimReachSystemMultiInterfaceHardware::reset_joint_simulation_state(
+        const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request)
+    {
+        reset_joint_simulation_state();
+
+        if (request.use_manipulator_state)
+        {
+            const std::size_t joint_count = std::min<std::size_t>(hw_joint_struct_.size(), 5);
+            for (std::size_t i = 0; i < joint_count; ++i)
+            {
+                auto &joint = hw_joint_struct_[i];
+                const double position = request.manipulator_position[i];
+                const double velocity = request.manipulator_velocity[i];
+
+                joint.current_state_.position = position;
+                joint.current_state_.filtered_position = position;
+                joint.current_state_.predicted_position = position;
+                joint.current_state_.adaptive_predicted_position = position;
+                joint.current_state_.velocity = velocity;
+                joint.current_state_.filtered_velocity = velocity;
+                joint.current_state_.predicted_velocity = velocity;
+                joint.current_state_.adaptive_predicted_velocity = velocity;
+
+                joint.async_state_.position = position;
+                joint.async_state_.filtered_position = position;
+                joint.async_state_.velocity = velocity;
+                joint.async_state_.filtered_velocity = velocity;
+
+                joint.command_state_.position = position;
+                joint.command_state_.filtered_position = position;
+                joint.command_state_.velocity = 0.0;
+                joint.command_state_.acceleration = 0.0;
+                joint.command_state_.current = 0.0;
+                joint.command_state_.effort = 0.0;
+                joint.command_state_.computed_effort = 0.0;
+            }
+        }
+
+        gravity_ = request.gravity;
+        payload_mass = request.payload_mass;
+        payload_Ixx = request.payload_ixx;
+        payload_Iyy = request.payload_iyy;
+        payload_Izz = request.payload_izz;
+        commands_held_ = request.hold_commands;
+
+        RCLCPP_INFO(
+            rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+            "[%s] reset simulated manipulator with requested state; hold=%s gravity=%.6f mass=%.3f",
+            robot_prefix.c_str(),
+            commands_held_ ? "true" : "false",
+            gravity_,
+            payload_mass);
     }
 
     void SimReachSystemMultiInterfaceHardware::stop_ros_interfaces() noexcept
@@ -301,17 +356,30 @@ namespace ros2_control_blue_reach_5
         }
         reset_joint_estimators();
 
-        reset_service_ = node_frames_interface_->create_service<std_srvs::srv::Trigger>(
-            "/" + robot_prefix + "reset_sim_manipulator",
+        auto reset_state_callback =
             [this](
-                const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
-                std::shared_ptr<std_srvs::srv::Trigger::Response> response)
+                const std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> request,
+                std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Response> response)
+        {
+            if (request->payload_mass < 0.0 ||
+                request->payload_ixx < 0.0 ||
+                request->payload_iyy < 0.0 ||
+                request->payload_izz < 0.0)
             {
-                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
-                reset_joint_simulation_state();
-                response->success = true;
-                response->message = "reset simulated manipulator state and held commands";
-            });
+                response->success = false;
+                response->message = "payload values must be non-negative";
+                return;
+            }
+
+            std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+            reset_joint_simulation_state(*request);
+            response->success = true;
+            response->message = "reset simulated manipulator with requested state";
+        };
+
+        reset_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::ResetSimUvms>(
+            "/" + robot_prefix + "reset_sim_manipulator",
+            reset_state_callback);
 
         release_service_ = node_frames_interface_->create_service<std_srvs::srv::Trigger>(
             "/" + robot_prefix + "release_sim_manipulator",

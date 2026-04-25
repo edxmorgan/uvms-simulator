@@ -200,6 +200,33 @@ namespace ros2_control_blue_reach_5
 
       auto &msg = realtime_frame_transform_publisher_->msg_;
       msg.transforms.resize(1); // will resize per publish
+
+      dynamics_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::SetSimDynamics>(
+          "/" + robot_prefix + "set_sim_dynamics",
+          [this](
+              const std::shared_ptr<ros2_control_blue_reach_5::srv::SetSimDynamics::Request> request,
+              std::shared_ptr<ros2_control_blue_reach_5::srv::SetSimDynamics::Response> response)
+          {
+            if (request->mass < 0.0 || request->ixx < 0.0 || request->iyy < 0.0 || request->izz < 0.0)
+            {
+              response->success = false;
+              response->message = "payload values must be non-negative";
+              return;
+            }
+
+            payload_mass = request->mass;
+            payload_Ixx = request->ixx;
+            payload_Iyy = request->iyy;
+            payload_Izz = request->izz;
+            gravity_ = request->gravity;
+
+            RCLCPP_INFO(
+                rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+                "[%s] updated hardware dynamics gravity=%.6f mass=%.3f ixx=%.6f iyy=%.6f izz=%.6f",
+                robot_prefix.c_str(), gravity_, payload_mass, payload_Ixx, payload_Iyy, payload_Izz);
+            response->success = true;
+            response->message = "updated hardware dynamics";
+          });
     }
     catch (const std::exception &e)
     {
@@ -470,11 +497,6 @@ namespace ros2_control_blue_reach_5
       control_power_ += std::abs(hw_joint_struct_[i].current_state_.effort * hw_joint_struct_[i].current_state_.velocity);
       hw_joint_struct_[i].current_state_.sim_time = time_seconds;
       hw_joint_struct_[i].current_state_.sim_period = delta_seconds;
-
-      payload_mass = 0.0;
-      payload_Ixx = 0.0;
-      payload_Iyy = 0.0;
-      payload_Izz = 0.0;
     };
 
     control_energy_ += control_power_ * delta_seconds;

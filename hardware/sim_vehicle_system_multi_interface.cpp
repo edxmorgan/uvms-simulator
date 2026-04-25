@@ -90,6 +90,61 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.hw_thrust_structs_.size());
     }
 
+    void SimVehicleSystemMultiInterfaceHardware::reset_vehicle_simulation_state(
+        const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request)
+    {
+        reset_vehicle_simulation_state();
+
+        if (request.use_vehicle_state)
+        {
+            auto requested_state = hw_vehicle_struct.default_state_;
+            requested_state.position_x = request.vehicle_pose[0];
+            requested_state.position_y = request.vehicle_pose[1];
+            requested_state.position_z = request.vehicle_pose[2];
+            requested_state.setEuler(
+                request.vehicle_pose[3],
+                request.vehicle_pose[4],
+                request.vehicle_pose[5]);
+            requested_state.u = request.vehicle_twist[0];
+            requested_state.v = request.vehicle_twist[1];
+            requested_state.w = request.vehicle_twist[2];
+            requested_state.p = request.vehicle_twist[3];
+            requested_state.q = request.vehicle_twist[4];
+            requested_state.r = request.vehicle_twist[5];
+            requested_state.Fx = request.vehicle_wrench[0];
+            requested_state.Fy = request.vehicle_wrench[1];
+            requested_state.Fz = request.vehicle_wrench[2];
+            requested_state.Tx = request.vehicle_wrench[3];
+            requested_state.Ty = request.vehicle_wrench[4];
+            requested_state.Tz = request.vehicle_wrench[5];
+
+            hw_vehicle_struct.current_state_ = requested_state;
+            hw_vehicle_struct.async_state_ = requested_state;
+            hw_vehicle_struct.estimate_state_ = requested_state;
+            hw_vehicle_struct.command_state_ = requested_state;
+            hw_vehicle_struct.command_state_.Fx = 0.0;
+            hw_vehicle_struct.command_state_.Fy = 0.0;
+            hw_vehicle_struct.command_state_.Fz = 0.0;
+            hw_vehicle_struct.command_state_.Tx = 0.0;
+            hw_vehicle_struct.command_state_.Ty = 0.0;
+            hw_vehicle_struct.command_state_.Tz = 0.0;
+            hw_vehicle_struct.depth_from_pressure2 = requested_state.position_z;
+        }
+
+        commands_held_ = request.hold_commands;
+        RCLCPP_INFO(
+            rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+            "[%s] reset simulated vehicle with requested state; hold=%s pose=[%.3f, %.3f, %.3f, %.3f, %.3f, %.3f]",
+            hw_vehicle_struct.robot_prefix.c_str(),
+            commands_held_ ? "true" : "false",
+            hw_vehicle_struct.current_state_.position_x,
+            hw_vehicle_struct.current_state_.position_y,
+            hw_vehicle_struct.current_state_.position_z,
+            hw_vehicle_struct.current_state_.roll,
+            hw_vehicle_struct.current_state_.pitch,
+            hw_vehicle_struct.current_state_.yaw);
+    }
+
     void SimVehicleSystemMultiInterfaceHardware::stop_ros_interfaces() noexcept
     {
         if (executor_)
@@ -377,17 +432,20 @@ namespace ros2_control_blue_reach_5
         R_vector(6) = 0.005;                           // DVL vz noise variance
         R_ = casadi::DM::diag(R_vector);
 
-        reset_service_ = node_topics_interface_->create_service<std_srvs::srv::Trigger>(
-            "/" + hw_vehicle_struct.robot_prefix + "reset_sim_vehicle",
+        auto reset_state_callback =
             [this](
-                const std::shared_ptr<std_srvs::srv::Trigger::Request> /*request*/,
-                std::shared_ptr<std_srvs::srv::Trigger::Response> response)
-            {
-                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
-                reset_vehicle_simulation_state();
-                response->success = true;
-                response->message = "reset simulated vehicle state and held commands";
-            });
+                const std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> request,
+                std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Response> response)
+        {
+            std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+            reset_vehicle_simulation_state(*request);
+            response->success = true;
+            response->message = "reset simulated vehicle to requested state";
+        };
+
+        reset_service_ = node_topics_interface_->create_service<ros2_control_blue_reach_5::srv::ResetSimUvms>(
+            "/" + hw_vehicle_struct.robot_prefix + "reset_sim_vehicle",
+            reset_state_callback);
 
         release_service_ = node_topics_interface_->create_service<std_srvs::srv::Trigger>(
             "/" + hw_vehicle_struct.robot_prefix + "release_sim_vehicle",
