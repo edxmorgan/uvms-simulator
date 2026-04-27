@@ -1,12 +1,27 @@
 Command Replay and Experiments
 ==============================
 
-Command replay is for repeatable open-loop command playback from CSV. It is
+Command replay runs repeatable open-loop commands from a CSV profile. It is
 used for payload identification probes, vehicle force tests, and whole-body
-experiments.
+experiments where the exact command sequence matters.
 
-Profile Layout
+Basic Workflow
 --------------
+
+In RViz:
+
+- Select the active robot from ``Robots``.
+- Select ``CmdReplay`` from the robot controller menu.
+- Select a replay profile from ``Cmd Replay > Profiles``.
+- Use ``Cmd Replay > Reset Robot + Playback`` to reset or settle the robot,
+  then start playback.
+- Use ``Cmd Replay > Stop`` to stop playback and publish zero replay commands.
+
+Playback does not start from only selecting ``CmdReplay``. A replay profile
+must be selected explicitly.
+
+Profile Files
+-------------
 
 Profiles live in:
 
@@ -20,32 +35,18 @@ Each profile contains:
 - ``replay.json``: metadata for CSV columns, repeat behavior, reset state,
   dynamics, control policy, and optional recording.
 
-Creating a Profile
-------------------
-
-Create:
-
-.. code-block:: text
-
-   uvms-simlab/resource/csv_playback/my_profile/commands.csv
-   uvms-simlab/resource/csv_playback/my_profile/replay.json
-
-Guidelines:
+Profile naming:
 
 - Use explicit names such as ``arm_payload_0p76kg`` or
   ``vehicle_fx_10n_20s``.
-- Include only command columns you need; missing columns become zero.
-- Set ``control_policy`` so the non-excited subsystem is held or zeroed
-  intentionally.
-- Set ``recording.enabled`` only when you want per-pass replay CSV logs.
-- For hardware, tune ``reset.hardware_settle`` tolerances and timeout for the
-  real system rather than using simulator reset assumptions.
+- Avoid generic names such as ``test`` or ``profile1`` because profiles appear
+  directly in the RViz menu.
 
-CSV Timing
-----------
+Command CSV
+-----------
 
-``time_sec`` is the playback timeline. A sample value is held until the next
-sample timestamp. For a constant 20 second command, two rows are enough:
+``time_sec`` is the replay timeline. Each row is held until the next timestamp.
+For a constant 20 second vehicle ``Fx`` command, two rows are enough:
 
 .. code-block:: text
 
@@ -53,13 +54,22 @@ sample timestamp. For a constant 20 second command, two rows are enough:
    0.0,10.0
    20.0,10.0
 
-Missing command columns are treated as zero. This lets a manipulator-only CSV
-omit vehicle columns, and a vehicle-only CSV omit manipulator columns.
+Supported command columns are configured by ``replay.json``. The common column
+names are:
+
+- Vehicle wrench: ``vehicle_fx``, ``vehicle_fy``, ``vehicle_fz``,
+  ``vehicle_tx``, ``vehicle_ty``, ``vehicle_tz``.
+- Manipulator torque: ``tau_axis_e``, ``tau_axis_d``, ``tau_axis_c``,
+  ``tau_axis_b``, ``tau_axis_a``.
+
+Missing columns are treated as zero. This lets a manipulator-only CSV omit
+vehicle columns, and a vehicle-only CSV omit manipulator columns.
 
 Replay Metadata
 ---------------
 
-Typical profile structure:
+``replay.json`` connects the CSV to the replay controller and defines reset,
+repeat, hold, and recording behavior. A typical profile looks like:
 
 .. code-block:: json
 
@@ -80,6 +90,14 @@ Typical profile structure:
        "stabilizing_controller": "PID"
      },
      "reset": {
+       "hardware_settle": {
+         "controller": "PID",
+         "position_tolerance": 0.18,
+         "velocity_tolerance": 0.03,
+         "vehicle_position_tolerance": 0.08,
+         "vehicle_velocity_tolerance": 0.05,
+         "timeout_sec": 30.0
+       },
        "reset_manipulator": true,
        "reset_vehicle": true,
        "require_release_after_reset": false,
@@ -108,8 +126,7 @@ Typical profile structure:
 Control Policy
 --------------
 
-``control_policy`` defines what happens to subsystems that are not being
-replayed:
+``control_policy`` defines what each subsystem does during replay:
 
 - ``"replay"``: use commands from the CSV.
 - ``"hold"``: use the stabilizing controller to hold the initial state.
@@ -124,8 +141,23 @@ Examples:
 - Whole-body replay:
   ``vehicle = "replay"``, ``manipulator = "replay"``.
 
-Repeats
--------
+Reset Behavior
+--------------
+
+Simulation and hardware reset are intentionally different:
+
+- In simulation, replay calls reset services and can set manipulator and
+  vehicle state directly.
+- On hardware, replay cannot teleport state. The ``reset.hardware_settle``
+  controller moves the system toward the configured initial condition before
+  playback starts.
+
+The ``reset.dynamics`` section sets gravity and payload values used by the
+profile. For payload identification profiles, keep this metadata consistent
+with the physical payload being tested.
+
+Repeats and Looping
+-------------------
 
 For finite repeated playback, the sequence is:
 
@@ -136,21 +168,10 @@ For finite repeated playback, the sequence is:
 ``loop`` is for continuous replay. For identification experiments, prefer
 finite ``repeats`` so each pass begins from the configured initial state.
 
-Simulation Versus Hardware Reset
---------------------------------
-
-In simulation, replay can call reset services directly and set both manipulator
-and vehicle state.
-
-On hardware, replay cannot teleport state. Hardware profiles use
-``reset.hardware_settle``: a regular controller drives the robot toward the
-configured initial condition, then replay starts after tolerance checks or
-timeout.
-
 Recording
 ---------
 
-Replay session recording is controlled by each profile:
+Replay session recording is controlled per profile:
 
 .. code-block:: json
 
@@ -159,7 +180,7 @@ Replay session recording is controlled by each profile:
    }
 
 Recorded CSV rows include only the replay interval, not the hardware settle
-phase. Columns include:
+phase. Typical columns include:
 
 - Arm position: ``q_alpha_axis_e/d/c/b``.
 - Arm velocity: ``dq_alpha_axis_e/d/c/b``.
@@ -168,10 +189,13 @@ phase. Columns include:
 - Arm command: ``cmd_tau_axis_e/d/c/b/a``.
 - Vehicle pose, body velocity, body acceleration, wrench, and command wrench.
 
+Keep ``recording.enabled`` set to ``false`` unless the experiment needs a
+per-pass replay log.
+
 Plotting Replay Sessions
 ------------------------
 
-Use the standalone plotting helper in the replay-session tooling to inspect:
+Use the replay-session plotting helper to inspect:
 
 - ``q_alpha_axis_{e,d,c,b}``
 - ``dq_alpha_axis_{e,d,c,b}``
@@ -179,5 +203,5 @@ Use the standalone plotting helper in the replay-session tooling to inspect:
 - ``effort_alpha_axis_{e,d,c,b}``
 - ``cmd_tau_axis_*``
 
-This is the fastest way to verify whether command and measured effort are
-aligned for a replay session.
+This is the quickest way to check whether command, measured effort, position,
+velocity, and acceleration are aligned during a replay pass.

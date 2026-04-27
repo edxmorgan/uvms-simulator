@@ -1,7 +1,7 @@
 Installation and Build
 ======================
 
-This project is normally built as a ROS 2 workspace containing at least:
+Build the project as a ROS 2 workspace. A complete workspace normally contains:
 
 - ``uvms-simulator``: exported ROS package
   ``ros2_control_blue_reach_5``.
@@ -17,7 +17,7 @@ System Requirements
 - CasADi built from source and available at runtime.
 - Git LFS for large model/resource files.
 
-Core apt dependencies:
+Install core apt dependencies:
 
 .. code-block:: shell
 
@@ -71,7 +71,7 @@ Workspace Setup
 Python Dependencies
 -------------------
 
-SimLab uses Python packages for joystick control, planning utilities, FCL,
+Install Python packages used by SimLab for joystick control, planning, FCL,
 Ruckig, and optional perception:
 
 .. code-block:: shell
@@ -88,8 +88,8 @@ Optional RGB-to-pointcloud support:
 OMPL Python Bindings
 --------------------
 
-The planner server uses OMPL through Python bindings. One working route is the
-Kavraki Lab installer:
+The planner server uses OMPL through Python bindings. One working installation
+route is the Kavraki Lab installer:
 
 .. code-block:: shell
 
@@ -100,7 +100,7 @@ Kavraki Lab installer:
 Build
 -----
 
-Build the whole workspace:
+Build and source the whole workspace:
 
 .. code-block:: shell
 
@@ -152,10 +152,24 @@ The PDF is written to:
 
    doc/_build/latex/uvms_project_documentation.pdf
 
+GitHub Pages Deployment
+-----------------------
+
+The repository includes a GitHub Actions workflow for publishing the Sphinx
+site to GitHub Pages:
+
+.. code-block:: text
+
+   .github/workflows/docs-pages.yml
+
+On pushes to ``main`` or ``master``, the workflow builds ``doc/_build/html``
+and deploys it as the Pages artifact. Pull requests build the docs but do not
+deploy them.
+
 First Launch Check
 ------------------
 
-Simulated interactive UVMS:
+After the build succeeds, launch one simulated interactive UVMS:
 
 .. code-block:: shell
 
@@ -166,3 +180,4 @@ Simulated interactive UVMS:
        task:=interactive
 
 For hardware launch flows, see :doc:`hil_setup`.
+For first-use runtime steps, see :doc:`userdoc`.

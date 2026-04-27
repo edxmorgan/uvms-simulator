@@ -1,133 +1,90 @@
-:github_url: https://github.com/edxmorgan/uvms-simulator/blob/main/doc/userdoc.rst
+Tutorial
+========
 
-.. _ros2_control_RA5BHS_userdoc:
+This tutorial assumes the workspace has already been installed, built, and
+sourced as described in :doc:`installation`.
 
-***************************************************************************
-Underwater Vehicle & Manipulator Simulator (BlueROV2 Heavy + Reach Alpha 5)
-***************************************************************************
+Verify the Robot Description
+----------------------------
 
-The *Underwater Vehicle & Manipulator Simulator* includes an interface plugin that supports multiple state and command interfaces.
-Use it with the ``uvms-simlab`` package for interactive control, planning, and
-logging.
+Open the robot description in RViz:
 
-Tutorial Steps
---------------------------
+.. code-block:: shell
 
-1. **Verify the Simulator Descriptions**
+   ros2 launch ros2_control_blue_reach_5 view_robot.launch.py
 
-   To check that the simulator descriptions are working correctly, use the following launch command:
+This checks the xacro/URDF description and the RViz model display before
+starting the full runtime stack.
 
-   .. code-block:: shell
+Launch Interactive Simulation
+-----------------------------
 
-    ros2 launch ros2_control_blue_reach_5 view_robot.launch.py
+Start one fully simulated UVMS in the interactive task:
 
-   ..  .. note:: //
-   ..  It is normal to see the message ``Warning: Invalid frame ID "odom" passed to canTransform argument target_frame - frame does not exist``. This warning appears because the ``joint_state_publisher_gui`` node needs a moment to start. The ``joint_state_publisher_gui`` provides a GUI to generate a random configuration for the robot, which will be displayed in *RViz*.
+.. code-block:: shell
 
-2. **Start the main bringup**
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+       use_manipulator_hardware:=false \
+       use_vehicle_hardware:=false \
+       sim_robot_count:=1 \
+       task:=interactive
 
-   Open a terminal, source your ROS 2 workspace, and execute the launch file with:
+The launch starts ros2_control, simulated vehicle/manipulator hardware,
+controllers, SimLab interactive controls, planner nodes, and RViz.
 
-   .. code-block:: shell
+Common Launch Arguments
+-----------------------
 
-    ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py
+- ``use_manipulator_hardware:=false``: use the simulated manipulator.
+- ``use_vehicle_hardware:=false``: use the simulated vehicle.
+- ``sim_robot_count:=1``: spawn one simulated UVMS.
+- ``task:=interactive``: run RViz menus, planning, replay, and optional
+  joystick override.
+- ``task:=manual``: run PS4 direct-command teleop.
+- ``task:=direct_thrusters``: run keyboard direct-thruster control.
+- ``record_data:=true``: start the rosbag2 MCAP recorder.
+- ``gui:=false``: run without RViz.
 
-   Useful launch-file options:
+Use the ``interactive`` task for the normal simulator tutorial path. See
+:doc:`controls_and_menus` for the menu and joystick behavior of each task.
 
-   - ``use_manipulator_hardware:=false``: Use the simulated manipulator. Set to ``true`` for real Reach Alpha hardware.
+Inspect the Runtime
+-------------------
 
-   - ``use_vehicle_hardware:=false``: Use the simulated vehicle. Set to ``true`` for real BlueROV2 Heavy hardware.
+List active controllers:
 
-   - ``task:=interactive``: Task mode. Interactive, manual, and experiment
-     workflows use runtime nodes from ``uvms-simlab``.
+.. code-block:: shell
 
-   - ``sim_robot_count:=n``: Starts the simulator by spawning n number of underwater vehicle manipulator systems.
+   ros2 control list_controllers
 
-   - ``record_data:=true``: Start the rosbag2 MCAP recorder.
+List available hardware interfaces:
 
-   - ``gui:=false``: Run without RViz.
+.. code-block:: shell
 
-   example launch command with options 
+   ros2 control list_hardware_interfaces
 
-   .. code-block:: shell
+Inspect the central state stream:
 
-      ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py use_manipulator_hardware:=false use_vehicle_hardware:=false sim_robot_count:=1
+.. code-block:: shell
 
-   The launch file will load and start the robot hardware, controllers, and open *RViz*. You will see extensive output from the hardware implementation in the terminal, showing its internal states.
+   ros2 topic echo /dynamic_joint_states
 
-3. **Pick a task mode**
+The exact controller names depend on robot count, task, and hardware/simulation
+selection. See :doc:`services_and_interfaces` for the main runtime interfaces.
 
-   ``uvms-simlab`` is the runtime ROS 2 package in the same workspace that
-   provides the control nodes below.
+Record Data
+-----------
 
-   .. code-block:: shell
+Enable rosbag recording at launch:
 
-      ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=interactive
+.. code-block:: shell
 
-   Common task modes:
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+       use_manipulator_hardware:=false \
+       use_vehicle_hardware:=false \
+       sim_robot_count:=1 \
+       task:=interactive \
+       record_data:=true
 
-   - ``interactive``: RViz markers and planner execution.
-   - ``manual``: PS4 teleop with direct command input.
-   - ``joint``: Skeleton node for custom joint-space torque commands.
-   - ``direct_thrusters``: Direct PWM commands via keyboard.
-
-4. **Record rosbag2 MCAP data (optional)**
-
-   .. code-block:: shell
-
-      ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py record_data:=true
-
-   Bags are saved to ``uvms_bag_YYYYmmdd_HHMMSS`` in the working directory.
-
-5. **Verify Running Controllers**
-
-   To check which controllers are currently active, run:
-
-   .. code-block:: shell
-
-    ros2 control list_controllers
-
-   The output should look like:
-
-   .. code-block:: shell
-
-      manipulation_effort_controller_robot_1_   forward_command_controller/ForwardCommandController           active
-      vehicle_effort_controller_robot_1_        gpio_controllers/GpioCommandController                        active
-      vehicle_thrusters_pwm_controller_robot_1_ forward_command_controller/ForwardCommandController           inactive
-      joint_state_broadcaster                   joint_state_broadcaster/JointStateBroadcaster                 active
-      fts_broadcaster_1                         force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      manipulation_effort_controller_robot_2_   forward_command_controller/ForwardCommandController           active
-      gravity_broadcaster_robot_2__axis_e       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      vehicle_thrusters_pwm_controller_robot_2_ forward_command_controller/ForwardCommandController           inactive
-      gravity_broadcaster_robot_1__axis_e       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      gravity_broadcaster_robot_1__axis_d       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      gravity_broadcaster_robot_1__axis_c       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      gravity_broadcaster_robot_2__axis_c       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      gravity_broadcaster_robot_1__axis_b       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      gravity_broadcaster_robot_1__axis_a       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      vehicle_effort_controller_robot_2_        gpio_controllers/GpioCommandController                        active
-      fts_broadcaster_2                         force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      gravity_broadcaster_robot_2__axis_d       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      gravity_broadcaster_robot_2__axis_a       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-      gravity_broadcaster_robot_2__axis_b       force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster  active
-
-   Observe how this output changes based on the launch file arguments used.
-
-.. 5. **Send Commands to the Controller**
-
-..    If the controllers are active, you can send commands to the *Forward Current Controller* as follows:
-
-..    - For the ``forward_current_controller``:
-
-..      .. code-block:: shell
-
-..       ros2 topic pub /forward_current_controller/commands std_msgs/msg/Float64MultiArray "{data: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 , 0.0, 0.0]}" --once
-
-..    - For the ``forward_effort_controller``:
-
-..      .. code-block:: shell
-
-..       ros2 topic pub /forward_effort_controller/commands std_msgs/msg/Float64MultiArray "{data: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 , 0.0, 0.0]}" --once
-
-..    .. note::
-..       The first five floating-point values correspond to the manipulator, from the base at index[0] to the end-effector at index[4]. The following eight values are for the vehicle's thrusters.
+Bags are saved as ``uvms_bag_YYYYmmdd_HHMMSS`` in the launch working
+directory.
