@@ -191,7 +191,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "use_mocap",
-            default_value="true",
+            default_value="false",
             description="Start the OptiTrack bridge and mocap publisher.",
         )
     )
