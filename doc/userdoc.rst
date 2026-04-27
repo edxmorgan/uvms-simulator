@@ -2,12 +2,13 @@
 
 .. _ros2_control_RA5BHS_userdoc:
 
-**********************************************************************
+***************************************************************************
 Underwater Vehicle & Manipulator Simulator (BlueROV2 Heavy + Reach Alpha 5)
-**********************************************************************
+***************************************************************************
 
 The *Underwater Vehicle & Manipulator Simulator* includes an interface plugin that supports multiple state and command interfaces.
-Pair it with the companion `uvms_simlab` package for interactive control, planning, and logging.
+Use it with the ``uvms-simlab`` package for interactive control, planning, and
+logging.
 
 Tutorial Steps
 --------------------------
@@ -37,7 +38,8 @@ Tutorial Steps
 
    - ``use_vehicle_hardware:=false``: Use the simulated vehicle. Set to ``true`` for real BlueROV2 Heavy hardware.
 
-   - ``task:=interactive``: Task mode (requires `uvms_simlab` for control modes).
+   - ``task:=interactive``: Task mode. Interactive, manual, and experiment
+     workflows use runtime nodes from ``uvms-simlab``.
 
    - ``sim_robot_count:=n``: Starts the simulator by spawning n number of underwater vehicle manipulator systems.
 
@@ -53,9 +55,10 @@ Tutorial Steps
 
    The launch file will load and start the robot hardware, controllers, and open *RViz*. You will see extensive output from the hardware implementation in the terminal, showing its internal states.
 
-3. **Pick a task mode (requires uvms_simlab)**
+3. **Pick a task mode**
 
-   `uvms_simlab` is a companion ROS 2 package in the same workspace that provides the control nodes below.
+   ``uvms-simlab`` is the runtime ROS 2 package in the same workspace that
+   provides the control nodes below.
 
    .. code-block:: shell
 
@@ -64,7 +67,7 @@ Tutorial Steps
    Common task modes:
 
    - ``interactive``: RViz markers and planner execution.
-   - ``manual``: PS4 teleop with PID control.
+   - ``manual``: PS4 teleop with direct command input.
    - ``joint``: Skeleton node for custom joint-space torque commands.
    - ``direct_thrusters``: Direct PWM commands via keyboard.
 

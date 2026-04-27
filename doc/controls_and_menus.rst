@@ -1,0 +1,164 @@
+Controls, Menus, and Teleoperation
+==================================
+
+The stack has three operator-facing launch tasks:
+
+- ``interactive``: RViz menus, interactive markers, planning, replay,
+  waypoint execution, grasper commands, and optional joystick override.
+- ``manual``: PS4 joystick direct-command teleoperation.
+- ``direct_thrusters``: keyboard PWM testing for individual thruster channels.
+
+Interactive Task
+----------------
+
+The ``interactive`` task starts ``interactive_controller`` and exposes an RViz
+interactive-marker menu.
+
+Launch:
+
+.. code-block:: shell
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=interactive
+
+Select the active robot once from ``Robots``. Tool menus such as ``Path
+Planner``, ``Cmd Replay``, ``Grasper``, ``Waypoints``, and ``Plan & Execute``
+then operate on that selected robot.
+
+Main menu groups:
+
+- ``Plan & Execute``: activate the currently selected regular controller if it
+  is idle, then plan and execute the selected target or waypoint mission.
+- ``Path Planner``: select the active robot's planner backend, currently
+  ``Bitstar`` or ``RRTstar``.
+- ``Waypoints``: add, delete, clear, or stop vehicle waypoint missions.
+- ``Cmd Replay``: select the active robot's replay profile, reset/play, and
+  stop replay.
+- ``Grasper``: open/close the active robot's grasper through regular
+  controllers only.
+- ``Reset Manager``: simulation-only reset and release controls. Hidden for
+  real robot prefixes.
+- ``Robots``: select active robot when multiple simulated robots exist.
+- ``<robot> Control``: select controller and control space for a robot.
+
+Regular Controllers and Replay
+------------------------------
+
+Regular controllers and replay are intentionally separated:
+
+- ``PID`` and ``InvDyn`` are regular closed-loop controllers. MPC is planned
+  as another regular controller.
+- ``CmdReplay`` is an open-loop command playback controller.
+- ``Plan & Execute`` uses the selected regular controller and refuses to run
+  while ``CmdReplay`` is selected.
+- Replay reset/playback requires both ``CmdReplay`` and an explicitly selected
+  replay profile.
+- Grasper menu commands are rejected while ``CmdReplay`` is active, so they do
+  not queue and apply later.
+
+At startup the default PID controller is bound but idle. It does not publish
+closed-loop commands until the user explicitly activates a behavior. Pressing
+``Plan & Execute`` activates the selected regular controller on demand.
+
+Controller semantics:
+
+- ``PID`` is not a pure textbook PID-only controller. The vehicle command
+  includes hydrostatic restoring compensation in addition to feedback terms.
+  The manipulator side is joint-space feedback with configured command limits.
+- ``InvDyn`` implements inverse-dynamics control in the computed-torque sense:
+  desired state and desired acceleration are mapped through an estimated model
+  to actuation, with feedback terms correcting model and state-estimation
+  errors. The dynamics formulation comes from the companion
+  ``floating-KinDyn`` and ``diff_uv`` projects.
+
+Waypoint Menu
+-------------
+
+The waypoint menu operates on vehicle waypoint missions:
+
+- ``Add``: append the current target pose as a vehicle waypoint.
+- ``Delete``: remove a selected waypoint.
+- ``Clear``: remove all waypoints and clear visualization.
+- ``Stop``: stop execution while keeping the waypoint list.
+
+Joystick in the Interactive Task
+--------------------------------
+
+In the ``interactive`` task, the robot starts a joystick reader when the
+matching ``/dev/input/jsN`` device exists.
+
+``Share`` switches between:
+
+- direct joystick command publishing, and
+- the selected regular controller.
+
+This is an operator override inside the ``interactive`` task. It is separate
+from launching the standalone ``manual`` task.
+
+Manual Task
+-----------
+
+Launch:
+
+.. code-block:: shell
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=manual
+
+The ``manual`` task starts the PS4 joystick teleop node. Joystick input is
+published directly as commands.
+
+Vehicle controls:
+
+- Left stick vertical: surge.
+- Left stick horizontal: sway.
+- ``L2`` / ``R2``: heave down/up.
+- ``L1`` / ``R1``: roll.
+- Right stick vertical: pitch.
+- Right stick horizontal: yaw.
+
+Manipulator controls:
+
+- D-pad left/right: ``axis_e`` negative/positive.
+- D-pad up/down: ``axis_d`` positive/negative.
+- Triangle / X: ``axis_c`` positive/negative.
+- Square / Circle: ``axis_b`` positive/negative.
+- Right-stick press / left-stick press: grasper ``axis_a`` positive/negative.
+
+Options mode:
+
+- ``Options`` toggles between manipulator joint mode and auxiliary mode.
+- In auxiliary mode, D-pad left/right publishes light commands.
+- In auxiliary mode, D-pad up/down publishes camera mount pitch commands.
+
+Direct Thruster Keyboard Task
+-----------------------------
+
+Launch:
+
+.. code-block:: shell
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=direct_thrusters
+
+Keyboard channel mapping:
+
+.. code-block:: text
+
+   u -> channel 0
+   i -> channel 1
+   o -> channel 2
+   p -> channel 3
+   h -> channel 4
+   j -> channel 5
+   k -> channel 6
+   l -> channel 7
+
+Neutral PWM is ``1500``. Pressed keys publish the active PWM value. Releasing a
+key returns the channel to neutral.
+
+Grasper Menu Parameters
+-----------------------
+
+The grasper menu uses these parameters:
+
+- ``grasper_menu_open_effort``
+- ``grasper_menu_close_effort``
+- ``grasper_menu_effort_duration``

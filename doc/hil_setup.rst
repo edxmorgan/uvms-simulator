@@ -15,8 +15,8 @@ Prerequisites
 2. **BlueOS ROS 2 Extension**  
    - Install the BlueOS ROS 2 extension on your aarch64 BlueOS system.  
 
-   - After installation, apply the configuration settings as described in this thread.
-    https://discuss.bluerobotics.com/t/blueos-ros2-extension-v0-0-2-is-here/19324/5?u=mrrobot_1  
+   - After installation, apply the configuration settings described in the
+     `BlueOS ROS 2 extension thread <https://discuss.bluerobotics.com/t/blueos-ros2-extension-v0-0-2-is-here/19324/5?u=mrrobot_1>`_.
 
 Architecture & HIL Presentation
 -------------------------------

@@ -34,3 +34,6 @@
 
 dynamics_params.hpp__pycache__/
 *.pyc
+
+# Sphinx build output
+doc/_build/
