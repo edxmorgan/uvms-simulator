@@ -41,6 +41,23 @@ System Layers
   context, camera drivers, and optional RGB-to-pointcloud tooling support
   planning and operator feedback.
 
+Guide Map
+---------
+
+- :doc:`installation`: install dependencies, build the workspace, build docs,
+  and deploy the Sphinx site.
+- :doc:`userdoc`: first simulated launch after the workspace is built.
+- :doc:`hil_setup`: hardware-specific setup notes.
+- :doc:`services_and_interfaces`: runtime services, actions, topics, and
+  inspection commands.
+- :doc:`controls_and_menus`: RViz menus, task modes, joystick behavior, and
+  controller/replay separation.
+- :doc:`replay_and_experiments`: command replay profiles, reset behavior,
+  repeats, and replay-session logging.
+- :doc:`camera_and_perception`: camera launch modes, camera topics, mount/light
+  commands, and RGB-to-pointcloud tooling.
+- :doc:`hacking_guide`: adding controllers, planners, and robot interfaces.
+
 Core Runtime Nodes
 ------------------
 
@@ -75,6 +92,10 @@ Supported task modes:
 - ``direct_thrusters``: keyboard PWM channel control through
   ``direct_thruster_controller``.
 
+The operator guides focus on ``interactive``, ``manual``, and
+``direct_thrusters``. The ``joint`` task is primarily a developer entry point
+for custom joint-space command experiments.
+
 Useful launch switches:
 
 - ``use_manipulator_hardware:=true``: use real Reach Alpha hardware.
@@ -90,18 +111,10 @@ Useful launch switches:
 Command Replay
 --------------
 
-Command replay profiles live in ``uvms-simlab/resource/csv_playback``. A replay
-profile contains a command CSV plus ``replay.json`` metadata for reset behavior,
-initial state, dynamics, repeat count, and optional recording.
-
-Replay is explicit:
-
-- Select ``CmdReplay`` as the controller.
-- Select a replay profile.
-- Run reset/playback from the ``Cmd Replay`` menu.
-
-Regular planning and replay are intentionally separated so planner trajectories
-and raw command replay do not run at the same time.
+Command replay profiles live in ``uvms-simlab/resource/csv_playback``. Replay
+is explicit: select ``CmdReplay``, select a profile, then reset/play from the
+``Cmd Replay`` menu. Profile details are covered in
+:doc:`replay_and_experiments`.
 
 Controller Modes
 ----------------
@@ -137,7 +150,7 @@ Capability Map
 - Shared ros2_control command/state interfaces for simulator and hardware.
 - Simulator reset/release and payload/gravity/inertia dynamics services.
 - Hydrostatic-compensated feedback, computed-torque/inverse-dynamics control,
-  and extensible controller paths, with MPC planned.
+  and extensible controller paths.
 - OMPL vehicle planning through an action server.
 - RViz interactive marker target selection.
 - Vehicle waypoint queues and waypoint execution.

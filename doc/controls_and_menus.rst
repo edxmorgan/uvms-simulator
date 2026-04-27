@@ -1,7 +1,7 @@
 Controls, Menus, and Teleoperation
 ==================================
 
-The stack has three operator-facing launch tasks:
+The operator-facing launch tasks are:
 
 - ``interactive``: RViz menus, interactive markers, planning, replay,
   waypoint execution, grasper commands, and optional joystick override.
@@ -32,7 +32,8 @@ Main menu groups:
   ``Bitstar`` or ``RRTstar``.
 - ``Waypoints``: add, delete, clear, or stop vehicle waypoint missions.
 - ``Cmd Replay``: select the active robot's replay profile, reset/play, and
-  stop replay.
+  stop replay. See :doc:`replay_and_experiments` for profile format and
+  experiment logging.
 - ``Grasper``: open/close the active robot's grasper through regular
   controllers only.
 - ``Reset Manager``: simulation-only reset and release controls. Hidden for
@@ -45,8 +46,7 @@ Regular Controllers and Replay
 
 Regular controllers and replay are intentionally separated:
 
-- ``PID`` and ``InvDyn`` are regular closed-loop controllers. MPC is planned
-  as another regular controller.
+- ``PID`` and ``InvDyn`` are regular closed-loop controllers.
 - ``CmdReplay`` is an open-loop command playback controller.
 - ``Plan & Execute`` uses the selected regular controller and refuses to run
   while ``CmdReplay`` is selected.

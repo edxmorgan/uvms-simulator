@@ -11,6 +11,11 @@ SimLab runtime tooling as one ROS 2 UVMS stack. The stack combines simulator
 hardware interfaces, robot descriptions, controllers, planners, replay tools,
 camera/perception utilities, logging, and hardware-in-the-loop workflows.
 
+Start with :doc:`simlab_overview` for the project map, then
+:doc:`installation` and :doc:`userdoc` for setup and first launch. The middle
+guides describe runtime operation. The final guides cover camera/perception
+and extension work.
+
 .. toctree::
    :maxdepth: 2
    :caption: Guides

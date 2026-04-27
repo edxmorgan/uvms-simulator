@@ -152,3 +152,11 @@ When launched with ``use_mocap:=true``:
 
 The default launch value is ``use_mocap:=false`` so a missing OptiTrack server
 does not spam startup logs.
+
+Related Guides
+--------------
+
+- Use :doc:`controls_and_menus` for RViz menu, joystick, and task behavior.
+- Use :doc:`replay_and_experiments` for command replay profiles and replay
+  logging.
+- Use :doc:`camera_and_perception` for camera launch options and image topics.

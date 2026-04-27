@@ -128,8 +128,8 @@ Build the Sphinx site:
 
 .. code-block:: shell
 
-   cd ~/ros_ws/src/uvms-simulator
-   sphinx-build -b html -W --keep-going doc doc/_build/html
+   cd ~/ros_ws/src/uvms-simulator/doc
+   make html
 
 Open:
 

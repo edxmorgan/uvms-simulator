@@ -1,25 +1,44 @@
 .. _ros2_control_RA5BHS_hil_setupdoc:
 
-Hardware‑in‑the‑Loop (HIL) Setup & Architecture
-===============================================
+Hardware-in-the-Loop Setup
+==========================
 
 Overview
 --------
-This document describes the Hardware‑in‑the‑Loop (HIL) setup and system architecture for the platform. It covers prerequisites, installation steps, and links to supporting resources.
+
+This page is for hardware-specific setup notes. General workspace
+installation, Python dependencies, and simulator launch checks live in
+:doc:`installation`.
 
 Prerequisites
 -------------
-1. **BlueOS Architecture**  
-   Ensure that your BlueOS is running on the **aarch64** architecture.
 
-2. **BlueOS ROS 2 Extension**  
-   - Install the BlueOS ROS 2 extension on your aarch64 BlueOS system.  
+- BlueOS must be running on ``aarch64``.
+- Install the BlueOS ROS 2 extension on the vehicle companion computer.
+- Apply the configuration settings from the
+  `BlueOS ROS 2 extension thread <https://discuss.bluerobotics.com/t/blueos-ros2-extension-v0-0-2-is-here/19324/5?u=mrrobot_1>`_.
 
-   - After installation, apply the configuration settings described in the
-     `BlueOS ROS 2 extension thread <https://discuss.bluerobotics.com/t/blueos-ros2-extension-v0-0-2-is-here/19324/5?u=mrrobot_1>`_.
+Launch Direction
+----------------
+
+Use the hardware launch arguments only when the corresponding hardware is
+connected and configured:
+
+.. code-block:: shell
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+       use_manipulator_hardware:=true \
+       use_vehicle_hardware:=true \
+       sim_robot_count:=0 \
+       task:=interactive
+
+Mixed hardware/simulation launches use the same launch file with one hardware
+flag enabled and the other disabled.
 
 Architecture & HIL Presentation
 -------------------------------
-For a detailed walkthrough of the overall system architecture and HIL test setup, consult the following slide deck:
+
+For a detailed walkthrough of the hardware architecture and HIL test setup,
+consult the slide deck:
 
 `Architecture & HIL Presentation <https://lsumail2-my.sharepoint.com/:p:/g/personal/emorg31_lsu_edu/EZNXdx-t7KlGj5Qo0V1qlxQBU7RX0Y2PIy5yE-KyVJcoLg?e=94xglK>`_
