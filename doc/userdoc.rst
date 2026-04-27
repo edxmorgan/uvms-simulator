@@ -39,8 +39,8 @@ Common Launch Arguments
 - ``use_vehicle_hardware:=false``: use the simulated vehicle.
 - ``sim_robot_count:=1``: spawn one simulated UVMS.
 - ``task:=interactive``: run RViz menus, planning, replay, and optional
-  joystick override.
-- ``task:=manual``: run PS4 direct-command teleop.
+  manual joystick command input.
+- ``task:=manual``: run PS4 direct command teleoperation.
 - ``task:=direct_thrusters``: run keyboard direct-thruster control.
 - ``record_data:=true``: start the rosbag2 MCAP recorder.
 - ``gui:=false``: run without RViz.

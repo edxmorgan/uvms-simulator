@@ -3,7 +3,7 @@ Camera and Perception
 
 The stack provides a GStreamer camera node, RViz image display wiring, camera
 mount/light commands for the real vehicle, and optional RGB-to-pointcloud
-tooling.
+utilities.
 
 Launch Behavior
 ---------------
@@ -17,7 +17,7 @@ The main launch file controls the camera with these arguments:
 - ``simulate_camera:=false``: default. Use the hardware camera pipeline.
 - ``simulate_camera:=true``: use a synthetic GStreamer test-pattern pipeline.
 - ``camera_pipeline:=""``: optional custom GStreamer pipeline. If provided, it
-  overrides the default pipeline and must end with
+  replaces the default pipeline and must end with
   ``appsink name=camera_sink``.
 
 The camera is independent of the planner, replay, and controller menus. It can
@@ -59,7 +59,7 @@ To force the camera on without using the real vehicle hardware interface:
        use_vehicle_hardware:=false \
        launch_camera:=true
 
-Use this when you want to test the camera node by itself or with a different
+Use this when you want to validate the camera node by itself or with a different
 hardware/simulation combination.
 
 Simulated Camera
@@ -119,7 +119,7 @@ range.
 RGB-to-Pointcloud
 -----------------
 
-SimLab includes ``rgb2cloudpoint_publisher`` for quick RGB-derived pointcloud
+SimLab includes ``rgb2cloudpoint_publisher`` for RGB-derived pointcloud
 visualization. It subscribes to:
 
 .. code-block:: text

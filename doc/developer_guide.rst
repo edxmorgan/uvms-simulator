@@ -1,8 +1,8 @@
-Hacking and Extending the Stack
-===============================
+Developer Guide
+===============
 
-This page is for changing behavior intentionally without fighting the existing
-state machine.
+This page is for extending the stack while preserving the existing state
+machine and runtime behavior.
 
 Where Things Live
 -----------------
@@ -32,7 +32,7 @@ SimLab package:
   controllers.
 - ``uvms-simlab/simlab/planner_action_server.py`` and
   ``planner_action_client.py``: planner action server/client.
-- ``uvms-simlab/simlab/rgb2cloudpoint.py``: optional RGB-to-pointcloud helper.
+- ``uvms-simlab/simlab/rgb2cloudpoint.py``: optional RGB-to-pointcloud utility.
 
 State Machine Rules
 -------------------
@@ -40,7 +40,7 @@ State Machine Rules
 The main runtime modes are:
 
 - ``TELEOP``: joystick/manual command publishing.
-- ``PLANNER``: regular controller execution and planner trajectories.
+- ``PLANNER``: feedback control execution and planner trajectories.
 - ``REPLAY``: CSV command replay.
 - ``REPLAY_SETTLE``: hardware-only pre-replay controller settling.
 

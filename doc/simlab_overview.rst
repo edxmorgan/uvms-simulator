@@ -3,7 +3,7 @@ Project Overview
 
 This repository set provides a ROS 2 underwater vehicle-manipulator system
 centered on a BlueROV-style floating base and a Reach Alpha manipulator. It is
-designed to run the same high-level workflows across simulation, mixed
+designed to run the same high-level procedures across simulation, mixed
 hardware/simulation, and hardware-in-the-loop experiments.
 
 The stack is split across two main packages:
@@ -15,10 +15,10 @@ The stack is split across two main packages:
   workspace metadata.
 - ``uvms-simlab`` provides the exported ROS package ``simlab``. It contains
   the interactive RViz runtime, controller implementations, planner action
-  server/client, replay profiles, experiment logging, joystick tooling, mocap
-  helpers, and perception utilities.
+  server/client, replay profiles, experiment logging, joystick interfaces,
+  mocap nodes, and perception utilities.
 
-The intended mental model is one UVMS project with two cooperating ROS
+Read the stack as one UVMS project with two cooperating ROS
 packages: ``uvms-simulator`` owns the system description and hardware/simulator
 interfaces, while ``uvms-simlab`` owns the experiment/runtime behavior layered
 on top of those interfaces.
@@ -38,7 +38,7 @@ System Layers
   session logging, rosbag recording, mocap conversion, and plotting utilities
   support repeatable simulator and hardware experiments.
 - Environment/perception: bathymetry/workspace visualization, collision
-  context, camera drivers, and optional RGB-to-pointcloud tooling support
+  context, camera drivers, and optional RGB-to-pointcloud utilities support
   planning and operator feedback.
 
 Guide Map
@@ -55,8 +55,9 @@ Guide Map
 - :doc:`replay_and_experiments`: command replay profiles, reset behavior,
   repeats, and replay-session logging.
 - :doc:`camera_and_perception`: camera launch modes, camera topics, mount/light
-  commands, and RGB-to-pointcloud tooling.
-- :doc:`hacking_guide`: adding controllers, planners, and robot interfaces.
+  commands, and RGB-to-pointcloud utilities.
+- :doc:`developer_guide`: developer guide for adding controllers, planners, and
+  robot interfaces.
 
 Core Runtime Nodes
 ------------------
@@ -69,7 +70,7 @@ Core Runtime Nodes
 - ``bag_recorder``: rosbag2 MCAP recording for simulator and hardware sessions.
 - ``mocap_publisher``: OptiTrack/mocap4r2 bridge output conversion and path
   publishing when mocap is enabled.
-- ``rgb2cloudpoint_publisher``: optional RGB-to-pointcloud perception helper.
+- ``rgb2cloudpoint_publisher``: optional RGB-to-pointcloud perception utility.
 - ``collision_contact_node``, ``voxelviz_node``, and ``env_obstacles_node``:
   environment visualization and collision/context utilities.
 
@@ -83,10 +84,10 @@ argument selects the runtime mode:
 
    ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=interactive
 
-Supported task modes:
+Supported launch tasks:
 
-- ``interactive``: RViz menu/marker workflow with planning, replay, reset
-  manager, grasper commands, overlays, and SimLab runtime nodes.
+- ``interactive``: RViz interactive-marker operation with planning, replay,
+  reset manager, grasper commands, overlays, and SimLab runtime nodes.
 - ``manual``: PS4 joystick teleoperation through ``joystick_controller``.
 - ``joint``: custom joint-space command node entry point.
 - ``direct_thrusters``: keyboard PWM channel control through
@@ -102,7 +103,7 @@ Useful launch switches:
 - ``use_vehicle_hardware:=true``: use real vehicle hardware.
 - ``sim_robot_count:=N``: spawn N simulated UVMS robots.
 - ``use_mocap:=true``: start OptiTrack/mocap4r2 bridge and mocap visualization
-  helpers. The default is ``false``.
+  nodes. The default is ``false``.
 - ``record_data:=true``: start rosbag2 MCAP recording.
 - ``gui:=false``: run without RViz.
 - ``launch_camera:=auto|true|false``: control the GStreamer camera node.
@@ -119,9 +120,9 @@ is explicit: select ``CmdReplay``, select a profile, then reset/play from the
 Controller Modes
 ----------------
 
-The default controller is bound at startup but remains idle until the user
+The default controller is selected at startup but remains inactive until the user
 explicitly activates a behavior. ``Plan & Execute`` activates the selected
-regular controller on demand. ``CmdReplay`` remains isolated from planner
+feedback controller on demand. ``CmdReplay`` remains isolated from planner
 execution.
 
 Dynamics Provenance

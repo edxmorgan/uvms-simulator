@@ -13,9 +13,10 @@ In RViz:
 - Select the active robot from ``Robots``.
 - Select ``CmdReplay`` from the robot controller menu.
 - Select a replay profile from ``Cmd Replay > Profiles``.
-- Use ``Cmd Replay > Reset Robot + Playback`` to reset or settle the robot,
-  then start playback.
-- Use ``Cmd Replay > Stop`` to stop playback and publish zero replay commands.
+- Use ``Cmd Replay > Reset Robot + Playback`` to reset the simulated robot or
+  drive hardware to the configured initial condition, then start playback.
+- Use ``Cmd Replay > Stop`` to stop playback and publish zero effort/wrench
+  replay commands.
 
 Playback does not start from only selecting ``CmdReplay``. A replay profile
 must be selected explicitly.
@@ -130,13 +131,13 @@ Control Policy
 
 - ``"replay"``: use commands from the CSV.
 - ``"hold"``: use the stabilizing controller to hold the initial state.
-- ``"zero"``: publish zero commands for that subsystem.
+- ``"zero"``: publish zero effort/wrench commands for that subsystem.
 
 Examples:
 
 - Manipulator probe while station-keeping vehicle:
   ``vehicle = "hold"``, ``manipulator = "replay"``.
-- Vehicle force test while locking manipulator:
+- Vehicle force test while holding manipulator position:
   ``vehicle = "replay"``, ``manipulator = "hold"``.
 - Whole-body replay:
   ``vehicle = "replay"``, ``manipulator = "replay"``.
@@ -148,9 +149,9 @@ Simulation and hardware reset are intentionally different:
 
 - In simulation, replay calls reset services and can set manipulator and
   vehicle state directly.
-- On hardware, replay cannot teleport state. The ``reset.hardware_settle``
-  controller moves the system toward the configured initial condition before
-  playback starts.
+- On hardware, replay cannot instantaneously reset physical state. The
+  ``reset.hardware_settle`` controller moves the system toward the configured
+  initial condition before playback starts.
 
 The ``reset.dynamics`` section sets gravity and payload values used by the
 profile. For payload identification profiles, keep this metadata consistent
@@ -179,8 +180,8 @@ Replay session recording is controlled per profile:
      "enabled": true
    }
 
-Recorded CSV rows include only the replay interval, not the hardware settle
-phase. Typical columns include:
+Recorded CSV rows include only the replay interval, not the hardware
+initialization phase. Typical columns include:
 
 - Arm position: ``q_alpha_axis_e/d/c/b``.
 - Arm velocity: ``dq_alpha_axis_e/d/c/b``.
@@ -195,7 +196,7 @@ per-pass replay log.
 Plotting Replay Sessions
 ------------------------
 
-Use the replay-session plotting helper to inspect:
+Use the replay-session plotting utility to inspect:
 
 - ``q_alpha_axis_{e,d,c,b}``
 - ``dq_alpha_axis_{e,d,c,b}``
@@ -203,5 +204,5 @@ Use the replay-session plotting helper to inspect:
 - ``effort_alpha_axis_{e,d,c,b}``
 - ``cmd_tau_axis_*``
 
-This is the quickest way to check whether command, measured effort, position,
-velocity, and acceleration are aligned during a replay pass.
+This is the recommended way to check whether command, measured effort,
+position, velocity, and acceleration are aligned during a replay pass.

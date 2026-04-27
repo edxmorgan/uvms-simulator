@@ -4,8 +4,9 @@ Controls, Menus, and Teleoperation
 The operator-facing launch tasks are:
 
 - ``interactive``: RViz menus, interactive markers, planning, replay,
-  waypoint execution, grasper commands, and optional joystick override.
-- ``manual``: PS4 joystick direct-command teleoperation.
+  waypoint execution, grasper commands, and optional manual joystick command
+  input.
+- ``manual``: PS4 joystick direct command teleoperation.
 - ``direct_thrusters``: keyboard PWM testing for individual thruster channels.
 
 Interactive Task
@@ -26,38 +27,39 @@ then operate on that selected robot.
 
 Main menu groups:
 
-- ``Plan & Execute``: activate the currently selected regular controller if it
-  is idle, then plan and execute the selected target or waypoint mission.
+- ``Plan & Execute``: activate the currently selected feedback controller if it
+  is inactive, then plan and execute the selected target or waypoint mission.
 - ``Path Planner``: select the active robot's planner backend, currently
   ``Bitstar`` or ``RRTstar``.
 - ``Waypoints``: add, delete, clear, or stop vehicle waypoint missions.
 - ``Cmd Replay``: select the active robot's replay profile, reset/play, and
   stop replay. See :doc:`replay_and_experiments` for profile format and
   experiment logging.
-- ``Grasper``: open/close the active robot's grasper through regular
+- ``Grasper``: open/close the active robot's grasper through feedback
   controllers only.
 - ``Reset Manager``: simulation-only reset and release controls. Hidden for
   real robot prefixes.
 - ``Robots``: select active robot when multiple simulated robots exist.
 - ``<robot> Control``: select controller and control space for a robot.
 
-Regular Controllers and Replay
-------------------------------
+Feedback Control and Replay
+---------------------------
 
-Regular controllers and replay are intentionally separated:
+Feedback control and replay are intentionally separated:
 
-- ``PID`` and ``InvDyn`` are regular closed-loop controllers.
+- ``PID`` and ``InvDyn`` are closed-loop feedback controllers.
 - ``CmdReplay`` is an open-loop command playback controller.
-- ``Plan & Execute`` uses the selected regular controller and refuses to run
+- ``Plan & Execute`` uses the selected feedback controller and refuses to run
   while ``CmdReplay`` is selected.
 - Replay reset/playback requires both ``CmdReplay`` and an explicitly selected
   replay profile.
 - Grasper menu commands are rejected while ``CmdReplay`` is active, so they do
   not queue and apply later.
 
-At startup the default PID controller is bound but idle. It does not publish
-closed-loop commands until the user explicitly activates a behavior. Pressing
-``Plan & Execute`` activates the selected regular controller on demand.
+At startup the default PID controller is selected but inactive. It does not
+publish closed-loop commands until the user explicitly activates a behavior.
+Pressing ``Plan & Execute`` activates the selected feedback controller on
+demand.
 
 Controller semantics:
 
@@ -89,10 +91,10 @@ matching ``/dev/input/jsN`` device exists.
 ``Share`` switches between:
 
 - direct joystick command publishing, and
-- the selected regular controller.
+- the selected feedback controller.
 
-This is an operator override inside the ``interactive`` task. It is separate
-from launching the standalone ``manual`` task.
+This is manual joystick command input inside the ``interactive`` task. It is
+separate from launching the standalone ``manual`` task.
 
 Manual Task
 -----------
@@ -103,7 +105,7 @@ Launch:
 
    ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=manual
 
-The ``manual`` task starts the PS4 joystick teleop node. Joystick input is
+The ``manual`` task starts the PS4 joystick teleoperation node. Joystick input is
 published directly as commands.
 
 Vehicle controls:
