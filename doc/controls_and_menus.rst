@@ -29,9 +29,10 @@ Main menu groups:
 
 - ``Plan & Execute``: activate the currently selected feedback controller if it
   is inactive, then plan and execute the selected target or waypoint mission.
+- ``Robots``: select active robot when multiple simulated robots exist.
+- ``Waypoints``: add, delete, clear, or stop vehicle waypoint missions.
 - ``Path Planner``: select the active robot's planner backend, currently
   ``Bitstar`` or ``RRTstar``.
-- ``Waypoints``: add, delete, clear, or stop vehicle waypoint missions.
 - ``Cmd Replay``: select the active robot's replay profile, reset/play, and
   stop replay. See :doc:`replay_and_experiments` for profile format and
   experiment logging.
@@ -39,7 +40,6 @@ Main menu groups:
   controllers only.
 - ``Reset Manager``: simulation-only reset and release controls. Hidden for
   real robot prefixes.
-- ``Robots``: select active robot when multiple simulated robots exist.
 - ``<robot> Control``: select controller and control space for a robot.
 
 Feedback Control and Replay

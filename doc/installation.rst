@@ -162,7 +162,7 @@ site to GitHub Pages:
 
    .github/workflows/docs-pages.yml
 
-On pushes to ``main`` or ``master``, the workflow builds ``doc/_build/html``
+On pushes to ``main``, the workflow builds ``doc/_build/html``
 and deploys it as the Pages artifact. Pull requests build the docs but do not
 deploy them.
 
