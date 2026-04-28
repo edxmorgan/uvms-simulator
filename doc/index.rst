@@ -36,5 +36,5 @@ and extension work.
 
    GitHub: uvms-simulator <https://github.com/edxmorgan/uvms-simulator>
    GitHub: uvms-simlab <https://github.com/edxmorgan/uvms-simlab>
-   GitHub: floating-KinDyn <https://github.com/edxmorgan/floating-KinDyn>
+   GitHub: Floating-KinDyn-Graph <https://github.com/edxmorgan/Floating-KinDyn-Graph>
    GitHub: diff_uv <https://github.com/edxmorgan/diff_uv>

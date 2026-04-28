@@ -69,8 +69,8 @@ Controller semantics:
 - ``InvDyn`` implements inverse-dynamics control in the computed-torque sense:
   desired state and desired acceleration are mapped through an estimated model
   to actuation, with feedback terms correcting model and state-estimation
-  errors. The dynamics formulation comes from the companion
-  ``floating-KinDyn`` and ``diff_uv`` projects.
+  errors. The manipulator model comes from ``Floating-KinDyn-Graph``; the
+  vehicle model comes from ``diff_uv``.
 
 Waypoint Menu
 -------------

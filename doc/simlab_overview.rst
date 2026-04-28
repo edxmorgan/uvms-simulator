@@ -128,13 +128,18 @@ execution.
 Dynamics Provenance
 -------------------
 
-The floating-base kinematics/dynamics and controller model structure used by
-the stack are derived from two companion projects:
+The generated dynamics functions used by the stack come from two companion
+projects:
 
-- `floating-KinDyn <https://github.com/edxmorgan/floating-KinDyn>`_: floating
-  kinematics and dynamics foundations.
-- `diff_uv <https://github.com/edxmorgan/diff_uv>`_: differentiable UVMS
-  dynamics and controller formulation.
+- `Floating-KinDyn-Graph <https://github.com/edxmorgan/Floating-KinDyn-Graph>`_:
+  URDF-based fixed- and floating-base serial-manipulator modeling. It generates
+  CasADi graphs for kinematics, Jacobians, Lagrangian dynamics, energy terms,
+  payload/friction effects, identification regressors, and controller utilities.
+- `diff_uv <https://github.com/edxmorgan/diff_uv>`_: differentiable 6-DOF
+  underwater-vehicle dynamics based on Fossen-style marine craft models,
+  including body/NED/quaternion kinematics, forward and inverse dynamics,
+  hydrodynamic terms, restoring forces, system-identification utilities, EKF
+  utilities, nonlinear PID helpers, and CasADi code generation.
 
 Hardware Versus Simulation
 --------------------------
