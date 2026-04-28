@@ -1,7 +1,7 @@
 UVMS Project Documentation
 ==========================
 
-.. image:: graphic_abstract.jpg
+.. image:: graphic_abstract_2.jpg
    :alt: UVMS simulator and SimLab overview graphic
    :align: center
    :width: 100%
