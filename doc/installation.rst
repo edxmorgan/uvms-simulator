@@ -137,21 +137,6 @@ Open:
 
    doc/_build/html/index.html
 
-Build the PDF manual:
-
-.. code-block:: shell
-
-   sudo apt install latexmk texlive-latex-recommended \
-       texlive-latex-extra texlive-fonts-recommended
-   cd ~/ros_ws/src/uvms-simulator/doc
-   make pdf
-
-The PDF is written to:
-
-.. code-block:: text
-
-   doc/_build/latex/uvms_project_documentation.pdf
-
 GitHub Pages Deployment
 -----------------------
 

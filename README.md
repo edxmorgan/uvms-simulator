@@ -124,14 +124,14 @@ Camera launch arguments:
 - `simulate_camera:=true`: uses a synthetic GStreamer test pattern and publishes it as `/alpha/image_raw`.
 - `camera_pipeline:=""`: optional custom GStreamer pipeline. If set, it overrides the default pipeline. The pipeline must end with `appsink name=camera_sink`.
 
-Real vehicle hardware starts the camera automatically:
+The vehicle hardware interface starts the camera automatically:
 
 ```bash
 ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
     use_vehicle_hardware:=true
 ```
 
-Use the real camera without real vehicle hardware:
+Use the camera without the vehicle hardware interface:
 
 ```bash
 ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
@@ -215,22 +215,25 @@ The simulated manipulator exposes runtime payload and gravity state through `${p
 - `payload.Iyy`
 - `payload.Izz`
 
-Update the simulated manipulator dynamics online with the per-robot service:
+Update simulator dynamics online with the coordinated per-robot service:
 
 ```bash
-ros2 service call /robot_1_set_sim_dynamics ros2_control_blue_reach_5/srv/SetSimDynamics \
-  "{gravity: 9.81, mass: 0.15, ixx: 0.0, iyy: 0.0, izz: 0.0}"
+ros2 service call /robot_1_set_sim_uvms_dynamics ros2_control_blue_reach_5/srv/SetSimDynamics \
+  "{use_coupled_dynamics: false, set_vehicle_dynamics: false, set_manipulator_dynamics: true, manipulator: {gravity_vector: [0.0, 0.0, 9.81], payload_mass: 0.15, payload_inertia: [0.0, 0.0, 0.0]}}"
 ```
 
 Notes:
 
-- This service is available for the simulated manipulator hardware interface.
-- The service updates gravity and payload properties together from one endpoint.
+- The coordinated service forwards selected manipulator parameters to
+  `/${prefix}set_sim_manipulator_dynamics` and vehicle parameters to
+  `/${prefix}set_sim_vehicle_dynamics`.
+- The runtime RViz `Dynamics Profile` menu applies named whole-robot profiles
+  through the same coordinated service.
 - `gravity` is used directly by the current sim manipulator dynamics path.
 - `payload.mass` is used directly by the current sim manipulator dynamics path.
 - `gravity` is also exported through `${prefix}_arm_IOs` for downstream consumers such as `uvms-simlab`.
 - `payload.Ixx`, `payload.Iyy`, and `payload.Izz` are exported as live state and can be updated online, but they are not yet consumed by the current dynamics model.
-- Resetting the simulated manipulator clears both gravity and payload values back to zero.
+- Reset requests can carry typed vehicle and manipulator dynamics parameters. Replay profiles and the RViz `Dynamics Profile` menu use this path to apply named robot dynamics profiles.
 
 ## Notes
 

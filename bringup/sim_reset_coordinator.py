@@ -6,7 +6,7 @@ import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
-from ros2_control_blue_reach_5.srv import ResetSimUvms
+from ros2_control_blue_reach_5.srv import ResetSimUvms, SetSimDynamics
 from std_srvs.srv import Trigger
 
 
@@ -20,8 +20,11 @@ class SimResetCoordinator(Node):
         self._reset_manipulator_clients: Dict[str, rclpy.client.Client] = {}
         self._release_vehicle_clients: Dict[str, rclpy.client.Client] = {}
         self._release_manipulator_clients: Dict[str, rclpy.client.Client] = {}
+        self._dynamics_vehicle_clients: Dict[str, rclpy.client.Client] = {}
+        self._dynamics_manipulator_clients: Dict[str, rclpy.client.Client] = {}
         self._reset_services = []
         self._release_services = []
+        self._dynamics_services = []
 
         for prefix in self._robot_prefixes:
             self._reset_vehicle_clients[prefix] = self.create_client(
@@ -35,6 +38,12 @@ class SimResetCoordinator(Node):
             )
             self._release_manipulator_clients[prefix] = self.create_client(
                 Trigger, f"/{prefix}release_sim_manipulator", callback_group=self._callback_group
+            )
+            self._dynamics_vehicle_clients[prefix] = self.create_client(
+                SetSimDynamics, f"/{prefix}set_sim_vehicle_dynamics", callback_group=self._callback_group
+            )
+            self._dynamics_manipulator_clients[prefix] = self.create_client(
+                SetSimDynamics, f"/{prefix}set_sim_manipulator_dynamics", callback_group=self._callback_group
             )
 
             self._reset_services.append(
@@ -50,6 +59,14 @@ class SimResetCoordinator(Node):
                     Trigger,
                     f"/{prefix}release_sim_uvms",
                     lambda request, response, robot_prefix=prefix: self._handle_release(robot_prefix, response),
+                    callback_group=self._callback_group,
+                )
+            )
+            self._dynamics_services.append(
+                self.create_service(
+                    SetSimDynamics,
+                    f"/{prefix}set_sim_uvms_dynamics",
+                    lambda request, response, robot_prefix=prefix: self._handle_dynamics(robot_prefix, request, response),
                     callback_group=self._callback_group,
                 )
             )
@@ -94,6 +111,31 @@ class SimResetCoordinator(Node):
 
         done_event = threading.Event()
         future = client.call_async(Trigger.Request())
+
+        def _done_callback(_future):
+            done_event.set()
+
+        future.add_done_callback(_done_callback)
+        if not done_event.wait(timeout=timeout_sec):
+            return False, f"timeout calling {service_name}"
+
+        if future.cancelled():
+            return False, f"call cancelled for {service_name}"
+        if future.exception() is not None:
+            return False, f"{service_name} failed: {future.exception()}"
+
+        result = future.result()
+        if result is None:
+            return False, f"{service_name} returned no response"
+        return bool(result.success), result.message
+
+    def _call_dynamics(self, client, service_name: str, request: SetSimDynamics.Request, timeout_sec: float = 5.0) -> tuple[bool, str]:
+        ok, message = self._wait_for_service(client, service_name, timeout_sec=timeout_sec)
+        if not ok:
+            return False, message
+
+        done_event = threading.Event()
+        future = client.call_async(request)
 
         def _done_callback(_future):
             done_event.set()
@@ -174,6 +216,56 @@ class SimResetCoordinator(Node):
         response.success = True
         response.message = "; ".join(messages)
         self.get_logger().info(f"[{prefix}] combined release completed")
+        return response
+
+    def _handle_dynamics(
+        self,
+        prefix: str,
+        request: SetSimDynamics.Request,
+        response: SetSimDynamics.Response,
+    ) -> SetSimDynamics.Response:
+        self.get_logger().info(f"[{prefix}] combined dynamics update requested")
+        messages = []
+
+        if request.set_manipulator_dynamics:
+            service_name = f"/{prefix}set_sim_manipulator_dynamics"
+            manipulator_request = SetSimDynamics.Request()
+            manipulator_request.use_coupled_dynamics = request.use_coupled_dynamics
+            manipulator_request.set_manipulator_dynamics = True
+            manipulator_request.manipulator = request.manipulator
+            ok, message = self._call_dynamics(
+                self._dynamics_manipulator_clients[prefix],
+                service_name,
+                manipulator_request,
+            )
+            messages.append(f"{service_name}: {message or ('ok' if ok else 'failed')}")
+            if not ok:
+                response.success = False
+                response.message = "; ".join(messages)
+                self.get_logger().error(f"[{prefix}] combined dynamics update failed: {response.message}")
+                return response
+
+        if request.set_vehicle_dynamics:
+            service_name = f"/{prefix}set_sim_vehicle_dynamics"
+            vehicle_request = SetSimDynamics.Request()
+            vehicle_request.use_coupled_dynamics = request.use_coupled_dynamics
+            vehicle_request.set_vehicle_dynamics = True
+            vehicle_request.vehicle = request.vehicle
+            ok, message = self._call_dynamics(
+                self._dynamics_vehicle_clients[prefix],
+                service_name,
+                vehicle_request,
+            )
+            messages.append(f"{service_name}: {message or ('ok' if ok else 'failed')}")
+            if not ok:
+                response.success = False
+                response.message = "; ".join(messages)
+                self.get_logger().error(f"[{prefix}] combined dynamics update failed: {response.message}")
+                return response
+
+        response.success = True
+        response.message = "; ".join(messages) if messages else "no dynamics targets requested"
+        self.get_logger().info(f"[{prefix}] combined dynamics update completed")
         return response
 
 

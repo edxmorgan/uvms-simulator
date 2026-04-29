@@ -14,7 +14,8 @@ Simulator package:
 - ``uvms-simulator/srv``: reset and dynamics service definitions.
 - ``uvms-simulator/hardware``: ros2_control hardware interfaces for real and
   simulated vehicle/manipulator.
-- ``uvms-simulator/config``: ros2_control controller configuration.
+- ``uvms-simulator/bringup/config``: launch-time controller-manager
+  configuration.
 - ``uvms-simulator/description``: xacro/URDF descriptions.
 - ``uvms-simulator/hardware/gstreamer_camera_*``: GStreamer camera node and
   driver.
@@ -27,9 +28,11 @@ SimLab package:
   planner/replay dispatch, joystick bridge, grasper handling, logging.
 - ``uvms-simlab/simlab/controllers``: controller implementations, including
   ``CmdReplay``.
-- ``uvms-simlab/resource/csv_playback``: replay profiles.
-- ``uvms-simlab/resource``: CasADi functions and robot-specific assets used by
-  controllers.
+- ``uvms-simlab/resource/playback_profile``: replay profiles.
+- ``uvms-simlab/resource/dynamics_profiles``: whole-robot dynamics parameter
+  profiles selected by replay/reset workflows.
+- ``uvms-simlab/resource/model_functions``: generated CasADi/shared-library
+  model functions grouped by ``arm``, ``vehicle``, and ``whole_body``.
 - ``uvms-simlab/simlab/planner_action_server.py`` and
   ``planner_action_client.py``: planner action server/client.
 - ``uvms-simlab/simlab/rgb2cloudpoint.py``: optional RGB-to-pointcloud utility.
@@ -270,10 +273,10 @@ Sensor fusion and state estimation:
 
 Dynamics model integration:
 
-- A simulator backend usually needs state-update logic: current state plus
-  command produces the next state.
-- A real robot backend usually needs driver logic: read sensors, decode state,
-  convert commands, and write actuator commands.
+- A simulator backend implements state-update logic: current state plus command
+  produces the next state.
+- A hardware backend needs driver logic: read sensors, decode state, convert
+  commands, and write actuator commands.
 - If a dynamics model is used, document the input ordering, output ordering,
   frames, units, and signs.
 - Connect vehicle model forces to thruster allocation and manipulator model
@@ -284,7 +287,7 @@ Where to change code:
 - Add or modify robot interfaces under ``uvms-simulator/hardware``.
 - Add or modify xacro/URDF joints, transmissions, thrusters, sensors, and
   frames under ``uvms-simulator/description``.
-- Add controller-manager configuration under ``uvms-simulator/config``.
+- Add controller-manager configuration under ``uvms-simulator/bringup/config``.
 - Add launch arguments and hardware selection wiring in
   ``uvms-simulator/bringup/launch/robot_system_multi_interface.launch.py``.
 - Add SimLab-side readers, wrappers, or parameters under ``uvms-simlab/simlab``

@@ -38,8 +38,8 @@ Main menu groups:
   experiment logging.
 - ``Grasper``: open/close the active robot's grasper through feedback
   controllers only.
-- ``Reset Manager``: simulation-only reset and release controls. Hidden for
-  real robot prefixes.
+- ``Reset Manager``: simulator state reset and release controls. Hidden for the
+  ``robot_real_`` hardware namespace.
 - ``<robot> Control``: select controller and control space for a robot.
 
 Feedback Control and Replay
@@ -131,6 +131,8 @@ Options mode:
 - In auxiliary mode, D-pad left/right publishes light commands.
 - In auxiliary mode, D-pad up/down publishes camera mount pitch commands.
 
+.. _direct_thruster_keyboard_task:
+
 Direct Thruster Keyboard Task
 -----------------------------
 
@@ -138,7 +140,11 @@ Launch:
 
 .. code-block:: shell
 
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=direct_thrusters
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+       use_vehicle_hardware:=true \
+       use_manipulator_hardware:=false \
+       sim_robot_count:=0 \
+       task:=direct_thrusters
 
 Keyboard channel mapping:
 
@@ -153,8 +159,8 @@ Keyboard channel mapping:
    k -> channel 6
    l -> channel 7
 
-Neutral PWM is ``1500``. Pressed keys publish the active PWM value. Releasing a
-key returns the channel to neutral.
+Neutral PWM is ``1500``. Pressed keys publish active PWM ``1700`` for the
+mapped channel. Releasing a key returns the channel to neutral.
 
 Grasper Menu Parameters
 -----------------------

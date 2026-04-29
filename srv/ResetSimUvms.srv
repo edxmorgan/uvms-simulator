@@ -14,11 +14,11 @@ float64[6] vehicle_twist
 # Vehicle wrench is [Fx, Fy, Fz, Tx, Ty, Tz].
 float64[6] vehicle_wrench
 
-float64 gravity
-float64 payload_mass
-float64 payload_ixx
-float64 payload_iyy
-float64 payload_izz
+bool use_coupled_dynamics
+bool set_vehicle_dynamics
+SimVehicleDynamics vehicle_dynamics
+bool set_manipulator_dynamics
+SimManipulatorDynamics manipulator_dynamics
 ---
 bool success
 string message

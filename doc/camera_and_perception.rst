@@ -1,9 +1,60 @@
-Camera and Perception
-=====================
+Sensors, Camera, and Perception
+===============================
 
-The stack provides a GStreamer camera node, RViz image display wiring, camera
-mount/light commands for the real vehicle, and optional RGB-to-pointcloud
-utilities.
+The stack exposes navigation sensor state, camera data, mocap, and
+visualization streams through ROS topics. Some streams are physical sensor feeds
+from hardware interfaces. Others are state-derived simulator outputs or
+visualization aids.
+
+Sensor Topic Overview
+---------------------
+
+Core sensor topics:
+
+- ``/dynamic_joint_states``: central robot state stream. In simulation this is
+  produced by the simulated hardware interfaces. In hardware or mixed launches,
+  entries come from the active hardware and simulator interfaces.
+- ``/mavros/imu/data``: hardware IMU input when the vehicle hardware interface
+  is active.
+- ``/dvl/twist``: DVL velocity output from the vehicle hardware interface.
+- ``/alpha/image_raw``: camera image stream from the GStreamer camera node.
+- ``/alpha/points_midas``: optional RGB-derived pointcloud from SimLab's
+  ``rgb2cloudpoint_publisher``.
+- ``/mocap_pose``, ``/mocap_path``, ``/map_mocap_pose``,
+  ``/map_mocap_path``: mocap-derived pose/path topics when ``use_mocap:=true``.
+
+Vehicle navigation sensor state is also exported through
+``/dynamic_joint_states``:
+
+- IMU attitude: ``imu_roll``, ``imu_pitch``, ``imu_yaw`` and unwrap variants.
+- IMU quaternion: ``imu_orientation_w/x/y/z``.
+- IMU angular velocity: ``imu_angular_vel_x/y/z``.
+- IMU linear acceleration: ``imu_linear_acceleration_x/y/z``.
+- Pressure-derived depth: ``depth_from_pressure2``.
+- DVL attitude: ``dvl_gyro_roll``, ``dvl_gyro_pitch``, ``dvl_gyro_yaw``.
+- DVL velocity: ``dvl_speed_x``, ``dvl_speed_y``, ``dvl_speed_z``.
+
+The vehicle state convention used by SimLab is NED position/orientation with
+body-frame velocity and acceleration.
+
+Simulated Sensors
+-----------------
+
+Simulation exposes sensor-like streams through ``ros2_control`` state
+interfaces and broadcaster topics:
+
+- Vehicle pose, body velocity, body acceleration, IMU state, DVL speed, and
+  pressure-derived depth are available through ``/dynamic_joint_states``.
+- Manipulator joint position, velocity, acceleration, and effort are available
+  through ``/dynamic_joint_states``.
+- Camera simulation is available with ``simulate_camera:=true``. This uses a
+  synthetic GStreamer test-pattern image stream.
+- Environment, workspace, and vehicle-base pointcloud topics are visualization
+  streams, not physical sensor models.
+
+The synthetic camera is useful for launch wiring, image transport, RViz display,
+and downstream perception-node checks. It does not model underwater optics,
+turbidity, lighting, lens distortion, or camera dynamics.
 
 Launch Behavior
 ---------------
@@ -43,15 +94,15 @@ is launched.
 Hardware Camera
 ---------------
 
-With real vehicle hardware, the default ``launch_camera:=auto`` starts the
-camera:
+When ``use_vehicle_hardware:=true``, the default ``launch_camera:=auto`` starts
+the camera:
 
 .. code-block:: shell
 
    ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
        use_vehicle_hardware:=true
 
-To force the camera on without using the real vehicle hardware interface:
+To force the camera on without using the vehicle hardware interface:
 
 .. code-block:: shell
 
@@ -102,7 +153,7 @@ Run a standalone synthetic pipeline:
 Camera Mount and Lights
 -----------------------
 
-The real vehicle hardware interface listens for camera mount pitch commands:
+The vehicle hardware interface listens for camera mount pitch commands:
 
 .. code-block:: text
 

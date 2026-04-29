@@ -35,8 +35,8 @@ System Layers
   replay profiles, grasper commands, and visualization through RViz and
   joystick inputs.
 - Experiment infrastructure: command replay, reset/dynamics metadata, replay
-  session logging, rosbag recording, mocap conversion, and plotting utilities
-  support repeatable simulator and hardware experiments.
+  session logging, rosbag recording, and mocap conversion support repeatable
+  simulator and hardware experiments.
 - Environment/perception: bathymetry/workspace visualization, collision
   context, camera drivers, and optional RGB-to-pointcloud utilities support
   planning and operator feedback.
@@ -54,7 +54,7 @@ Guide Map
   controller/replay separation.
 - :doc:`replay_and_experiments`: command replay profiles, reset behavior,
   repeats, and replay-session logging.
-- :doc:`camera_and_perception`: camera launch modes, camera topics, mount/light
+- :doc:`camera_and_perception`: sensor topics, camera launch modes, mount/light
   commands, and RGB-to-pointcloud utilities.
 - :doc:`developer_guide`: developer guide for adding controllers, planners, and
   robot interfaces.
@@ -100,7 +100,7 @@ for custom joint-space command experiments.
 Useful launch switches:
 
 - ``use_manipulator_hardware:=true``: use real Reach Alpha hardware.
-- ``use_vehicle_hardware:=true``: use real vehicle hardware.
+- ``use_vehicle_hardware:=true``: use the vehicle hardware interface.
 - ``sim_robot_count:=N``: spawn N simulated UVMS robots.
 - ``use_mocap:=true``: start OptiTrack/mocap4r2 bridge and mocap visualization
   nodes. The default is ``false``.
@@ -112,7 +112,7 @@ Useful launch switches:
 Command Replay
 --------------
 
-Command replay profiles live in ``uvms-simlab/resource/csv_playback``. Replay
+Command replay profiles live in ``uvms-simlab/resource/playback_profile``. Replay
 is explicit: select ``CmdReplay``, select a profile, then reset/play from the
 ``Cmd Replay`` menu. Profile details are covered in
 :doc:`replay_and_experiments`.
@@ -144,9 +144,10 @@ projects:
 Hardware Versus Simulation
 --------------------------
 
-Simulation-only reset controls are exposed through ``Reset Manager`` and are
-hidden for real robot prefixes. Hardware replay uses controller-based settling
-before playback rather than simulator state reset.
+Simulator state reset controls are exposed through ``Reset Manager`` and are
+hidden for the ``robot_real_`` hardware namespace. Replay under
+``robot_real_`` uses controller-based settling before playback rather than
+simulator state reset.
 
 Capability Map
 --------------
@@ -154,7 +155,7 @@ Capability Map
 - Multi-robot simulated UVMS bringup.
 - Real/sim manipulator and vehicle mixing through launch arguments.
 - Shared ros2_control command/state interfaces for simulator and hardware.
-- Simulator reset/release and payload/gravity/inertia dynamics services.
+- Simulator reset/release and typed robot dynamics services.
 - Hydrostatic-compensated feedback, computed-torque/inverse-dynamics control,
   and extensible controller paths.
 - OMPL vehicle planning through an action server.

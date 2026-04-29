@@ -9,11 +9,11 @@ UVMS Project Documentation
 This documentation covers the underwater vehicle-manipulator simulator and the
 SimLab runtime utilities as one ROS 2 UVMS stack. The stack combines simulator
 hardware interfaces, robot descriptions, controllers, planners, replay tools,
-camera/perception utilities, logging, and hardware-in-the-loop procedures.
+sensors/perception utilities, logging, and hardware-in-the-loop procedures.
 
 Start with :doc:`simlab_overview` for the project map, then
 :doc:`installation` and :doc:`userdoc` for setup and first launch. The middle
-guides describe runtime operation. The final guides cover camera/perception
+guides describe runtime operation. The final guides cover sensors/perception
 and extension work.
 
 .. toctree::
@@ -29,6 +29,7 @@ and extension work.
    replay_and_experiments
    camera_and_perception
    developer_guide
+   license
 
 .. toctree::
    :maxdepth: 1

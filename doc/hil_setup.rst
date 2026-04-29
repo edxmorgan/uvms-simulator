@@ -35,6 +35,38 @@ connected and configured:
 Mixed hardware/simulation launches use the same launch file with one hardware
 flag enabled and the other disabled.
 
+BlueROV Thruster Mapping and Sign Check
+---------------------------------------
+
+Before closed-loop vehicle tests, verify that the BlueROV thruster channel
+mapping and forward/reverse directions match the convention implemented by the
+vehicle hardware interface. The framework assumes the thruster numbering and
+positive force directions shown below.
+
+.. image:: thruster_config_sign.png
+   :alt: BlueROV thruster numbering and positive force direction convention
+   :align: center
+   :width: 80%
+
+Use the direct-thruster keyboard task for the in-water check. See
+:ref:`direct_thruster_keyboard_task` for the launch command and key mapping.
+Test one thruster channel at a time before running any vehicle feedback
+controller:
+
+- The keyboard channel drives the physical thruster with the same number as
+  the diagram.
+- Positive and negative commands produce thrust in the expected forward/reverse
+  directions.
+
+If a keyboard channel drives the wrong physical thruster, fix the BlueROV
+thruster output mapping before running feedback control. If a thruster spins in
+the wrong forward/reverse direction, use the thruster ``direction`` parameter in
+``description/ros2_control/vehicle_system_multi_interface.ros2_control.xacro``.
+Set it to ``1`` or ``-1`` for the affected thruster so the physical
+forward/reverse direction agrees with the diagram. Incorrect mapping or
+reversed thrust signs will make the vehicle controller apply the wrong body
+wrench.
+
 Architecture & HIL Presentation
 -------------------------------
 

@@ -17,6 +17,7 @@
 #define ROS2_CONTROL_BLUE_REACH_5__SIM_VEHICLE_SYSTEM_MULTI_INTERFACE_HPP_
 
 #include <chrono>
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -36,6 +37,7 @@
 #include "std_srvs/srv/trigger.hpp"
 #include "ros2_control_blue_reach_5/visibility_control.h"
 #include "ros2_control_blue_reach_5/srv/reset_sim_uvms.hpp"
+#include "ros2_control_blue_reach_5/srv/set_sim_dynamics.hpp"
 
 #include "ros2_control_blue_reach_5/state.hpp"
 #include "ros2_control_blue_reach_5/custom_hardware_interface_type_values.hpp"
@@ -148,7 +150,9 @@ namespace ros2_control_blue_reach_5
         std::mutex simulation_state_mutex_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::ResetSimUvms>::SharedPtr reset_service_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
+        rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
         bool commands_held_{false};
+        bool use_coupled_dynamics_{false};
 
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
 
@@ -165,9 +169,12 @@ namespace ros2_control_blue_reach_5
         std::vector<casadi::DM> vehicle_sim;
         std::vector<double> vehicle_next_states;
         std::vector<casadi::DM> vehicle_parameters_new;
+        std::array<double, 48> thrust_configuration_matrix_{};
         std::vector<double> arm_base_f_ext;
 
-        // latest external contact wrench in body frame, Fx Fy Fz Tx Ty Tz
+        // Latest external contact wrench in the vehicle body frame, ordered
+        // [Fx, Fy, Fz, Tx, Ty, Tz]. Values use the same sign convention as
+        // the vehicle dynamics model; the subscriber does not remap signs.
         std::array<double, 6> contact_wrench_body_{0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
         // mutex to protect it across callback thread and write()

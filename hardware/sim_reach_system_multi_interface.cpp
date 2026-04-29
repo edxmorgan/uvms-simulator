@@ -30,6 +30,80 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
+    namespace
+    {
+        ros2_control_blue_reach_5::msg::SimManipulatorDynamics default_manipulator_dynamics()
+        {
+            auto msg = ros2_control_blue_reach_5::msg::SimManipulatorDynamics();
+            msg.link_masses = {1.94000000e-01, 4.29000000e-01, 1.14999999e-01, 3.32999998e-01};
+            msg.link_first_moments = {
+                -0.00000000e+00, -0.00000000e+00, -0.00000000e+00, -4.29000003e-02,
+                1.96649101e-02, 4.29000003e-02, 2.88077923e-03, 7.23516749e-03,
+                9.16434754e-03, 2.16416476e-03, -1.19076924e-03, 8.07346553e-03};
+            msg.link_inertias = {
+                7.10109586e-01, 7.10109586e-01, 1.99576149e-06, -0.00000000e+00,
+                -0.00000000e+00, -0.00000000e+00, 1.10178508e-01, 1.83331277e-01,
+                1.04292121e-01, -3.32240937e-02, -8.30350362e-02, -3.83631263e-02,
+                1.18956416e-01, 1.22363853e-01, 4.34411664e-03, -3.96112974e-04,
+                -2.13904668e-02, -1.77228242e-03, 1.92510932e-02, 2.56548460e-02,
+                7.17220917e-03, 1.48789886e-03, 4.53687373e-04, -1.09861913e-03};
+            msg.viscous_friction = {2.39569756e+00, 2.23596482e+00, 8.19671021e-01, 3.57249665e-01};
+            msg.coulomb_friction = {0.0, 0.0, 0.0, 0.0};
+            msg.static_friction = {-0.0, -0.0, -0.0, -0.0};
+            msg.stribeck_velocity = {0.0, 0.0, 0.0, 0.0};
+            msg.gravity_vector = {0.0, 0.0, 0.0};
+            msg.payload_com = {0.0, 0.0, 0.0};
+            msg.payload_mass = 0.0;
+            msg.payload_inertia = {0.0, 0.0, 0.0};
+            msg.base_pose = {0.19, 0.0, -0.12, 3.14159, 0.0, 0.0};
+            msg.world_pose = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+            msg.tip_offset_pose = {0.0, 0.0, 0.04, 0.0, 0.0, 0.0};
+            msg.joint_lock_on_deadband = 0.05;
+            msg.joint_lock_off_deadband = 0.10;
+            msg.baumgarte_alpha = 200.0;
+            msg.endeffector_mass = 300.0;
+            msg.endeffector_damping = 400.0;
+            msg.endeffector_stiffness = 0.0;
+            return msg;
+        }
+
+        std::vector<casadi::DM> pack_manipulator_dynamics(
+            const ros2_control_blue_reach_5::msg::SimManipulatorDynamics &msg)
+        {
+            std::vector<casadi::DM> values;
+            values.reserve(81);
+            auto append = [&values](const auto &range)
+            {
+                for (const double value : range)
+                {
+                    values.emplace_back(value);
+                }
+            };
+            append(msg.link_masses);
+            append(msg.link_first_moments);
+            append(msg.link_inertias);
+            append(msg.viscous_friction);
+            append(msg.coulomb_friction);
+            append(msg.static_friction);
+            append(msg.stribeck_velocity);
+            append(msg.gravity_vector);
+            append(msg.payload_com);
+            values.emplace_back(msg.payload_mass);
+            append(msg.base_pose);
+            append(msg.world_pose);
+            append(msg.tip_offset_pose);
+            return values;
+        }
+
+        double gravity_magnitude(const std::array<double, 3> &gravity_vector)
+        {
+            return std::sqrt(
+                gravity_vector[0] * gravity_vector[0] +
+                gravity_vector[1] * gravity_vector[1] +
+                gravity_vector[2] * gravity_vector[2]);
+        }
+    } // namespace
+
     SimReachSystemMultiInterfaceHardware::~SimReachSystemMultiInterfaceHardware()
     {
         stop_ros_interfaces();
@@ -163,11 +237,25 @@ namespace ros2_control_blue_reach_5
             }
         }
 
-        gravity_ = request.gravity;
-        payload_mass = request.payload_mass;
-        payload_Ixx = request.payload_ixx;
-        payload_Iyy = request.payload_iyy;
-        payload_Izz = request.payload_izz;
+        if (request.set_manipulator_dynamics)
+        {
+            const auto &dynamics = request.manipulator_dynamics;
+            use_coupled_dynamics_ = request.use_coupled_dynamics;
+            manipulator_parameters_ = pack_manipulator_dynamics(dynamics);
+            joint_lock_on_deadband_ = dynamics.joint_lock_on_deadband;
+            joint_lock_off_deadband_ = dynamics.joint_lock_off_deadband;
+            baumgarte_alpha_ = dynamics.baumgarte_alpha;
+            endeffector_mass_ = dynamics.endeffector_mass;
+            endeffector_damping_ = dynamics.endeffector_damping;
+            endeffector_stiffness_ = dynamics.endeffector_stiffness;
+            std::fill(on_db_.begin(), on_db_.end(), joint_lock_on_deadband_);
+            std::fill(off_db_.begin(), off_db_.end(), joint_lock_off_deadband_);
+            gravity_ = gravity_magnitude(dynamics.gravity_vector);
+            payload_mass = dynamics.payload_mass;
+            payload_Ixx = dynamics.payload_inertia[0];
+            payload_Iyy = dynamics.payload_inertia[1];
+            payload_Izz = dynamics.payload_inertia[2];
+        }
         commands_held_ = request.hold_commands;
 
         RCLCPP_INFO(
@@ -232,6 +320,14 @@ namespace ros2_control_blue_reach_5
         payload_Iyy = 0.0;
         payload_Izz = 0.0;
         gravity_ = 0.0;
+        const auto dynamics = default_manipulator_dynamics();
+        manipulator_parameters_ = pack_manipulator_dynamics(dynamics);
+        joint_lock_on_deadband_ = dynamics.joint_lock_on_deadband;
+        joint_lock_off_deadband_ = dynamics.joint_lock_off_deadband;
+        baumgarte_alpha_ = dynamics.baumgarte_alpha;
+        endeffector_mass_ = dynamics.endeffector_mass;
+        endeffector_damping_ = dynamics.endeffector_damping;
+        endeffector_stiffness_ = dynamics.endeffector_stiffness;
 
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "robot_prefix : %s ", robot_prefix.c_str());
@@ -244,9 +340,8 @@ namespace ros2_control_blue_reach_5
         const std::size_t nj = get_hardware_info().joints.size();
         is_locked_.assign(nj, false); // joint lock mechanism
 
-        //  could come from parameters instead of hard-coding
-        on_db_.assign(nj, 0.05);  // joint on deadband
-        off_db_.assign(nj, 0.10); // joint off deadband
+        on_db_.assign(nj, joint_lock_on_deadband_);
+        off_db_.assign(nj, joint_lock_off_deadband_);
 
         for (const hardware_interface::ComponentInfo &joint : get_hardware_info().joints)
         {
@@ -361,10 +456,11 @@ namespace ros2_control_blue_reach_5
                 const std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> request,
                 std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Response> response)
         {
-            if (request->payload_mass < 0.0 ||
-                request->payload_ixx < 0.0 ||
-                request->payload_iyy < 0.0 ||
-                request->payload_izz < 0.0)
+            if (request->set_manipulator_dynamics &&
+                (request->manipulator_dynamics.payload_mass < 0.0 ||
+                 request->manipulator_dynamics.payload_inertia[0] < 0.0 ||
+                 request->manipulator_dynamics.payload_inertia[1] < 0.0 ||
+                 request->manipulator_dynamics.payload_inertia[2] < 0.0))
             {
                 response->success = false;
                 response->message = "payload values must be non-negative";
@@ -398,12 +494,22 @@ namespace ros2_control_blue_reach_5
             });
 
         dynamics_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::SetSimDynamics>(
-            "/" + robot_prefix + "set_sim_dynamics",
+            "/" + robot_prefix + "set_sim_manipulator_dynamics",
             [this](
                 const std::shared_ptr<ros2_control_blue_reach_5::srv::SetSimDynamics::Request> request,
                 std::shared_ptr<ros2_control_blue_reach_5::srv::SetSimDynamics::Response> response)
             {
-                if (request->mass < 0.0 || request->ixx < 0.0 || request->iyy < 0.0 || request->izz < 0.0)
+                if (!request->set_manipulator_dynamics)
+                {
+                    response->success = false;
+                    response->message = "set_manipulator_dynamics must be true";
+                    return;
+                }
+                const auto &dynamics = request->manipulator;
+                if (dynamics.payload_mass < 0.0 ||
+                    dynamics.payload_inertia[0] < 0.0 ||
+                    dynamics.payload_inertia[1] < 0.0 ||
+                    dynamics.payload_inertia[2] < 0.0)
                 {
                     response->success = false;
                     response->message = "payload values must be non-negative";
@@ -411,16 +517,27 @@ namespace ros2_control_blue_reach_5
                 }
 
                 std::lock_guard<std::mutex> lock(simulation_state_mutex_);
-                gravity_ = request->gravity;
-                payload_mass = request->mass;
-                payload_Ixx = request->ixx;
-                payload_Iyy = request->iyy;
-                payload_Izz = request->izz;
+                use_coupled_dynamics_ = request->use_coupled_dynamics;
+                manipulator_parameters_ = pack_manipulator_dynamics(dynamics);
+                joint_lock_on_deadband_ = dynamics.joint_lock_on_deadband;
+                joint_lock_off_deadband_ = dynamics.joint_lock_off_deadband;
+                baumgarte_alpha_ = dynamics.baumgarte_alpha;
+                endeffector_mass_ = dynamics.endeffector_mass;
+                endeffector_damping_ = dynamics.endeffector_damping;
+                endeffector_stiffness_ = dynamics.endeffector_stiffness;
+                std::fill(on_db_.begin(), on_db_.end(), joint_lock_on_deadband_);
+                std::fill(off_db_.begin(), off_db_.end(), joint_lock_off_deadband_);
+                gravity_ = gravity_magnitude(dynamics.gravity_vector);
+                payload_mass = dynamics.payload_mass;
+                payload_Ixx = dynamics.payload_inertia[0];
+                payload_Iyy = dynamics.payload_inertia[1];
+                payload_Izz = dynamics.payload_inertia[2];
 
                 RCLCPP_INFO(
                     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
-                    "[%s] updated sim dynamics gravity=%.6f mass=%.3f ixx=%.6f iyy=%.6f izz=%.6f",
-                    robot_prefix.c_str(), gravity_, payload_mass, payload_Ixx, payload_Iyy, payload_Izz);
+                    "[%s] updated sim dynamics gravity=%.6f mass=%.3f ixx=%.6f iyy=%.6f izz=%.6f use_coupled_dynamics=%s",
+                    robot_prefix.c_str(), gravity_, payload_mass, payload_Ixx, payload_Iyy, payload_Izz,
+                    use_coupled_dynamics_ ? "true" : "false");
                 response->success = true;
                 response->message = "updated simulated dynamics";
             });
@@ -700,28 +817,6 @@ namespace ros2_control_blue_reach_5
             control_power_ = 0.0;
         }
 
-        std::vector<DM> rigid_p = {
-            1.94000000e-01, 4.29000000e-01, 1.14999999e-01, 3.32999998e-01,
-            -0.00000000e+00, -0.00000000e+00, -0.00000000e+00, -4.29000003e-02,
-            1.96649101e-02, 4.29000003e-02, 2.88077923e-03, 7.23516749e-03,
-            9.16434754e-03, 2.16416476e-03, -1.19076924e-03, 8.07346553e-03,
-            7.10109586e-01, 7.10109586e-01, 1.99576149e-06, -0.00000000e+00,
-            -0.00000000e+00, -0.00000000e+00, 1.10178508e-01, 1.83331277e-01,
-            1.04292121e-01, -3.32240937e-02, -8.30350362e-02, -3.83631263e-02,
-            1.18956416e-01, 1.22363853e-01, 4.34411664e-03, -3.96112974e-04,
-            -2.13904668e-02, -1.77228242e-03, 1.92510932e-02, 2.56548460e-02,
-            7.17220917e-03, 1.48789886e-03, 4.53687373e-04, -1.09861913e-03,
-            2.39569756e+00, 2.23596482e+00, 8.19671021e-01, 3.57249665e-01,
-            0.00000000e+00, 0.00000000e+00, 0.00000000e+00, 0.00000000e+00,
-            -0.00000000e+00, -0.00000000e+00, -0.00000000e+00, -0.00000000e+00,
-            0, 0, 0, 0,
-            0, 0, gravity_,                // gravity
-            0, 0, 0, payload_mass,         // payload center of mass wrt eff , payload mass
-            0.19, 0, -0.12, 3.14159, 0, 0, // base to vehicle transform
-            0, 0, 0, 0, 0, 0,               // to world transform])
-            0.00, 0.00, 0.04, 0.00, 0.00, 0.00
-        };
-
         arm_state.clear();
         arm_state.reserve(10);
 
@@ -838,12 +933,8 @@ namespace ros2_control_blue_reach_5
         //     static_cast<int>(is_locked_[3]));
 
         // call dynamics with the mask
-        DM baumgarte_alpha = 200;
-        DM endeffector_mass = 300;
-        DM endeffector_damping = 400;
-        DM endeffector_stiffness = 0;
-        arm_simulate_argument = {arm_state, arm_torques, delta_seconds, rigid_p, endeffector_mass,
-                                 endeffector_damping, endeffector_stiffness, lock_mask, baumgarte_alpha};
+        arm_simulate_argument = {arm_state, arm_torques, delta_seconds, manipulator_parameters_, DM(endeffector_mass_),
+                                 DM(endeffector_damping_), DM(endeffector_stiffness_), lock_mask, DM(baumgarte_alpha_)};
         arm_sim = utils_service.manipulator_dynamics(arm_simulate_argument);
         arm_next_states = arm_sim.at(0).nonzeros();
 

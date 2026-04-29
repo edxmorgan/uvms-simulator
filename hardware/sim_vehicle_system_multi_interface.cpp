@@ -16,6 +16,7 @@
 #include "ros2_control_blue_reach_5/sim_vehicle_system_multi_interface.hpp"
 
 #include <chrono>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -36,6 +37,141 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
+    namespace
+    {
+        std::array<double, 48> default_thrust_configuration_matrix()
+        {
+            return {
+                0.707, 0.707, -0.707, -0.707, 0.0, 0.0, 0.0, 0.0,
+                -0.707, 0.707, -0.707, 0.707, 0.0, 0.0, 0.0, 0.0,
+                0.0, 0.0, 0.0, 0.0, -1.0, 1.0, 1.0, -1.0,
+                0.06, -0.06, 0.06, -0.06, -0.218, -0.218, 0.218, 0.218,
+                0.06, 0.06, -0.06, -0.06, 0.12, -0.12, 0.12, -0.12,
+                -0.1888, 0.1888, 0.1888, -0.1888, 0.0, 0.0, 0.0, 0.0};
+        }
+
+        bool valid_thrust_configuration_matrix(const std::array<double, 48> &matrix)
+        {
+            return std::any_of(matrix.begin(), matrix.end(), [](const double value)
+                               { return std::abs(value) > 1.0e-12; });
+        }
+
+        DM thrust_configuration_dm(const std::array<double, 48> &matrix)
+        {
+            DM result = DM::zeros(6, 8);
+            for (std::size_t row = 0; row < 6; ++row)
+            {
+                for (std::size_t col = 0; col < 8; ++col)
+                {
+                    result(row, col) = matrix[row * 8 + col];
+                }
+            }
+            return result;
+        }
+
+        std::vector<double> default_vehicle_simulation_parameters()
+        {
+            return {
+                3.72028553e+01, 2.21828075e+01, 6.61734807e+01, 3.38909801e+00,
+                6.41362046e-01, 6.41362034e-01, 3.38909800e+00, 1.39646394e+00,
+                4.98032205e-01, 2.53118738e+00, 1.05000000e+02, 9.78296453e+01,
+                8.27479545e-01, 1.36822559e-01, 4.25841171e+00, -7.36416666e+01,
+                -3.36082112e+01, -8.94055107e+01, -2.98736214e+00, -1.57921531e+00,
+                -3.39766499e+00, -1.47912104e-04, -5.16373030e-04, -9.85522538e+01,
+                -3.05907788e-02, -1.27877517e-01, -1.63514832e+00,
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        }
+
+        ros2_control_blue_reach_5::msg::SimVehicleDynamics default_vehicle_dynamics()
+        {
+            auto msg = ros2_control_blue_reach_5::msg::SimVehicleDynamics();
+            const auto values = default_vehicle_simulation_parameters();
+            msg.m_x_du = values[0];
+            msg.m_y_dv = values[1];
+            msg.m_z_dw = values[2];
+            msg.mz_g_x_dq = values[3];
+            msg.mz_g_y_dp = values[4];
+            msg.mz_g_k_dv = values[5];
+            msg.mz_g_m_du = values[6];
+            msg.i_x_k_dp = values[7];
+            msg.i_y_m_dq = values[8];
+            msg.i_z_n_dr = values[9];
+            msg.weight = values[10];
+            msg.buoyancy = values[11];
+            msg.x_g_weight_minus_x_b_buoyancy = values[12];
+            msg.y_g_weight_minus_y_b_buoyancy = values[13];
+            msg.z_g_weight_minus_z_b_buoyancy = values[14];
+            msg.x_u = values[15];
+            msg.y_v = values[16];
+            msg.z_w = values[17];
+            msg.k_p = values[18];
+            msg.m_q = values[19];
+            msg.n_r = values[20];
+            msg.x_uu = values[21];
+            msg.y_vv = values[22];
+            msg.z_ww = values[23];
+            msg.k_pp = values[24];
+            msg.m_qq = values[25];
+            msg.n_rr = values[26];
+            for (std::size_t i = 0; i < msg.current_velocity.size(); ++i)
+            {
+                msg.current_velocity[i] = values[27 + i];
+            }
+            msg.thrust_configuration_matrix = default_thrust_configuration_matrix();
+            return msg;
+        }
+
+        std::vector<double> pack_vehicle_dynamics(
+            const ros2_control_blue_reach_5::msg::SimVehicleDynamics &msg)
+        {
+            return {
+                msg.m_x_du,
+                msg.m_y_dv,
+                msg.m_z_dw,
+                msg.mz_g_x_dq,
+                msg.mz_g_y_dp,
+                msg.mz_g_k_dv,
+                msg.mz_g_m_du,
+                msg.i_x_k_dp,
+                msg.i_y_m_dq,
+                msg.i_z_n_dr,
+                msg.weight,
+                msg.buoyancy,
+                msg.x_g_weight_minus_x_b_buoyancy,
+                msg.y_g_weight_minus_y_b_buoyancy,
+                msg.z_g_weight_minus_z_b_buoyancy,
+                msg.x_u,
+                msg.y_v,
+                msg.z_w,
+                msg.k_p,
+                msg.m_q,
+                msg.n_r,
+                msg.x_uu,
+                msg.y_vv,
+                msg.z_ww,
+                msg.k_pp,
+                msg.m_qq,
+                msg.n_rr,
+                msg.current_velocity[0],
+                msg.current_velocity[1],
+                msg.current_velocity[2],
+                msg.current_velocity[3],
+                msg.current_velocity[4],
+                msg.current_velocity[5]};
+        }
+
+        std::vector<casadi::DM> to_dm_vector(const std::vector<double> &values)
+        {
+            std::vector<casadi::DM> result;
+            result.reserve(values.size());
+            for (const double value : values)
+            {
+                result.emplace_back(value);
+            }
+            return result;
+        }
+    } // namespace
+
     SimVehicleSystemMultiInterfaceHardware::~SimVehicleSystemMultiInterfaceHardware()
     {
         stop_ros_interfaces();
@@ -132,6 +268,12 @@ namespace ros2_control_blue_reach_5
         }
 
         commands_held_ = request.hold_commands;
+        if (request.set_vehicle_dynamics)
+        {
+            use_coupled_dynamics_ = request.use_coupled_dynamics;
+            vehicle_parameters_new = to_dm_vector(pack_vehicle_dynamics(request.vehicle_dynamics));
+            thrust_configuration_matrix_ = request.vehicle_dynamics.thrust_configuration_matrix;
+        }
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
             "[%s] reset simulated vehicle with requested state; hold=%s pose=[%.3f, %.3f, %.3f, %.3f, %.3f, %.3f]",
@@ -157,6 +299,7 @@ namespace ros2_control_blue_reach_5
         }
         reset_service_.reset();
         release_service_.reset();
+        dynamics_service_.reset();
         static_tf_broadcaster_.reset();
         executor_.reset();
         node_topics_interface_.reset();
@@ -236,6 +379,10 @@ namespace ros2_control_blue_reach_5
         const std::string use_pwm_str = get_hardware_info().hardware_parameters.at("use_pwm"); // e.g., "true", "false", "1", "0"
         hw_vehicle_struct.use_pwm =
             use_pwm_str == "true" || use_pwm_str == "True" || use_pwm_str == "1";
+        const auto default_dynamics = default_vehicle_dynamics();
+        vehicle_parameters_new = to_dm_vector(pack_vehicle_dynamics(default_dynamics));
+        thrust_configuration_matrix_ = default_dynamics.thrust_configuration_matrix;
+
         bool same_initial_conditions = false;
         if (get_hardware_info().hardware_parameters.find("same_initial_conditions") != get_hardware_info().hardware_parameters.cend())
         {
@@ -382,17 +529,20 @@ namespace ros2_control_blue_reach_5
 
             contact_wrench_sub_ =
                 node_topics_interface_->create_subscription<geometry_msgs::msg::WrenchStamped>(
-                    "contact_wrench_body", // this matches CollisionNode::contact_wrench_pub topic
+                    "contact_wrench_body",
                     rclcpp::QoS(10),
                     [this](const geometry_msgs::msg::WrenchStamped::SharedPtr msg)
                     {
+                        // Topic contract: WrenchStamped is already expressed in
+                        // the vehicle body frame and already uses the dynamics
+                        // sign convention [Fx, Fy, Fz, Tx, Ty, Tz].
                         std::lock_guard<std::mutex> lock(contact_wrench_mutex_);
                         contact_wrench_body_[0] = msg->wrench.force.x;
                         contact_wrench_body_[1] = msg->wrench.force.y;
-                        contact_wrench_body_[2] = -msg->wrench.force.z;
+                        contact_wrench_body_[2] = msg->wrench.force.z;
                         contact_wrench_body_[3] = msg->wrench.torque.x;
                         contact_wrench_body_[4] = msg->wrench.torque.y;
-                        contact_wrench_body_[5] = -msg->wrench.torque.z;
+                        contact_wrench_body_[5] = msg->wrench.torque.z;
                     });
         }
         catch (const std::exception &e)
@@ -438,6 +588,13 @@ namespace ros2_control_blue_reach_5
                 std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Response> response)
         {
             std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+            if (request->set_vehicle_dynamics &&
+                !valid_thrust_configuration_matrix(request->vehicle_dynamics.thrust_configuration_matrix))
+            {
+                response->success = false;
+                response->message = "vehicle_dynamics.thrust_configuration_matrix must contain a nonzero 6x8 row-major matrix";
+                return;
+            }
             reset_vehicle_simulation_state(*request);
             response->success = true;
             response->message = "reset simulated vehicle to requested state";
@@ -461,6 +618,38 @@ namespace ros2_control_blue_reach_5
                     hw_vehicle_struct.robot_prefix.c_str());
                 response->success = true;
                 response->message = "released simulated vehicle commands";
+            });
+
+        dynamics_service_ = node_topics_interface_->create_service<ros2_control_blue_reach_5::srv::SetSimDynamics>(
+            "/" + hw_vehicle_struct.robot_prefix + "set_sim_vehicle_dynamics",
+            [this](
+                const std::shared_ptr<ros2_control_blue_reach_5::srv::SetSimDynamics::Request> request,
+                std::shared_ptr<ros2_control_blue_reach_5::srv::SetSimDynamics::Response> response)
+            {
+                if (!request->set_vehicle_dynamics)
+                {
+                    response->success = false;
+                    response->message = "set_vehicle_dynamics must be true";
+                    return;
+                }
+                if (!valid_thrust_configuration_matrix(request->vehicle.thrust_configuration_matrix))
+                {
+                    response->success = false;
+                    response->message = "vehicle.thrust_configuration_matrix must contain a nonzero 6x8 row-major matrix";
+                    return;
+                }
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                use_coupled_dynamics_ = request->use_coupled_dynamics;
+                vehicle_parameters_new = to_dm_vector(pack_vehicle_dynamics(request->vehicle));
+                thrust_configuration_matrix_ = request->vehicle.thrust_configuration_matrix;
+                response->success = true;
+                response->message = "updated simulated vehicle dynamics parameters";
+                RCLCPP_INFO(
+                    rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                    "[%s] updated simulated vehicle dynamics parameter vector (%zu values), use_coupled_dynamics=%s",
+                    hw_vehicle_struct.robot_prefix.c_str(),
+                    vehicle_parameters_new.size(),
+                    use_coupled_dynamics_ ? "true" : "false");
             });
 
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
@@ -944,13 +1133,7 @@ namespace ros2_control_blue_reach_5
             control_power_ = 0.0;
         }
 
-        // Define the 6×8 thrust configuration matrix.
-        DM thrust_config = DM({{0.707, 0.707, -0.707, -0.707, 0.0, 0.0, 0.0, 0.0},
-                               {-0.707, 0.707, -0.707, 0.707, 0.0, 0.0, 0.0, 0.0},
-                               {0.0, 0.0, 0.0, 0.0, -1.0, 1.0, 1.0, -1.0},
-                               {0.06, -0.06, 0.06, -0.06, -0.218, -0.218, 0.218, 0.218},
-                               {0.06, 0.06, -0.06, -0.06, 0.12, -0.12, 0.12, -0.12},
-                               {-0.1888, 0.1888, 0.1888, -0.1888, 0.0, 0.0, 0.0, 0.0}});
+        const DM thrust_config = thrust_configuration_dm(thrust_configuration_matrix_);
 
         if (hw_vehicle_struct.use_pwm)
         {
@@ -965,16 +1148,7 @@ namespace ros2_control_blue_reach_5
             DM pwm_commands = DM(pwm_command_values);
 
             std::vector<DM> thrusts_commands = utils_service.pwm_to_thrusts(pwm_commands);
-            // std::vector<double> thrusts_commands_doubles = thrusts_commands.at(0).nonzeros();
-
-            const std::vector<double> &v = thrusts_commands.at(0).nonzeros();
-            std::vector<double> thrusts_commands_doubles;
-            thrusts_commands_doubles.reserve(v.size());
-            const double scale = 0.015;
-            for (double x : v)
-            {
-                thrusts_commands_doubles.push_back(scale * x);
-            }
+            std::vector<double> thrusts_commands_doubles = thrusts_commands.at(0).nonzeros();
             std::vector<DM> thrust2bodyf_args = {thrust_config, thrusts_commands_doubles};
             std::vector<DM> body_forces_command_resp = utils_service.thruster_f2body_f(thrust2bodyf_args);
             std::vector<double> body_forces_command = body_forces_command_resp.at(0).nonzeros();
@@ -1058,15 +1232,8 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position = hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position + thrusts_rads_double[i] * delta_seconds;
         }
 
-        vehicle_parameters_new = {3.72028553e+01, 2.21828075e+01, 6.61734807e+01, 3.38909801e+00,
-                                  6.41362046e-01, 6.41362034e-01, 3.38909800e+00, 1.39646394e+00,
-                                  4.98032205e-01, 2.53118738e+00, 1.05000000e+02, 9.78296453e+01,
-                                  8.27479545e-01, 1.36822559e-01, 4.25841171e+00, -7.36416666e+01,
-                                  -3.36082112e+01, -8.94055107e+01, -2.98736214e+00, -1.57921531e+00,
-                                  -3.39766499e+00, -1.47912104e-04, -5.16373030e-04, -9.85522538e+01,
-                                  -3.05907788e-02, -1.27877517e-01, -1.63514832e+00, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-
-        // pull latest external contact wrench from CollisionNode
+        // Pull the latest external contact wrench from the contact pipeline.
+        // The value is already in vehicle-body dynamics convention.
         std::array<double, 6> wrench_copy;
         {
             std::lock_guard<std::mutex> lock(contact_wrench_mutex_);

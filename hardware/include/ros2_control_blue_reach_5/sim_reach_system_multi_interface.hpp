@@ -119,6 +119,13 @@ namespace ros2_control_blue_reach_5
         double payload_Iyy = 0;
         double payload_Izz = 0;
         double gravity_ = 0;
+        std::vector<casadi::DM> manipulator_parameters_;
+        double joint_lock_on_deadband_{0.05};
+        double joint_lock_off_deadband_{0.10};
+        double baumgarte_alpha_{200.0};
+        double endeffector_mass_{300.0};
+        double endeffector_damping_{400.0};
+        double endeffector_stiffness_{0.0};
 
         std::string system_name;
 
@@ -148,6 +155,7 @@ namespace ros2_control_blue_reach_5
         double delta_seconds{0.0};
         double time_seconds{0.0};
         bool commands_held_{false};
+        bool use_coupled_dynamics_{false};
 
         std::vector<bool>   is_locked_;
         std::vector<double> on_db_;

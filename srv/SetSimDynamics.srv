@@ -1,8 +1,8 @@
-float64 gravity
-float64 mass
-float64 ixx
-float64 iyy
-float64 izz
+bool use_coupled_dynamics
+bool set_vehicle_dynamics
+SimVehicleDynamics vehicle
+bool set_manipulator_dynamics
+SimManipulatorDynamics manipulator
 ---
 bool success
 string message

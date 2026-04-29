@@ -202,23 +202,36 @@ namespace ros2_control_blue_reach_5
       msg.transforms.resize(1); // will resize per publish
 
       dynamics_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::SetSimDynamics>(
-          "/" + robot_prefix + "set_sim_dynamics",
+          "/" + robot_prefix + "set_sim_manipulator_dynamics",
           [this](
               const std::shared_ptr<ros2_control_blue_reach_5::srv::SetSimDynamics::Request> request,
               std::shared_ptr<ros2_control_blue_reach_5::srv::SetSimDynamics::Response> response)
           {
-            if (request->mass < 0.0 || request->ixx < 0.0 || request->iyy < 0.0 || request->izz < 0.0)
+            if (!request->set_manipulator_dynamics)
+            {
+              response->success = false;
+              response->message = "set_manipulator_dynamics must be true";
+              return;
+            }
+            const auto &dynamics = request->manipulator;
+            if (dynamics.payload_mass < 0.0 ||
+                dynamics.payload_inertia[0] < 0.0 ||
+                dynamics.payload_inertia[1] < 0.0 ||
+                dynamics.payload_inertia[2] < 0.0)
             {
               response->success = false;
               response->message = "payload values must be non-negative";
               return;
             }
 
-            payload_mass = request->mass;
-            payload_Ixx = request->ixx;
-            payload_Iyy = request->iyy;
-            payload_Izz = request->izz;
-            gravity_ = request->gravity;
+            payload_mass = dynamics.payload_mass;
+            payload_Ixx = dynamics.payload_inertia[0];
+            payload_Iyy = dynamics.payload_inertia[1];
+            payload_Izz = dynamics.payload_inertia[2];
+            gravity_ = std::sqrt(
+                dynamics.gravity_vector[0] * dynamics.gravity_vector[0] +
+                dynamics.gravity_vector[1] * dynamics.gravity_vector[1] +
+                dynamics.gravity_vector[2] * dynamics.gravity_vector[2]);
 
             RCLCPP_INFO(
                 rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),

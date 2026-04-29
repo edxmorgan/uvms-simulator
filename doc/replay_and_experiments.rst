@@ -28,13 +28,13 @@ Profiles live in:
 
 .. code-block:: text
 
-   uvms-simlab/resource/csv_playback/<profile_name>/
+   uvms-simlab/resource/playback_profile/<profile_name>/
 
 Each profile contains:
 
 - ``commands.csv``: command samples.
 - ``replay.json``: metadata for CSV columns, repeat behavior, reset state,
-  dynamics, control policy, and optional recording.
+  robot dynamics profile, control policy, and optional recording.
 
 Profile naming:
 
@@ -113,16 +113,19 @@ repeat, hold, and recording behavior. A typical profile looks like:
          "twist": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
          "wrench": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
        },
-       "dynamics": {
-         "gravity": 9.81,
-         "payload_mass": 0.0,
-         "payload_inertia": [0.0, 0.0, 0.0]
-       }
+       "robot_dynamics_profile": "dory_alpha_payload_0p0kg"
      },
      "recording": {
        "enabled": false
      }
    }
+
+``robot_dynamics_profile`` names a complete robot dynamics profile under
+``uvms-simlab/resource/dynamics_profiles``. Each profile defines the robot
+dynamics used during replay, including vehicle parameters, manipulator
+parameters, and ``use_coupled_dynamics``. Set ``use_coupled_dynamics`` to
+``false`` for independent vehicle/manipulator subsystem parameters. Set it to
+``true`` when the parameters belong to one coupled UVMS dynamics model.
 
 Control Policy
 --------------
@@ -153,8 +156,7 @@ Simulation and hardware reset are intentionally different:
   ``reset.hardware_settle`` controller moves the system toward the configured
   initial condition before playback starts.
 
-The ``reset.dynamics`` section sets gravity and payload values used by the
-profile. For payload identification profiles, keep this metadata consistent
+For payload identification profiles, keep ``robot_dynamics_profile`` consistent
 with the physical payload being tested.
 
 Repeats and Looping
@@ -193,16 +195,18 @@ initialization phase. Typical columns include:
 Keep ``recording.enabled`` set to ``false`` unless the experiment needs a
 per-pass replay log.
 
-Plotting Replay Sessions
-------------------------
+Inspecting Replay Sessions
+--------------------------
 
-Use the replay-session plotting utility to inspect:
+Replay-session CSV files can be loaded into PlotJuggler, Python, MATLAB, or a
+notebook. Compare the replayed command columns against the measured state and
+effort columns from the same pass:
 
-- ``q_alpha_axis_{e,d,c,b}``
-- ``dq_alpha_axis_{e,d,c,b}``
-- ``ddq_alpha_axis_{e,d,c,b}``
-- ``effort_alpha_axis_{e,d,c,b}``
-- ``cmd_tau_axis_*``
+- ``cmd_tau_axis_e/d/c/b/a`` against ``effort_alpha_axis_e/d/c/b``.
+- ``cmd_tau_axis_e/d/c/b`` against ``q_alpha_axis_e/d/c/b``,
+  ``dq_alpha_axis_e/d/c/b``, and ``ddq_alpha_axis_e/d/c/b``.
+- ``cmd_vehicle_fx/fy/fz/tx/ty/tz`` against vehicle pose, body velocity, and
+  body acceleration columns.
 
-This is the recommended way to check whether command, measured effort,
-position, velocity, and acceleration are aligned during a replay pass.
+This helps detect timestamp offsets, dropped samples, wrong CSV columns, or
+unexpected actuator/sensor delay.
