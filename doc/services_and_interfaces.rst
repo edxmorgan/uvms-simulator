@@ -88,6 +88,10 @@ to one coupled UVMS dynamics model.
 
 The response reports ``success`` and ``message``.
 
+Named dynamics profiles are documented in :doc:`replay_and_experiments`.
+The ``Dynamics Profile`` RViz menu and command replay metadata use these
+messages to apply complete robot parameter sets.
+
 ``SimVehicleDynamics`` contains the lumped vehicle model parameters used by
 the simulated vehicle backend:
 
