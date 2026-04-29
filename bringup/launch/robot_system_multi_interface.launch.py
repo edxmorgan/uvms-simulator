@@ -256,6 +256,7 @@ def launch_setup(context, *args, **kwargs):
     sim_robot_count = LaunchConfiguration("sim_robot_count").perform(context)
     same_initial_conditions = LaunchConfiguration("same_initial_conditions").perform(context)
     record_data = LaunchConfiguration("record_data").perform(context)
+    record_data_bool = IfCondition(record_data).evaluate(context)
     mode_enabled = LaunchConfiguration("mode_enabled").perform(context)
     use_mocap = LaunchConfiguration("use_mocap").perform(context)
     launch_plotjuggler = LaunchConfiguration("launch_plotjuggler").perform(context)
@@ -516,8 +517,10 @@ def launch_setup(context, *args, **kwargs):
         package='simlab',
         executable="bag_recorder_node",
         name="bag_recorder_node",
-        parameters=[mode_params],
-        condition=IfCondition(record_data),
+        parameters=[
+            mode_params,
+            {"autostart_recording": record_data_bool},
+        ],
     )
 
     camera_prefix = "robot_real_" if use_vehicle_hardware_bool else next(

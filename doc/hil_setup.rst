@@ -43,7 +43,7 @@ mapping and forward/reverse directions match the convention implemented by the
 vehicle hardware interface. The framework assumes the thruster numbering and
 positive force directions shown below.
 
-.. image:: thruster_config_sign.png
+.. image:: images/thruster_config_sign.png
    :alt: BlueROV thruster numbering and positive force direction convention
    :align: center
    :width: 80%
