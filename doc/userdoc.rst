@@ -75,7 +75,9 @@ selection. See :doc:`services_and_interfaces` for the main runtime interfaces.
 Record Data
 -----------
 
-Enable rosbag recording at launch:
+The interactive RViz menu has ``Data Recording`` actions for starting and
+stopping MCAP recording during a session. For headless runs, start recording at
+launch:
 
 .. code-block:: shell
 
@@ -87,4 +89,6 @@ Enable rosbag recording at launch:
        record_data:=true
 
 Bags are saved as ``uvms_bag_YYYYmmdd_HHMMSS`` in the launch working
-directory.
+directory. MCAP recordings include measured robot state, mocap pose, and
+per-robot desired target topics for vehicle pose/velocity/acceleration and arm
+position/velocity/acceleration.

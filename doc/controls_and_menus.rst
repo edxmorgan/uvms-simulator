@@ -38,17 +38,19 @@ Main menu groups:
   experiment logging.
 - ``Grasper``: open/close the active robot's grasper through feedback
   controllers only.
-- ``Reset Manager``: simulator state reset and release controls. Hidden for the
-  ``robot_real_`` hardware namespace.
+- ``Reset Manager``: simulator state reset and release controls. Requests for
+  hardware namespaces are rejected with a log message.
 - ``<robot> Control``: select controller and control space for a robot.
 
 Feedback Control and Replay
 ---------------------------
 
-Feedback control and replay are intentionally separated:
+Feedback control and replay are separate operating modes:
 
 - ``PID`` and ``InvDyn`` are closed-loop feedback controllers.
-- ``CmdReplay`` is an open-loop command playback controller.
+- ``CmdReplay`` is the CSV replay controller. A profile decides whether each
+  subsystem replays commands, tracks references, holds its initial state, or
+  publishes zero commands.
 - ``Plan & Execute`` uses the selected feedback controller and refuses to run
   while ``CmdReplay`` is selected.
 - Replay reset/playback requires both ``CmdReplay`` and an explicitly selected
@@ -61,11 +63,11 @@ publish closed-loop commands until the user explicitly activates a behavior.
 Pressing ``Plan & Execute`` activates the selected feedback controller on
 demand.
 
-Controller semantics:
+Controller notes:
 
-- ``PID`` is not a pure textbook PID-only controller. The vehicle command
-  includes hydrostatic restoring compensation in addition to feedback terms.
-  The manipulator side is joint-space feedback with configured command limits.
+- ``PID`` combines feedback terms with hydrostatic restoring compensation on
+  the vehicle side. The manipulator side is joint-space feedback with
+  configured command limits.
 - ``InvDyn`` implements inverse-dynamics control in the computed-torque sense:
   desired state and desired acceleration are mapped through an estimated model
   to actuation, with feedback terms correcting model and state-estimation
@@ -161,12 +163,3 @@ Keyboard channel mapping:
 
 Neutral PWM is ``1500``. Pressed keys publish active PWM ``1700`` for the
 mapped channel. Releasing a key returns the channel to neutral.
-
-Grasper Menu Parameters
------------------------
-
-The grasper menu uses these parameters:
-
-- ``grasper_menu_open_effort``
-- ``grasper_menu_close_effort``
-- ``grasper_menu_effort_duration``

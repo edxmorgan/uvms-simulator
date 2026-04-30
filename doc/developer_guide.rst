@@ -22,8 +22,10 @@ Simulator package:
 
 SimLab package:
 
-- ``uvms-simlab/simlab/interactive_control.py``: RViz menu layout and menu
-  callbacks.
+- ``uvms-simlab/simlab/interactive_control.py``: RViz menu layout and UI
+  callback glue.
+- ``uvms-simlab/simlab/uvms_backend.py``: shared backend API used by RViz
+  menus and external service clients.
 - ``uvms-simlab/simlab/robot.py``: robot state machine, controller registry,
   planner/replay dispatch, joystick bridge, grasper handling, logging.
 - ``uvms-simlab/simlab/controllers``: controller implementations, including
@@ -67,9 +69,9 @@ vehicle/manipulator state and target commands.
 
 Semantics of built-in controllers:
 
-- ``PID`` is not a pure PID-only law. The vehicle path includes hydrostatic
-  restoring compensation in addition to feedback terms, and the manipulator
-  path is joint-space feedback with configured command limits.
+- ``PID`` combines feedback terms with hydrostatic restoring compensation on
+  the vehicle path. The manipulator path is joint-space feedback with
+  configured command limits.
 - ``InvDyn`` implements inverse-dynamics control in the computed-torque sense:
   desired state and desired acceleration are mapped through an estimated model
   to actuation, with feedback terms correcting model and state-estimation
@@ -257,9 +259,8 @@ Manipulator command allocation:
   ordering.
 - Handle actuator limits, encoder signs, gear ratios, and zero offsets inside
   the robot interface.
-- If effort sensing is available, expose measured effort. If it is not
-  available, expose the best available estimate and make that clear in the
-  interface documentation.
+- If effort sensing is available, expose measured effort. Otherwise expose the
+  best available estimate and make that clear in the interface documentation.
 
 Sensor fusion and state estimation:
 

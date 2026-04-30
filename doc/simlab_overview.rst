@@ -6,7 +6,7 @@ centered on a BlueROV-style floating base and a Reach Alpha manipulator. It is
 designed to run the same high-level procedures across simulation, mixed
 hardware/simulation, and hardware-in-the-loop experiments.
 
-The stack is split across two main packages:
+The stack is split across two main runtime packages:
 
 - ``uvms-simulator`` provides the exported ROS package
   ``ros2_control_blue_reach_5``. It contains the launch system, xacro/URDF
@@ -18,10 +18,18 @@ The stack is split across two main packages:
   server/client, replay profiles, experiment logging, joystick interfaces,
   mocap nodes, and perception utilities.
 
-Read the stack as one UVMS project with two cooperating ROS
-packages: ``uvms-simulator`` owns the system description and hardware/simulator
-interfaces, while ``uvms-simlab`` owns the experiment/runtime behavior layered
-on top of those interfaces.
+Read the stack as one UVMS project: ``uvms-simulator`` owns the system
+description and hardware/simulator interfaces, ``uvms-simlab`` owns the
+experiment/runtime behavior, and the generated dynamics sources provide the
+models used by the simulator and model-based controllers.
+
+Architecture
+------------
+
+.. image:: images/architecture_simple.svg
+   :alt: UVMS simulator and SimLab architecture diagram
+   :align: center
+   :width: 100%
 
 System Layers
 -------------
@@ -35,8 +43,8 @@ System Layers
   replay profiles, grasper commands, and visualization through RViz and
   joystick inputs.
 - Experiment infrastructure: command replay, reset/dynamics metadata, replay
-  session logging, rosbag recording, and mocap conversion support repeatable
-  simulator and hardware experiments.
+  session logging, rosbag2 MCAP recording, and mocap conversion support
+  repeatable simulator and hardware experiments.
 - Environment/perception: bathymetry/workspace visualization, collision
   context, camera drivers, and optional RGB-to-pointcloud utilities support
   planning and operator feedback.
@@ -62,12 +70,13 @@ Guide Map
 Core Runtime Nodes
 ------------------
 
-- ``interactive_controller``: RViz interactive markers, controller switching,
-  path planning, waypoint execution, grasper commands, reset management, and
-  command replay orchestration.
+- ``interactive_controller``: RViz interactive markers plus the shared SimLab
+  backend API for controller switching, path planning, waypoint execution,
+  grasper commands, reset management, and command replay orchestration.
 - ``planner_action_server_node``: OMPL-backed path-planning action server used
   by the interactive controller.
-- ``bag_recorder``: rosbag2 MCAP recording for simulator and hardware sessions.
+- ``bag_recorder_node``: rosbag2 MCAP recording for simulator and hardware
+  sessions.
 - ``mocap_publisher``: OptiTrack/mocap4r2 bridge output conversion and path
   publishing when mocap is enabled.
 - ``rgb2cloudpoint_publisher``: optional RGB-to-pointcloud perception utility.
@@ -113,9 +122,8 @@ Command Replay
 --------------
 
 Command replay profiles live in ``uvms-simlab/resource/playback_profile``. Replay
-is explicit: select ``CmdReplay``, select a profile, then reset/play from the
-``Cmd Replay`` menu. Profile details are covered in
-:doc:`replay_and_experiments`.
+uses the ``Cmd Replay`` menu. Select ``CmdReplay``, choose a profile, then run
+reset/play. Profile details are covered in :doc:`replay_and_experiments`.
 
 Controller Modes
 ----------------
@@ -140,14 +148,6 @@ projects:
   including body/NED/quaternion kinematics, forward and inverse dynamics,
   hydrodynamic terms, restoring forces, system-identification utilities, EKF
   utilities, nonlinear PID helpers, and CasADi code generation.
-
-Hardware Versus Simulation
---------------------------
-
-Simulator state reset controls are exposed through ``Reset Manager`` and are
-hidden for the ``robot_real_`` hardware namespace. Replay under
-``robot_real_`` uses controller-based settling before playback rather than
-simulator state reset.
 
 Capability Map
 --------------

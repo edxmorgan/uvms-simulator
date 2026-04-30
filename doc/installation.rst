@@ -6,7 +6,7 @@ Build the project as a ROS 2 workspace. A complete workspace normally contains:
 - ``uvms-simulator``: exported ROS package
   ``ros2_control_blue_reach_5``.
 - ``uvms-simlab``: exported ROS package ``simlab``.
-- ``simlab_msgs``: custom planner action definitions.
+- ``simlab_msgs``: shared SimLab action, message, and service interfaces.
 - Dependency repositories from ``uvms-simulator/dependency_repos.repos``.
 
 System Requirements
