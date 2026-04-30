@@ -1,10 +1,11 @@
 Command Replay and Experiments
 ==============================
 
-Command replay sends repeatable open-loop vehicle wrench and manipulator torque
-commands from CSV files. Use it for payload identification probes, vehicle
-force tests, and whole-body experiments where the same command sequence should
-be applied across runs.
+Command replay runs repeatable CSV profiles. A profile can replay recorded
+vehicle/manipulator commands directly, hold one subsystem while exciting the
+other, or track recorded desired-state references through a feedback
+controller. Use it for payload identification probes, vehicle force tests, and
+whole-body experiments where the same profile should run across trials.
 
 Workflow
 --------
@@ -35,7 +36,7 @@ Each replay profile contains:
 
 - ``commands.csv``: the time-indexed command sequence.
 - ``replay.json``: metadata describing the CSV columns, reset state, dynamics
-  profile, subsystem policy, repeat behavior, and optional recording.
+  profile, subsystem mode, repeat behavior, and optional replay CSV logging.
 
 Use descriptive names because replay profiles appear directly in the RViz
 ``Cmd Replay`` menu. Examples:
@@ -104,7 +105,7 @@ Replay Metadata
 ---------------
 
 ``replay.json`` connects the CSV, reset request, dynamics profile, subsystem
-policy, repeat behavior, and recording option.
+mode, repeat behavior, and recording option.
 
 Example:
 
@@ -118,13 +119,12 @@ Example:
        "manipulator": ["tau_axis_e", "tau_axis_d", "tau_axis_c", "tau_axis_b", "tau_axis_a"]
      },
      "playback": {
-       "repeats": 3,
-       "loop": false
+       "repeats": 3
      },
-     "control_policy": {
-       "vehicle": "hold",
-       "manipulator": "replay",
-       "stabilizing_controller": "PID"
+     "subsystem_mode": {
+       "vehicle": "hold_initial",
+       "manipulator": "replay_command",
+       "feedback_controller": "PID"
      },
      "reset": {
        "hardware_settle": {
@@ -156,24 +156,31 @@ Example:
      }
    }
 
-Control Policy
+Subsystem Mode
 --------------
 
-``control_policy`` defines each subsystem's command source during replay:
+``subsystem_mode`` defines how each subsystem is driven during a replay pass:
 
-- ``"replay"``: use commands from the CSV.
-- ``"hold"``: use the configured stabilizing controller to hold the initial
+- ``"replay_command"``: publish the recorded command columns from
+  ``commands.csv``.
+- ``"track_reference"``: use the recorded desired-state columns and the
+  configured feedback controller to compute commands during replay.
+- ``"hold_initial"``: use the configured feedback controller to hold the reset
   state.
-- ``"zero"``: publish zero effort/wrench commands for that subsystem.
+- ``"zero_command"``: publish zero effort/wrench commands for that subsystem.
 
-Typical experiment policies:
+Typical experiment modes:
 
 - Manipulator probe with vehicle station keeping:
-  ``vehicle = "hold"``, ``manipulator = "replay"``.
+  ``vehicle = "hold_initial"``, ``manipulator = "replay_command"``.
 - Vehicle force test with manipulator hold:
-  ``vehicle = "replay"``, ``manipulator = "hold"``.
+  ``vehicle = "replay_command"``, ``manipulator = "hold_initial"``.
+- Reference replay:
+  set the subsystem to ``"track_reference"`` and set
+  ``feedback_controller`` to the controller that should track the recorded
+  desired state.
 - Whole-body replay:
-  ``vehicle = "replay"``, ``manipulator = "replay"``.
+  ``vehicle = "replay_command"``, ``manipulator = "replay_command"``.
 
 Reset Behavior
 --------------
@@ -188,8 +195,8 @@ Replay reset prepares the robot before each pass.
 For payload identification profiles, keep ``robot_dynamics_profile`` matched to
 the payload being tested.
 
-Repeats and Looping
--------------------
+Repeated Passes
+---------------
 
 For finite repeated playback, the sequence is:
 
@@ -198,10 +205,10 @@ For finite repeated playback, the sequence is:
    reset -> CSV pass 1 -> reset -> CSV pass 2 -> reset -> CSV pass 3
 
 Use ``repeats`` for identification experiments where each pass should begin
-from the configured initial state. Use ``loop`` for continuous replay.
+from the configured initial state.
 
-Recording
----------
+Replay CSV Logging
+------------------
 
 Replay session recording is controlled per replay profile:
 
@@ -222,3 +229,72 @@ Recorded rows cover the replay interval. Typical columns include:
 
 Keep ``recording.enabled`` set to ``false`` for profiles where per-pass replay
 logs are unnecessary.
+
+This CSV logging belongs to CmdReplay. It records only the replay pass, not the
+full ROS graph.
+
+MCAP to Replay Profiles
+-----------------------
+
+Use the ``Data Recording`` RViz menu to start and stop an MCAP recording around
+the behavior you want to capture. The MCAP records ROS topics such as
+``dynamic_joint_states``, ``mocap_pose``, and one reference topic per robot:
+
+- ``/<prefix>/reference/targets``
+
+The reference topic uses ``simlab_msgs/msg/ReferenceTargets`` and
+contains the world target, vehicle NED/body target, and manipulator reference in
+one timestamped message.
+
+Convert one robot from that bag into a CmdReplay profile with:
+
+.. code-block:: bash
+
+   ros2 run simlab mcap_to_replay_profile \
+       ~/ros_ws/uvms_bag_YYYYmmdd_HHMMSS \
+       my_replay_profile \
+       --robot-prefix robot_1_ \
+       --dynamics-profile dory_alpha
+
+The converter writes one replay profile:
+
+.. code-block:: text
+
+   uvms-simlab/resource/playback_profile/my_replay_profile/commands.csv
+   uvms-simlab/resource/playback_profile/my_replay_profile/replay.json
+
+``commands.csv`` contains the replay command columns plus aligned desired-state
+columns from the target topics:
+
+- Vehicle desired pose: ``target_ned_x/y/z/roll/pitch/yaw``.
+- Vehicle desired body velocity: ``target_body_u/v/w/p/q/r``.
+- Vehicle desired body acceleration:
+  ``target_body_du/dv/dw/dp/dq/dr``.
+- Arm desired position, velocity, and acceleration:
+  ``arm_ref_axis_*``, ``arm_dref_axis_*``, and ``arm_ddref_axis_*``.
+
+CmdReplay uses the command columns when a subsystem is in ``replay_command``
+mode. It uses the desired-state columns when a subsystem is in
+``track_reference`` mode.
+
+Run the command from ``~/ros_ws`` to use that default output location. Use
+``--output-root`` to write profiles somewhere else.
+
+For multi-robot recordings, run the converter once per robot prefix:
+
+.. code-block:: bash
+
+   ros2 run simlab mcap_to_replay_profile bag_dir robot_1_profile --robot-prefix robot_1_
+   ros2 run simlab mcap_to_replay_profile bag_dir robot_2_profile --robot-prefix robot_2_
+
+Converter options:
+
+- ``--sample-period 0.04``: downsample the profile to about 25 Hz.
+- ``--vehicle-mode hold_initial``: set ``subsystem_mode.vehicle`` in
+  ``replay.json``.
+- ``--manipulator-mode hold_initial``: set ``subsystem_mode.manipulator`` in
+  ``replay.json``.
+- ``--feedback-controller PID``: set the feedback controller used by
+  ``track_reference`` and ``hold_initial`` modes.
+- ``--arm-interface effort``: read the recorded joint effort interface into the
+  manipulator command columns.

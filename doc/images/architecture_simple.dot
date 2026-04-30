@@ -1,0 +1,88 @@
+digraph uvms_simple_architecture {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    pad="0.45",
+    nodesep="0.95",
+    ranksep="1.00",
+    splines=ortho,
+    fontname="DejaVu Sans"
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="DejaVu Sans",
+    fontsize=13,
+    color="#12324a",
+    penwidth=1.5,
+    fillcolor="#f8fbfd",
+    fontcolor="#12324a",
+    margin="0.22,0.16",
+    width=3.2,
+    height=1.05,
+    fixedsize=false
+  ];
+
+  edge [
+    fontname="DejaVu Sans",
+    fontsize=11,
+    color="#1f4e68",
+    fontcolor="#1f4e68",
+    penwidth=1.5,
+    arrowsize=0.8
+  ];
+
+  operator [
+    label="Operators and Clients\nRViz menus + markers\nROS 2 clients\njoystick / keyboard",
+    fillcolor="#e8f1ff",
+    color="#2f5f9f"
+  ];
+
+  simlab [
+    label="uvms-simlab\nBackend API\ncontrollers + planners\nreplay + waypoints + recording",
+    fillcolor="#e9f7ef",
+    color="#2f7d4f",
+    penwidth=2.0
+  ];
+
+  simulator [
+    label="uvms-simulator\nros2_control_blue_reach_5\nlaunch + robot description\nros2_control + sim/hardware interfaces",
+    fillcolor="#fff3dc",
+    color="#b36a00",
+    penwidth=2.0
+  ];
+
+  dynamics [
+    label="Generated Dynamics Sources\nFloating-KinDyn-Graph\ndiff_uv\nmodels for controllers + simulator",
+    fillcolor="#f3ecff",
+    color="#7353a6"
+  ];
+
+  hardware [
+    label="Robot and Sensors\nReach manipulator\nBlueROV vehicle\ncamera + IMU/DVL/pressure + mocap",
+    fillcolor="#eef2f5",
+    color="#52616b"
+  ];
+
+  { rank=same; simlab; dynamics; }
+  simlab -> dynamics [style=invis, weight=20];
+
+  operator -> simlab;
+  simlab -> simulator;
+  simulator -> simlab [style=dashed];
+  simulator -> hardware;
+  hardware -> simulator [style=dashed];
+
+  dynamics -> simlab [style=dotted];
+  dynamics -> simulator [style=dotted];
+
+  legend [
+    label="solid = commands/control     dashed = state/telemetry     dotted = models/profiles",
+    shape=box,
+    fillcolor="#ffffff",
+    color="#cccccc",
+    fontsize=11
+  ];
+  hardware -> legend [style=invis];
+}

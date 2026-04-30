@@ -158,6 +158,106 @@ the simulated manipulator backend:
    float64 endeffector_damping
    float64 endeffector_stiffness
 
+SimLab Backend API
+------------------
+
+Interactive mode exposes one backend API surface for RViz menus and non-RViz
+clients. RViz menu callbacks call the same backend methods used by the ROS
+services, so controller selection, planning, replay, grasper commands, dynamics
+profile selection, and waypoint actions follow one behavior path.
+
+The services live on the interactive controller node and use interfaces from
+``simlab_msgs``:
+
+- ``/interactive_controller/backend/robot_command``
+  (``simlab_msgs/srv/BackendRobotCommand``)
+- ``/interactive_controller/backend/pose_command``
+  (``simlab_msgs/srv/BackendPoseCommand``)
+- ``/interactive_controller/backend/waypoint_command``
+  (``simlab_msgs/srv/BackendWaypointCommand``)
+
+``BackendRobotCommand`` covers robot-scoped actions such as selecting the active
+robot, selecting a controller, selecting a planner, selecting a dynamics
+profile, starting or stopping command replay, commanding the grasper, and
+requesting Plan & Execute.
+
+Request fields:
+
+.. code-block:: text
+
+   int32 robot_index       # zero-based robot index
+   string command          # command name
+   string name             # controller/planner/profile/grasper argument
+   int32 index             # reserved for indexed commands
+   float64 scalar          # scalar argument, for example IK weight
+   float64[3] vector3      # vector argument, for example IK tool axis
+
+Supported ``BackendRobotCommand.command`` values:
+
+- ``select_robot``: select ``robot_index`` as the active robot.
+- ``set_controller``: set controller named by ``name``.
+- ``set_planner``: set planner named by ``name``.
+- ``set_control_space``: set control space named by ``name``.
+- ``set_dynamics_profile``: apply dynamics profile named by ``name``.
+- ``plan_execute``: run Plan & Execute.
+- ``reset_simulation``: reset the selected simulated robot.
+- ``release_simulation``: release held commands after simulation reset.
+- ``replay_select_profile``: select CmdReplay profile named by ``name``.
+- ``replay_start``: reset and start CmdReplay. Requires CmdReplay and a
+  selected replay profile.
+- ``replay_stop``: stop CmdReplay.
+- ``grasper``: use ``name: open`` or ``name: close``.
+- ``set_ik_tool_axis``: set the task-space tool axis from ``vector3``.
+- ``set_ik_base_align_weight``: set the IK base-alignment weight from
+  ``scalar``.
+
+``BackendPoseCommand`` carries a ``geometry_msgs/Pose`` for target updates and
+waypoint creation.
+
+Supported ``BackendPoseCommand.command`` values:
+
+- ``set_vehicle_target``: set the vehicle planning target.
+- ``set_task_target_world``: set the end-effector task target in world frame.
+- ``set_task_target_arm_base``: set the end-effector task target in arm-base
+  frame.
+- ``add_waypoint``: add a vehicle waypoint. If ``use_current_target`` is
+  ``true``, the current backend vehicle target is used. If it is ``false``,
+  ``pose`` is copied into the vehicle target before adding the waypoint.
+
+``BackendWaypointCommand`` manages vehicle waypoint missions: delete, clear,
+stop, and execute.
+
+Supported ``BackendWaypointCommand.command`` values:
+
+- ``delete``: delete ``waypoint_index``.
+- ``clear``: clear all waypoints for the robot.
+- ``stop``: stop the active waypoint mission.
+- ``execute``: execute the waypoint mission.
+
+Examples:
+
+.. code-block:: shell
+
+   ros2 service call /interactive_controller/backend/robot_command \
+     simlab_msgs/srv/BackendRobotCommand \
+     "{robot_index: 0, command: set_controller, name: PID}"
+
+   ros2 service call /interactive_controller/backend/robot_command \
+     simlab_msgs/srv/BackendRobotCommand \
+     "{robot_index: 0, command: plan_execute}"
+
+   ros2 service call /interactive_controller/backend/pose_command \
+     simlab_msgs/srv/BackendPoseCommand \
+     "{robot_index: 0, command: set_vehicle_target, pose: {position: {x: 1.0, y: 0.0, z: -1.0}, orientation: {w: 1.0}}}"
+
+   ros2 service call /interactive_controller/backend/waypoint_command \
+     simlab_msgs/srv/BackendWaypointCommand \
+     "{robot_index: 0, command: execute}"
+
+These services are SimLab interfaces. The simulator package remains limited to
+hardware/simulation interfaces such as reset, release, dynamics parameters,
+camera, and ros2_control hardware plugins.
+
 Planner Action
 --------------
 
