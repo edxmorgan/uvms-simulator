@@ -318,6 +318,43 @@ Inspect the live state stream with:
 
    ros2 topic echo /dynamic_joint_states
 
+Controller Performance Topic
+----------------------------
+
+Each robot publishes a normalized controller-performance stream:
+
+- ``/<prefix>/performance/controller``
+  (``simlab_msgs/msg/ControllerPerformance``)
+
+The topic is updated from the same command-publish loop that sends vehicle and
+manipulator commands. It compares the measured robot state against the active
+trajectory/reference commands. During vehicle planning, those references are
+the Ruckig trajectory samples. During replay in reference-tracking mode, they
+come from the replay profile desired-state columns.
+
+The message includes:
+
+- Cross-track and along-track vehicle error in meters.
+- Unitless normalized vehicle position, attitude, velocity, and acceleration
+  errors.
+- Unitless normalized manipulator position, velocity, and acceleration errors.
+- ``tracking_score`` and ``tracking_score_rms`` for the current active behavior
+  window.
+- ``normalized_control_effort`` and ``effort_per_tracking_score``.
+- ``energy_per_meter`` and ``energy_per_second`` computed from energy used
+  during the current active behavior window.
+- ``time_to_tolerance_sec``: seconds from behavior activation until
+  ``tracking_score`` first reaches the configured tolerance. The value is
+  ``-1`` until tolerance has been reached.
+- ``peak_tracking_score``: largest tracking score observed in the current
+  active behavior window.
+
+Inspect one robot's live metric stream with:
+
+.. code-block:: shell
+
+   ros2 topic echo /robot_1_/performance/controller
+
 Mocap Interfaces
 ----------------
 

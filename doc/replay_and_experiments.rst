@@ -238,13 +238,16 @@ MCAP to Replay Profiles
 
 Use the ``Data Recording`` RViz menu to start and stop an MCAP recording around
 the behavior you want to capture. The MCAP records ROS topics such as
-``dynamic_joint_states``, ``mocap_pose``, and one reference topic per robot:
+``dynamic_joint_states``, ``mocap_pose``, and per-robot experiment topics:
 
 - ``/<prefix>/reference/targets``
+- ``/<prefix>/performance/controller``
 
 The reference topic uses ``simlab_msgs/msg/ReferenceTargets`` and
 contains the world target, vehicle NED/body target, and manipulator reference in
-one timestamped message.
+one timestamped message. The performance topic uses
+``simlab_msgs/msg/ControllerPerformance`` and records normalized tracking,
+control-effort, energy, and time-to-tolerance metrics for the active behavior.
 
 Convert one robot from that bag into a CmdReplay profile with:
 
