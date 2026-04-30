@@ -2,7 +2,8 @@ Project Overview
 ================
 
 This repository set provides a ROS 2 underwater vehicle-manipulator system
-centered on a BlueROV-style floating base and a Reach Alpha manipulator. It is
+centered on a BlueROV form-factor floating base and a Reach Alpha manipulator.
+It is
 designed to run the same high-level procedures across simulation, mixed
 hardware/simulation, and hardware-in-the-loop experiments.
 
@@ -144,7 +145,7 @@ projects:
   CasADi graphs for kinematics, Jacobians, Lagrangian dynamics, energy terms,
   payload/friction effects, identification regressors, and controller utilities.
 - `diff_uv <https://github.com/edxmorgan/diff_uv>`_: differentiable 6-DOF
-  underwater-vehicle dynamics based on Fossen-style marine craft models,
+  underwater-vehicle dynamics based on Fossen marine craft models,
   including body/NED/quaternion kinematics, forward and inverse dynamics,
   hydrodynamic terms, restoring forces, system-identification utilities, EKF
   utilities, nonlinear PID helpers, and CasADi code generation.
