@@ -91,4 +91,6 @@ launch:
 Bags are saved as ``uvms_bag_YYYYmmdd_HHMMSS`` in the launch working
 directory. MCAP recordings include measured robot state, mocap pose, and
 per-robot desired target topics for vehicle pose/velocity/acceleration and arm
-position/velocity/acceleration.
+position/velocity/acceleration. They also include per-robot controller
+performance metrics on ``/<prefix>/performance/controller``; see
+:doc:`services_and_interfaces` for the metric fields.
