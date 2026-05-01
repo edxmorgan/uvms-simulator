@@ -17,9 +17,9 @@ Core sensor topics:
 - ``/mavros/imu/data``: hardware IMU input when the vehicle hardware interface
   is active.
 - ``/dvl/twist``: DVL velocity output from the vehicle hardware interface.
-- ``/alpha/image_raw``: camera image stream from the GStreamer camera node.
-- ``/alpha/points_midas``: optional RGB-derived pointcloud from SimLab's
-  ``rgb2cloudpoint_publisher``.
+- ``/alpha/image_raw`` and ``/alpha/camera_info``: selected camera feed used
+  by RViz and perception utilities. The selected feed can come from the
+  simulated renderer or the real GStreamer camera node.
 - ``/mocap_pose``, ``/mocap_path``, ``/map_mocap_pose``,
   ``/map_mocap_path``: mocap-derived pose/path topics when ``use_mocap:=true``.
 
@@ -47,55 +47,85 @@ interfaces and broadcaster topics:
   pressure-derived depth are available through ``/dynamic_joint_states``.
 - Manipulator joint position, velocity, acceleration, and effort are available
   through ``/dynamic_joint_states``.
-- Camera simulation is available with ``simulate_camera:=true``. This uses a
-  synthetic GStreamer test-pattern image stream.
+- Camera simulation is available through the SimLab camera renderer. It renders
+  the simulated scene from each simulated robot camera frame and publishes ROS
+  image topics.
 - Environment, workspace, and vehicle-base pointcloud topics are visualization
   streams, not physical sensor models.
 
-The synthetic camera is useful for launch wiring, image transport, RViz display,
-and downstream perception-node checks. It does not model underwater optics,
-turbidity, lighting, lens distortion, or camera dynamics.
+The simulated camera is useful for operator view, image transport, RViz display,
+and downstream perception-node checks. It is not a calibrated underwater optical
+model; turbidity, lighting, lens distortion, and camera dynamics are not modeled.
 
 Launch Behavior
 ---------------
 
-The main launch file controls the camera with these arguments:
+The main launch file controls camera ownership with ``camera_source``:
 
-- ``launch_camera:=auto``: default. Starts the camera when
-  ``use_vehicle_hardware:=true`` or ``simulate_camera:=true``.
-- ``launch_camera:=true``: always start the camera node.
-- ``launch_camera:=false``: disable the camera node.
-- ``simulate_camera:=false``: default. Use the hardware camera pipeline.
-- ``simulate_camera:=true``: use a synthetic GStreamer test-pattern pipeline.
+- ``camera_source:=auto``: default. Uses the simulated renderer when the vehicle
+  is simulated. Uses the real GStreamer camera when the vehicle hardware is
+  active or when a custom ``camera_pipeline`` is provided.
+- ``camera_source:=sim``: force the simulated renderer to own ``/alpha``.
+- ``camera_source:=real``: force the GStreamer camera node to own ``/alpha``.
+  If ``camera_pipeline`` is empty, the node uses its built-in UDP H264 camera
+  pipeline.
+
+Camera launch is controlled separately:
+
+- ``launch_camera:=true``: default. Start the selected camera path.
+- ``launch_camera:=false``: disable camera nodes.
+- ``launch_camera:=auto``: start the selected camera path when the resolved
+  source is ``sim`` or ``real``.
+
+Additional arguments:
+
 - ``camera_pipeline:=""``: optional custom GStreamer pipeline. If provided, it
-  replaces the default pipeline and must end with
-  ``appsink name=camera_sink``.
+  must end with ``appsink name=camera_sink``.
+- ``sim_camera_width:=480``: rendered simulated camera image width.
+- ``sim_camera_height:=360``: rendered simulated camera image height.
+- ``sim_camera_rate:=5.0``: rendered simulated camera frame rate in Hz.
 
 The camera is independent of the planner, replay, and controller menus. It can
-be launched with hardware, with simulation, or as a standalone node.
+be launched with hardware, with simulation, or with mixed hardware/simulation
+interfaces.
 
 Camera Output
 -------------
 
-The camera node publishes:
+The selected camera feed publishes:
 
 .. code-block:: text
 
-   /alpha/image_raw  sensor_msgs/msg/Image
+   /alpha/image_raw    sensor_msgs/msg/Image
+   /alpha/camera_info  sensor_msgs/msg/CameraInfo
 
-The frame id is selected from the active robot prefix:
+Simulated per-robot feeds publish:
+
+.. code-block:: text
+
+   /robot_1/camera/image_raw
+   /robot_1/camera/camera_info
+   /robot_2/camera/image_raw
+   /robot_2/camera/camera_info
+
+The simulated renderer creates these topics for each simulated robot. A feed is
+rendered only while a client is subscribed to it, or while it is the selected
+``/alpha`` feed.
+
+The selected feed frame id follows the active source:
 
 - ``robot_real_camera_link`` when ``use_vehicle_hardware:=true``.
 - The first simulated robot camera link otherwise.
 
-RViz automatically enables a ``video feed`` image display when the camera node
-is launched.
+RViz automatically enables a ``video feed`` image display when camera launch is
+enabled. In interactive mode, selecting a different simulated robot updates the
+selected simulated camera feed.
 
 Hardware Camera
 ---------------
 
-When ``use_vehicle_hardware:=true``, the default ``launch_camera:=auto`` starts
-the camera:
+When ``use_vehicle_hardware:=true``, ``camera_source:=auto`` selects the real
+GStreamer camera:
 
 .. code-block:: shell
 
@@ -108,21 +138,42 @@ To force the camera on without using the vehicle hardware interface:
 
    ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
        use_vehicle_hardware:=false \
-       launch_camera:=true
+       launch_camera:=true \
+       camera_source:=real
 
 Use this when you want to validate the camera node by itself or with a different
-hardware/simulation combination.
+hardware/simulation combination. The default GStreamer pipeline is used unless
+``camera_pipeline`` is provided.
 
-Simulated Camera
-----------------
-
-Use ``simulate_camera:=true`` when no camera is connected:
+For a simulated vehicle with a real manipulator and a real camera:
 
 .. code-block:: shell
 
    ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
        use_vehicle_hardware:=false \
-       simulate_camera:=true
+       use_manipulator_hardware:=true \
+       sim_robot_count:=1 \
+       task:=interactive \
+       camera_source:=real
+
+Simulated Camera
+----------------
+
+Pure simulation uses the simulated camera renderer by default:
+
+.. code-block:: shell
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+       use_vehicle_hardware:=false \
+       sim_robot_count:=1 \
+       task:=interactive
+
+Force the simulated renderer explicitly:
+
+.. code-block:: shell
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+       camera_source:=sim
 
 Verify image transport:
 
@@ -130,8 +181,8 @@ Verify image transport:
 
    ros2 topic hz /alpha/image_raw
 
-Standalone Camera Node
-----------------------
+Standalone Real Camera Node
+---------------------------
 
 Run the default camera pipeline directly:
 
@@ -140,15 +191,6 @@ Run the default camera pipeline directly:
    ros2 run ros2_control_blue_reach_5 gstreamer_camera_node --ros-args \
        -p image_topic:=/alpha/image_raw \
        -p frame_id:=camera_link
-
-Run a standalone synthetic pipeline:
-
-.. code-block:: shell
-
-   ros2 run ros2_control_blue_reach_5 gstreamer_camera_node --ros-args \
-       -p image_topic:=/alpha/image_raw \
-       -p frame_id:=camera_link \
-       -p pipeline:='videotestsrc is-live=true pattern=ball ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! video/x-raw,format=(string)BGR ! appsink name=camera_sink emit-signals=true sync=false async=false max-buffers=1 drop=true'
 
 Camera Mount and Lights
 -----------------------
@@ -166,21 +208,3 @@ In PS4 ``Options`` mode:
 
 The hardware interface clamps the camera mount PWM to the configured safe
 range.
-
-RGB-to-Pointcloud
------------------
-
-SimLab includes ``rgb2cloudpoint_publisher`` for RGB-derived pointcloud
-visualization. It subscribes to:
-
-.. code-block:: text
-
-   /alpha/image_raw
-
-This feature is optional and requires additional Python packages:
-
-.. code-block:: shell
-
-   python3 -m pip install torch torchvision timm opencv-python
-
-Use it as a perception/debugging aid, not as a calibrated depth sensor.

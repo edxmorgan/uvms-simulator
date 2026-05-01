@@ -18,11 +18,13 @@
 
 #include <atomic>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
 #include "rclcpp/node.hpp"
 #include "realtime_tools/realtime_publisher.hpp"
+#include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/image.hpp"
 
 typedef struct _GstElement GstElement;
@@ -43,12 +45,16 @@ public:
   void configure(
     rclcpp::Node * node,
     const std::string & image_topic,
+    const std::string & camera_info_topic,
     const std::string & frame_id,
-    const std::string & pipeline = default_pipeline());
+    const std::string & pipeline = default_pipeline(),
+    const std::string & mirror_image_topic = "",
+    const std::string & mirror_camera_info_topic = "");
 
   void start();
   void stop();
   bool running() const;
+  void set_frame_id(const std::string & frame_id);
 
   static std::string default_pipeline();
 
@@ -58,13 +64,20 @@ private:
 
   rclcpp::Node * node_{nullptr};
   std::string image_topic_;
+  std::string camera_info_topic_;
+  std::string mirror_image_topic_;
+  std::string mirror_camera_info_topic_;
   std::string frame_id_;
+  mutable std::mutex frame_id_mutex_;
   std::string pipeline_;
 
   GstElement * gst_pipeline_{nullptr};
   GstAppSink * gst_appsink_{nullptr};
 
   std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::Image>> image_pub_;
+  std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::CameraInfo>> camera_info_pub_;
+  std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::Image>> mirror_image_pub_;
+  std::shared_ptr<rclcpp::Publisher<sensor_msgs::msg::CameraInfo>> mirror_camera_info_pub_;
   std::shared_ptr<realtime_tools::RealtimePublisher<sensor_msgs::msg::Image>>
     realtime_image_pub_;
 

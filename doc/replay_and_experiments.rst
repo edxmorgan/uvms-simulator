@@ -13,7 +13,7 @@ Workflow
 In RViz:
 
 - Select the active robot from ``Robots``.
-- Select ``CmdReplay`` from the robot controller menu.
+- Select ``CmdReplay`` from ``Robot Control > Controller``.
 - Select a replay profile from ``Cmd Replay > Profiles``.
 - Use ``Cmd Replay > Reset Robot + Playback`` to prepare the initial condition
   and start playback.
@@ -231,17 +231,24 @@ Keep ``recording.enabled`` set to ``false`` for profiles where per-pass replay
 logs are unnecessary.
 
 This CSV logging belongs to CmdReplay. It records only the replay pass, not the
-full ROS graph.
+full ROS graph. Replay CSV logs are saved under
+``~/ros_ws/recordings/replay_sessions``.
 
 MCAP to Replay Profiles
 -----------------------
 
 Use the ``Data Recording`` RViz menu to start and stop an MCAP recording around
 the behavior you want to capture. The MCAP records ROS topics such as
-``dynamic_joint_states``, ``mocap_pose``, and per-robot experiment topics:
+``dynamic_joint_states``, ``mocap_pose``, the selected camera feed, and
+per-robot experiment topics:
 
+- ``/alpha/image_raw``
+- ``/alpha/camera_info``
 - ``/<prefix>/reference/targets``
 - ``/<prefix>/performance/controller``
+
+MCAP bags are saved under
+``~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS``.
 
 The reference topic uses ``simlab_msgs/msg/ReferenceTargets`` and
 contains the world target, vehicle NED/body target, and manipulator reference in
@@ -254,7 +261,7 @@ Convert one robot from that bag into a CmdReplay profile with:
 .. code-block:: bash
 
    ros2 run simlab mcap_to_replay_profile \
-       ~/ros_ws/uvms_bag_YYYYmmdd_HHMMSS \
+       ~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS \
        my_replay_profile \
        --robot-prefix robot_1_ \
        --dynamics-profile dory_alpha

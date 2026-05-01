@@ -37,7 +37,6 @@ SimLab package:
   model functions grouped by ``arm``, ``vehicle``, and ``whole_body``.
 - ``uvms-simlab/simlab/planner_action_server.py`` and
   ``planner_action_client.py``: planner action server/client.
-- ``uvms-simlab/simlab/rgb2cloudpoint.py``: optional RGB-to-pointcloud utility.
 
 State Machine Rules
 -------------------

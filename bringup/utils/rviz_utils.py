@@ -22,13 +22,19 @@ class NoAliasDumper(yaml.SafeDumper):
     
 def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_prefixes,
                          robot_base_links, ix, rviz_config_path,
-                         new_rviz_config_path, task, launch_camera=False)->None:
+                         new_rviz_config_path, task, launch_camera=False, selected_camera_is_sim=False)->None:
     # Load the RViz configuration file
     with open(rviz_config_path,'r') as file:
         rviz_config = yaml.load(file,yaml.SafeLoader)
     new_rviz_config = copy.deepcopy(rviz_config)
 
-    rviz_view_configure(robot_prefixes, robot_base_links, new_rviz_config, task)
+    rviz_view_configure(
+        robot_prefixes,
+        robot_base_links,
+        new_rviz_config,
+        task,
+        add_camera_views=launch_camera and selected_camera_is_sim,
+    )
     rviz_robot_metrics_overlay_configure(robot_prefixes, new_rviz_config)
     rviz_states_axes_configure(robot_prefixes, new_rviz_config)
     rviz_robots_path_configure(robot_prefixes, new_rviz_config)
@@ -54,7 +60,17 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
 
 
     if launch_camera:
-        image_stream_display("video feed", "/alpha/image_raw",new_rviz_config, True)
+        if selected_camera_is_sim:
+            image_stream_display("video feed", "/alpha/image_raw", new_rviz_config, True)
+        else:
+            camera_overlay_display(
+                "video feed",
+                "/alpha/image_raw",
+                new_rviz_config,
+                True,
+                image_rendering="overlay",
+                overlay_alpha=1.0,
+            )
 
     if use_vehicle_hardware:
         # IMU visualization
@@ -64,52 +80,14 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
             rviz_config=new_rviz_config,
             enabled=True
         )
-        # Plane billboard cloud from /alpha/image_raw
-        rviz_point_cloud2(
-            name='alpha_camera_cloud',
-            topic='/alpha/points_midas',
-            rviz_config=new_rviz_config,
-            enabled=False,  # default false as requested
-            color='255; 255; 255',
-            custom_properties={
-                "Alpha": 1,
-                "Autocompute Intensity Bounds": True,
-                "Autocompute Value Bounds": {"Max Value": 10, "Min Value": -10, "Value": True},
-                "Axis": "Z",
-                "Channel Name": "intensity",
-                "Class": "rviz_default_plugins/PointCloud2",
-                "Color Transformer": "RGB8",
-                "Decay Time": 0,
-                "Invert Rainbow": False,
-                "Max Color": "255; 255; 255",
-                "Max Intensity": 4096,
-                "Min Color": "0; 0; 0",
-                "Min Intensity": 0,
-                "Position Transformer": "XYZ",
-                "Selectable": True,
-                "Size (Pixels)": 3,
-                "Size (m)": 0.009999999776482582,
-                "Style": "Flat Squares",
-                "Topic": {
-                    "Depth": 5,
-                    "Durability Policy": "Volatile",
-                    "History Policy": "Keep Last",
-                    "Reliability Policy": "Reliable",
-                    "Value": "/alpha/points_midas",
-                },
-                "Use Fixed Frame": True,
-                "Use rainbow": True,
-                "Value": True,
-            }
-        )
 
 
     if task == 'interactive':
         rviz_interactive_marker('controller_interactiveMarker', '/uvms_interactive_controls', new_rviz_config, True)
         rviz_point_cloud2('uvms_taskspace',"/workspace_pointcloud",new_rviz_config, True, "255; 255; 255",
-                          custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
+                          custom_properties={"Decay Time": 0.0, "Size (Pixels)": 1.5})
         rviz_point_cloud2('uv_vehicle_base',"/base_pointcloud",new_rviz_config, True, "255; 0; 0",
-                          custom_properties={"Decay Time": 0.2, "Size (Pixels)": 1.5})
+                          custom_properties={"Decay Time": 0.0, "Size (Pixels)": 1.5})
 
     rviz_point_cloud2(
         name='environment_voxels',
@@ -171,7 +149,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
 
 def rviz_robot_metrics_overlay_configure(robot_prefixes, rviz_config):
     displays = rviz_config.get('Visualization Manager', {}).get('Displays', [])
-    overlay_height = 45 + int(438 * len(robot_prefixes))  # Base height + additional height per robot
+    overlay_height = max(356, 238 + 118 * max(len(robot_prefixes), 1))
 
     for display in displays:
         if display.get('Name') != 'RobotMetricsOverlay':
@@ -203,7 +181,7 @@ def rviz_robot_metrics_overlay_configure(robot_prefixes, rviz_config):
         display['text size'] = 14
         display['ver_alignment'] = 'top'
         display['ver_dist'] = 170
-        display['width'] = 620
+        display['width'] = 1200
         break
 
 
@@ -350,6 +328,36 @@ def image_stream_display(name, topic,rviz_config, enabled):
     }
     rviz_config['Visualization Manager']['Displays'].append(image_config)
 
+def camera_overlay_display(
+    name,
+    topic,
+    rviz_config,
+    enabled,
+    image_rendering="overlay",
+    overlay_alpha=1.0,
+):
+    camera_config = {
+        "Class": "rviz_default_plugins/Camera",
+        "Enabled": enabled,
+        "Far Plane Distance": 100,
+        "Image Rendering": image_rendering,
+        "Name": name,
+        "Overlay Alpha": overlay_alpha,
+        "Topic": {
+            "Depth": 5,
+            "Durability Policy": "Volatile",
+            "History Policy": "Keep Last",
+            "Reliability Policy": "Reliable",
+            "Value": topic
+        },
+        "Value": enabled,
+        "Visibility": {
+            "Value": True
+        },
+        "Zoom Factor": 1.0,
+    }
+    rviz_config['Visualization Manager']['Displays'].append(camera_config)
+
 def imu_display(name, topic,rviz_config, enabled):
     imu_config = {
             "Acceleration properties": {
@@ -448,7 +456,7 @@ def rviz_states_axes_configure(robot_prefixes, rviz_config):
         for i in range(5):
             rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
         
-def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task):
+def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task, add_camera_views=False):
     rviz_config['Visualization Manager']['Views']['Saved'] = []
     original_view = {
         'Class': 'rviz_default_plugins/Orbit',
@@ -478,6 +486,27 @@ def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task):
         new_view['Name'] = f'{prefix} view'
         new_view['Target Frame'] = robot_base_links[i]
         rviz_config['Visualization Manager']['Views']['Saved'].append(new_view)
+        if add_camera_views:
+            camera_view = {
+                'Class': 'rviz_default_plugins/FPS',
+                'Enable Stereo Rendering': {
+                  'Stereo Eye Separation': 0.05999999865889549,
+                  'Stereo Focal Distance': 1,
+                  'Swap Stereo Eyes': False,
+                  'Value': False},
+                'Invert Z Axis': False,
+                'Name': f'{prefix} camera view',
+                'Near Clip Distance': 0.009999999776482582,
+                'Pitch': 0,
+                'Position': {
+                  'X': 0,
+                  'Y': 0,
+                  'Z': 0},
+                'Target Frame': f'{prefix}camera_link',
+                'Value': 'FPS (rviz_default_plugins)',
+                'Yaw': 0
+            }
+            rviz_config['Visualization Manager']['Views']['Saved'].append(camera_view)
     if task == 'interactive':
         new_view = original_view.copy()
         new_view['Name'] = f'marker view'

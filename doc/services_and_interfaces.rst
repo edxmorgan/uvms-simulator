@@ -179,7 +179,8 @@ The services live on the interactive controller node and use interfaces from
 ``BackendRobotCommand`` covers robot-scoped actions such as selecting the active
 robot, selecting a controller, selecting a planner, selecting a dynamics
 profile, starting or stopping command replay, commanding the grasper, and
-requesting Plan & Execute.
+requesting Plan & Execute. Session recording is also exposed here so RViz and
+headless clients use the same backend path.
 
 Request fields:
 
@@ -210,6 +211,8 @@ Supported ``BackendRobotCommand.command`` values:
 - ``set_ik_tool_axis``: set the task-space tool axis from ``vector3``.
 - ``set_ik_base_align_weight``: set the IK base-alignment weight from
   ``scalar``.
+- ``start_mcap_recording``: start the MCAP recorder.
+- ``stop_mcap_recording``: stop the active MCAP recording.
 
 ``BackendPoseCommand`` carries a ``geometry_msgs/Pose`` for target updates and
 waypoint creation.
@@ -253,6 +256,10 @@ Examples:
    ros2 service call /interactive_controller/backend/waypoint_command \
      simlab_msgs/srv/BackendWaypointCommand \
      "{robot_index: 0, command: execute}"
+
+   ros2 service call /interactive_controller/backend/robot_command \
+     simlab_msgs/srv/BackendRobotCommand \
+     "{robot_index: 0, command: start_mcap_recording}"
 
 These services are SimLab interfaces. The simulator package remains limited to
 hardware/simulation interfaces such as reset, release, dynamics parameters,
