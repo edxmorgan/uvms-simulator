@@ -42,11 +42,22 @@ sudo apt install git-lfs \
     ros-$ROS_DISTRO-rviz-2d-overlay-plugins \
     ros-$ROS_DISTRO-rviz-2d-overlay-msgs \
     ros-$ROS_DISTRO-rosbag2 \
-    ros-$ROS_DISTRO-plotjuggler-ros \
     gstreamer1.0-plugins-base \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev
 ```
+
+Install PlotJuggler from Snap for the newer MCAP and scripting support used by
+the launch workflow:
+
+```bash
+sudo snap install plotjuggler
+```
+
+The main launch file starts `/snap/bin/plotjuggler` when
+`launch_plotjuggler:=true`. If `ros-$ROS_DISTRO-plotjuggler-ros` is also
+installed, it can remain installed; the launch file does not use that older
+executable.
 
 After installing CasADi, make sure its shared libraries are on the runtime linker path. If CasADi is outside the default linker path:
 
@@ -96,6 +107,21 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
     record_data:=true
 ```
 
+PlotJuggler:
+
+```bash
+ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+    sim_robot_count:=1 \
+    task:=interactive \
+    launch_plotjuggler:=true
+```
+
+The launch file starts `/snap/bin/plotjuggler`, so the Snap release is used
+instead of the older ROS package executable. Plot live topics such as
+`/dynamic_joint_states`, `/<prefix>/reference/targets`, and
+`/<prefix>/performance/controller`. For recorded experiments, open the
+`~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS` MCAP bag in PlotJuggler.
+
 Hardware-in-the-loop:
 
 ```bash
@@ -117,11 +143,12 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
 
 Camera launch arguments:
 
-- `launch_camera:=auto`: default. Starts the camera when `use_vehicle_hardware:=true` or `simulate_camera:=true`.
-- `launch_camera:=true`: always starts the camera node.
-- `launch_camera:=false`: disables the camera node.
-- `simulate_camera:=false`: default. Uses the hardware UDP camera pipeline.
-- `simulate_camera:=true`: uses a synthetic GStreamer test pattern and publishes it as `/alpha/image_raw`.
+- `launch_camera:=true`: default. Starts the selected camera path.
+- `launch_camera:=false`: disables camera nodes.
+- `launch_camera:=auto`: starts the selected camera path when `camera_source` resolves to `sim` or `real`.
+- `camera_source:=auto`: default. Uses the simulated renderer for simulated vehicles and the real GStreamer camera for real vehicle hardware or custom pipelines.
+- `camera_source:=sim`: forces the simulated renderer to publish `/alpha/image_raw`.
+- `camera_source:=real`: forces the GStreamer camera node to publish `/alpha/image_raw`.
 - `camera_pipeline:=""`: optional custom GStreamer pipeline. If set, it overrides the default pipeline. The pipeline must end with `appsink name=camera_sink`.
 
 The vehicle hardware interface starts the camera automatically:
@@ -137,23 +164,22 @@ Use the camera without the vehicle hardware interface:
 ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
     use_manipulator_hardware:=true \
     use_vehicle_hardware:=false \
-    sim_robot_count:=0 \
     task:=manual \
-    launch_camera:=true
+    launch_camera:=true \
+    camera_source:=real
 ```
 
-Simulate the camera when no camera hardware is connected:
+Use the simulated camera renderer:
 
 ```bash
 ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-    use_manipulator_hardware:=true \
     use_vehicle_hardware:=false \
-    sim_robot_count:=0 \
-    task:=manual \
-    simulate_camera:=true
+    sim_robot_count:=1 \
+    task:=interactive \
+    camera_source:=sim
 ```
 
-The camera publishes `sensor_msgs/msg/Image` on `/alpha/image_raw`. RViz adds an enabled `video feed` Image display whenever the camera node is launched. To verify images are arriving:
+The selected camera publishes `sensor_msgs/msg/Image` on `/alpha/image_raw`. RViz adds an enabled `video feed` Image display whenever camera launch is enabled. To verify images are arriving:
 
 ```bash
 ros2 topic hz /alpha/image_raw
@@ -165,15 +191,6 @@ Run only the standalone camera node:
 ros2 run ros2_control_blue_reach_5 gstreamer_camera_node --ros-args \
     -p image_topic:=/alpha/image_raw \
     -p frame_id:=camera_link
-```
-
-Run only the standalone simulated camera:
-
-```bash
-ros2 run ros2_control_blue_reach_5 gstreamer_camera_node --ros-args \
-    -p image_topic:=/alpha/image_raw \
-    -p frame_id:=camera_link \
-    -p pipeline:='videotestsrc is-live=true pattern=ball ! video/x-raw,width=640,height=480,framerate=30/1 ! videoconvert ! video/x-raw,format=(string)BGR ! appsink name=camera_sink emit-signals=true sync=false async=false max-buffers=1 drop=true'
 ```
 
 ## Reset

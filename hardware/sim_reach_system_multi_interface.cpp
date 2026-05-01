@@ -20,6 +20,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -101,6 +102,32 @@ namespace ros2_control_blue_reach_5
                 gravity_vector[0] * gravity_vector[0] +
                 gravity_vector[1] * gravity_vector[1] +
                 gravity_vector[2] * gravity_vector[2]);
+        }
+
+        double dense_vector_value(const casadi::DM &matrix, const std::size_t index)
+        {
+            const std::size_t rows = static_cast<std::size_t>(matrix.size1());
+            const std::size_t cols = static_cast<std::size_t>(matrix.size2());
+            if (rows == 1 && index < cols)
+            {
+                return static_cast<double>(matrix(0, static_cast<int>(index)).scalar());
+            }
+            if (cols == 1 && index < rows)
+            {
+                return static_cast<double>(matrix(static_cast<int>(index), 0).scalar());
+            }
+            throw std::out_of_range("CasADi output is not a vector with the requested index");
+        }
+
+        std::vector<double> dense_vector(const casadi::DM &matrix, const std::size_t expected_size)
+        {
+            std::vector<double> values;
+            values.reserve(expected_size);
+            for (std::size_t i = 0; i < expected_size; ++i)
+            {
+                values.push_back(dense_vector_value(matrix, i));
+            }
+            return values;
         }
     } // namespace
 
@@ -374,10 +401,10 @@ namespace ros2_control_blue_reach_5
             Joint::MotorInfo actuatorProp{.kt = kt, .forward_I_static = forward_I_static, .backward_I_static = backward_I_static};
             hw_joint_struct_.emplace_back(joint.name, device_id, initialState, jointLimits, positionLimitsFlag, jointSoftLimits, actuatorProp);
 
-            // RRBotSystemMultiInterface has exactly 19 state interfaces
-            // and 6 command interfaces on each joint
-            RCLCPP_INFO(
-                rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "***********************robots now has %lu joints ", hw_joint_struct_.size());
+            RCLCPP_DEBUG(
+                rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                "[%s] simulated manipulator joints configured: %lu",
+                robot_prefix.c_str(), hw_joint_struct_.size());
             if (joint.command_interfaces.size() != 6)
             {
                 RCLCPP_FATAL(
@@ -696,14 +723,16 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         reset_joint_simulation_state();
         commands_held_ = false;
-        // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Activating... please wait...");
-        RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "default sim joint 0 %f", hw_joint_struct_[0].current_state_.filtered_position);
-        RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "default sim joint 1  %f", hw_joint_struct_[1].current_state_.filtered_position);
-        RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "default sim joint 2  %f", hw_joint_struct_[2].current_state_.filtered_position);
-        RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "default sim joint 3  %f", hw_joint_struct_[3].current_state_.filtered_position);
-        RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Successfully deactivated!");
+        for (std::size_t i = 0; i < hw_joint_struct_.size(); ++i)
+        {
+            RCLCPP_DEBUG(
+                rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                "[%s] default sim joint %zu position %.6f",
+                robot_prefix.c_str(), i, hw_joint_struct_[i].current_state_.filtered_position);
+        }
+        RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "System successfully activated!");
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
@@ -780,11 +809,13 @@ namespace ros2_control_blue_reach_5
             }
 
             // Write filtered states back to this joint
-            const std::vector<double> x_est_dense = x_est_list_[i].nonzeros(); // 3 entries
-            hw_joint_struct_[i].current_state_.filtered_position = x_est_dense[0];
-            hw_joint_struct_[i].current_state_.filtered_velocity = x_est_dense[1];
-            hw_joint_struct_[i].current_state_.estimated_acceleration = x_est_dense[2];
-            hw_joint_struct_[i].current_state_.acceleration = x_est_dense[2];
+            const double filtered_position = dense_vector_value(x_est_list_[i], 0);
+            const double filtered_velocity = dense_vector_value(x_est_list_[i], 1);
+            const double estimated_acceleration = dense_vector_value(x_est_list_[i], 2);
+            hw_joint_struct_[i].current_state_.filtered_position = filtered_position;
+            hw_joint_struct_[i].current_state_.filtered_velocity = filtered_velocity;
+            hw_joint_struct_[i].current_state_.estimated_acceleration = estimated_acceleration;
+            hw_joint_struct_[i].current_state_.acceleration = estimated_acceleration;
         }
         return hardware_interface::return_type::OK;
     }
@@ -866,6 +897,10 @@ namespace ros2_control_blue_reach_5
                 DM(I_safe)};
             const double tau_safe = utils_service.current2torqueMap(C2T_arg).at(0).scalar();
 
+            hw_joint_struct_[j].current_state_.current = I_safe;
+            hw_joint_struct_[j].current_state_.effort = tau_safe;
+            hw_joint_struct_[j].current_state_.computed_effort = tau_cmd;
+            hw_joint_struct_[j].current_state_.computed_effort_uncertainty = tau_cmd - tau_safe;
             arm_torques.push_back(tau_safe);
         };
 
@@ -909,7 +944,6 @@ namespace ros2_control_blue_reach_5
 
         // simulate_joint_lock_argument = {arm_torques, s_lock_current, on_db_, off_db_};
         // joint_lock_sim = utils_service.manipulator_joint_lock_dynamics(simulate_joint_lock_argument);
-        // s_lock_current = joint_lock_sim.at(0).nonzeros();
         
         // casadi::DM lock_mask = casadi::DM::zeros(static_cast<int>(n_dyn), 1);
         // for (std::size_t j = 0; j < n_dyn; ++j)
@@ -936,7 +970,7 @@ namespace ros2_control_blue_reach_5
         arm_simulate_argument = {arm_state, arm_torques, delta_seconds, manipulator_parameters_, DM(endeffector_mass_),
                                  DM(endeffector_damping_), DM(endeffector_stiffness_), lock_mask, DM(baumgarte_alpha_)};
         arm_sim = utils_service.manipulator_dynamics(arm_simulate_argument);
-        arm_next_states = arm_sim.at(0).nonzeros();
+        arm_next_states = dense_vector(arm_sim.at(0), 10);
 
         // clamp the NEW state, then write it back
         for (int j = 0; j < 5; ++j)
@@ -984,9 +1018,9 @@ namespace ros2_control_blue_reach_5
                 t.header.frame_id = base;
                 t.child_frame_id = robot_prefix + "joint_" + std::to_string(i);
 
-                const auto &v_dense = T_i_[i].nonzeros(); // expected [x y z qw qx qy qz]
-                if (v_dense.size() >= 7)
+                try
                 {
+                    const auto v_dense = dense_vector(T_i_[i], 7); // [x y z qw qx qy qz]
                     t.transform.translation.x = v_dense[0];
                     t.transform.translation.y = v_dense[1];
                     t.transform.translation.z = v_dense[2];
@@ -998,7 +1032,7 @@ namespace ros2_control_blue_reach_5
                     q.setZ(v_dense[6]);
                     t.transform.rotation = tf2::toMsg(q);
                 }
-                else
+                catch (const std::exception &)
                 {
                     // fallback, zero transform on bad shape
                     t.transform.translation.x = 0.0;
@@ -1019,9 +1053,9 @@ namespace ros2_control_blue_reach_5
                 t.header.frame_id = base;
                 t.child_frame_id = robot_prefix + "link_com_" + std::to_string(i);
 
-                const auto &v_dense = T_com_i_[i].nonzeros(); // expected [x y z qw qx qy qz]
-                if (v_dense.size() >= 7)
+                try
                 {
+                    const auto v_dense = dense_vector(T_com_i_[i], 7); // [x y z qw qx qy qz]
                     t.transform.translation.x = v_dense[0];
                     t.transform.translation.y = v_dense[1];
                     t.transform.translation.z = v_dense[2];
@@ -1033,7 +1067,7 @@ namespace ros2_control_blue_reach_5
                     q.setZ(v_dense[6]);
                     t.transform.rotation = tf2::toMsg(q);
                 }
-                else
+                catch (const std::exception &)
                 {
                     t.transform.translation.x = 0.0;
                     t.transform.translation.y = 0.0;

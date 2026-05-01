@@ -76,11 +76,15 @@ def _parse_bool_arg(name: str, value: str) -> bool:
 
 def _simulated_camera_pipeline() -> str:
     return (
-        "videotestsrc is-live=true pattern=ball "
+        "videotestsrc is-live=true pattern=black "
         "! video/x-raw,width=640,height=480,framerate=30/1 "
         "! videoconvert ! video/x-raw,format=(string)BGR "
         "! appsink name=camera_sink emit-signals=true sync=false async=false max-buffers=1 drop=true"
     )
+
+
+def _camera_topic_base(robot_prefix: str) -> str:
+    return f"/{robot_prefix.rstrip('_')}/camera"
 
 
 def generate_launch_description():
@@ -125,15 +129,15 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "launch_camera",
-            default_value="auto",
-            description="Start the independent GStreamer camera node. Use true, false, or auto. auto follows use_vehicle_hardware.",
+            default_value="true",
+            description="Start camera nodes. Use true, false, or auto. auto follows real vehicle hardware or simulated camera mode.",
         )
     )
     declared_arguments.append(
         DeclareLaunchArgument(
-            "simulate_camera",
-            default_value="false",
-            description="Use a synthetic GStreamer test camera instead of the UDP hardware camera.",
+            "camera_source",
+            default_value="auto",
+            description="Selected /alpha camera source: auto, sim, or real. auto uses sim for simulated vehicles and real for real vehicles or custom camera_pipeline.",
         )
     )
     declared_arguments.append(
@@ -141,6 +145,27 @@ def generate_launch_description():
             "camera_pipeline",
             default_value="",
             description="Optional custom GStreamer pipeline. Must end with appsink name=camera_sink.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_width",
+            default_value="480",
+            description="Rendered simulated camera image width.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_height",
+            default_value="360",
+            description="Rendered simulated camera image height.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_rate",
+            default_value="5.0",
+            description="Rendered simulated camera frame rate in Hz.",
         )
     )
 
@@ -247,8 +272,11 @@ def launch_setup(context, *args, **kwargs):
     use_manipulator_hardware = LaunchConfiguration("use_manipulator_hardware").perform(context)
     use_vehicle_hardware = LaunchConfiguration("use_vehicle_hardware").perform(context)
     launch_camera = LaunchConfiguration("launch_camera").perform(context)
-    simulate_camera = LaunchConfiguration("simulate_camera").perform(context)
+    camera_source = LaunchConfiguration("camera_source").perform(context)
     camera_pipeline = LaunchConfiguration("camera_pipeline").perform(context)
+    sim_camera_width = LaunchConfiguration("sim_camera_width").perform(context)
+    sim_camera_height = LaunchConfiguration("sim_camera_height").perform(context)
+    sim_camera_rate = LaunchConfiguration("sim_camera_rate").perform(context)
     task = LaunchConfiguration("task").perform(context)
     serial_port = LaunchConfiguration("serial_port").perform(context)
     state_update_frequency = LaunchConfiguration("state_update_frequency").perform(context)
@@ -339,18 +367,33 @@ def launch_setup(context, *args, **kwargs):
 
     use_mocap_bool = IfCondition(use_mocap).evaluate(context)
     launch_planner_action_server_bool = IfCondition(launch_planner_action_server).evaluate(context)
-    simulate_camera_bool = _parse_bool_arg("simulate_camera", simulate_camera)
+    camera_pipeline = camera_pipeline.strip()
+    camera_source = camera_source.strip().lower()
+    if camera_source not in {"auto", "sim", "real"}:
+        raise RuntimeError("camera_source must be one of: auto, sim, real.")
+
+    if camera_source == "auto":
+        if camera_pipeline:
+            resolved_camera_source = "real"
+        elif use_vehicle_hardware_bool:
+            resolved_camera_source = "real"
+        else:
+            resolved_camera_source = "sim"
+    else:
+        resolved_camera_source = camera_source
+
+    selected_camera_is_sim = resolved_camera_source == "sim"
     launch_camera_normalized = launch_camera.strip().lower()
     if launch_camera_normalized == "auto":
-        launch_camera_bool = use_vehicle_hardware_bool or simulate_camera_bool
+        launch_camera_bool = resolved_camera_source in {"sim", "real"}
     elif launch_camera_normalized in {"true", "1", "yes", "on"}:
         launch_camera_bool = True
     elif launch_camera_normalized in {"false", "0", "no", "off"}:
         launch_camera_bool = False
     else:
         raise RuntimeError("launch_camera must be one of: auto, true, false.")
-    camera_pipeline = camera_pipeline.strip()
-    if not camera_pipeline and simulate_camera_bool:
+
+    if not camera_pipeline and selected_camera_is_sim:
         camera_pipeline = _simulated_camera_pipeline()
 
     is_hardware_uvms = use_manipulator_hardware_bool and use_vehicle_hardware_bool
@@ -360,6 +403,13 @@ def launch_setup(context, *args, **kwargs):
                                                                                   robot_controllers_read_file,
                                                                                     robot_controllers_modified_file,
                                                                                       int(sim_robot_count))
+    has_simulated_robot = any(prefix != "robot_real_" for prefix in robot_prefixes)
+    if launch_camera_bool and selected_camera_is_sim and not has_simulated_robot:
+        raise RuntimeError("camera_source:=sim requires at least one simulated robot.")
+    logger.info(
+        f"camera_source resolved to {resolved_camera_source}; "
+        f"launch_camera={launch_camera_bool}"
+    )
     rviz_config_read = PathJoinSubstitution(
         [
             FindPackageShare("ros2_control_blue_reach_5"),
@@ -378,7 +428,8 @@ def launch_setup(context, *args, **kwargs):
                         robot_ix, 
                         rviz_config_read_file, 
                         rviz_config_modified_file, task,
-                        launch_camera_bool)
+                        launch_camera_bool,
+                        selected_camera_is_sim)
 
     reset_coordinator_proc = ExecuteProcess(
         cmd=[
@@ -454,9 +505,8 @@ def launch_setup(context, *args, **kwargs):
 
     # Define other nodes if needed
     run_plotjuggler = ExecuteProcess(
-        cmd=['ros2', 'run', 'plotjuggler', 'plotjuggler > /dev/null 2>&1'],
+        cmd=['/snap/bin/plotjuggler'],
         output='screen',
-        shell=True,
         condition=IfCondition(launch_plotjuggler),
     )
 
@@ -466,6 +516,8 @@ def launch_setup(context, *args, **kwargs):
         'robots_prefix': robot_prefixes,
         'no_robot': len(robot_prefixes),
         'no_efforts': 11,
+        "use_vehicle_hardware": use_vehicle_hardware_bool,
+        "camera_source": resolved_camera_source,
         "robot_description": robot_description_content
     }
 
@@ -508,11 +560,6 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
         shell=False,
     )
-    rgb2clpts_node = Node(
-        package='simlab',
-        executable="rgb2cloudpoint_publisher",
-        name="rgb2cloudpoint_publisher"
-    )
     bag_recorder_node = Node(
         package='simlab',
         executable="bag_recorder_node",
@@ -520,6 +567,7 @@ def launch_setup(context, *args, **kwargs):
         parameters=[
             mode_params,
             {"autostart_recording": record_data_bool},
+            {"bag_base_dir": "~/ros_ws/recordings/mcap"},
         ],
     )
 
@@ -527,15 +575,42 @@ def launch_setup(context, *args, **kwargs):
         (prefix for prefix in robot_prefixes if prefix != "robot_real_"),
         robot_prefixes[0],
     )
-    camera_node = Node(
-        package="ros2_control_blue_reach_5",
-        executable="gstreamer_camera_node",
-        name="gstreamer_camera_node",
+    selected_camera_params = {
+        "image_topic": "/alpha/image_raw",
+        "camera_info_topic": "/alpha/camera_info",
+        "frame_id": f"{camera_prefix}camera_link",
+        **({"pipeline": camera_pipeline} if camera_pipeline else {}),
+    }
+    if camera_prefix == "robot_real_":
+        camera_topic_base = _camera_topic_base(camera_prefix)
+        selected_camera_params.update({
+            "mirror_image_topic": f"{camera_topic_base}/image_raw",
+            "mirror_camera_info_topic": f"{camera_topic_base}/camera_info",
+        })
+
+    selected_camera_node = None
+    if not selected_camera_is_sim:
+        selected_camera_node = Node(
+            package="ros2_control_blue_reach_5",
+            executable="gstreamer_camera_node",
+            name="gstreamer_camera_node",
+            output="screen",
+            parameters=[selected_camera_params],
+        )
+    sim_camera_renderer_node = Node(
+        package="simlab",
+        executable="sim_camera_renderer_node",
+        name="sim_camera_renderer_node",
         output="screen",
         parameters=[{
-            "image_topic": "/alpha/image_raw",
-            "frame_id": f"{camera_prefix}camera_link",
-            **({"pipeline": camera_pipeline} if camera_pipeline else {}),
+            "robots_prefix": robot_prefixes,
+            "robot_description": robot_description_content,
+            "world_frame": "world",
+            "width": int(sim_camera_width),
+            "height": int(sim_camera_height),
+            "render_rate": float(sim_camera_rate),
+            "selected_prefix": next((prefix for prefix in robot_prefixes if prefix != "robot_real_"), ""),
+            "publish_selected_output": selected_camera_is_sim,
         }],
     )
 
@@ -638,11 +713,6 @@ def launch_setup(context, *args, **kwargs):
     rviz_after_switch = RegisterEventHandler(
         OnProcessExit(target_action=switch_proc, on_exit=[rviz_node, overlay_text_node])
     )
-    # 4b) start clp after the switch
-    clp_after_switch = RegisterEventHandler(
-        OnProcessExit(target_action=switch_proc, on_exit=[rgb2clpts_node])
-    )
-
     simulator_actions = [
         reset_coordinator_proc,
         joint_state_broadcaster_spawner,
@@ -661,7 +731,10 @@ def launch_setup(context, *args, **kwargs):
     ]
 
     if launch_camera_bool:
-        simulator_actions.append(camera_node)
+        if selected_camera_node is not None:
+            simulator_actions.append(selected_camera_node)
+        if has_simulated_robot:
+            simulator_actions.append(sim_camera_renderer_node)
 
     if use_mocap_bool:
         simulator_actions.extend([

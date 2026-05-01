@@ -20,6 +20,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <random>
@@ -34,6 +35,35 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
+  namespace
+  {
+    double dense_vector_value(const casadi::DM &matrix, const std::size_t index)
+    {
+      const std::size_t rows = static_cast<std::size_t>(matrix.size1());
+      const std::size_t cols = static_cast<std::size_t>(matrix.size2());
+      if (rows == 1 && index < cols)
+      {
+        return static_cast<double>(matrix(0, static_cast<int>(index)).scalar());
+      }
+      if (cols == 1 && index < rows)
+      {
+        return static_cast<double>(matrix(static_cast<int>(index), 0).scalar());
+      }
+      throw std::out_of_range("CasADi output is not a vector with the requested index");
+    }
+
+    std::vector<double> dense_vector(const casadi::DM &matrix, const std::size_t expected_size)
+    {
+      std::vector<double> values;
+      values.reserve(expected_size);
+      for (std::size_t i = 0; i < expected_size; ++i)
+      {
+        values.push_back(dense_vector_value(matrix, i));
+      }
+      return values;
+    }
+  } // namespace
+
   ReachSystemMultiInterfaceHardware::~ReachSystemMultiInterfaceHardware()
   {
     stop_background_work();
@@ -50,7 +80,7 @@ namespace ros2_control_blue_reach_5
     }
     // Access the name from the HardwareInfo
     system_name = get_hardware_info().name;
-    RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "System name: %s", system_name.c_str());
+    RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "System name: %s", system_name.c_str());
 
     // Print the CasADi version
     std::string casadi_version = CasadiMeta::version();
@@ -571,12 +601,14 @@ namespace ros2_control_blue_reach_5
         P_diag_list_[i][d] = double(P_est_list_[i](d, d));
       }
 
-      // Write filtered states back to this joint
-      const std::vector<double> x_est_dense = x_est_list_[i].nonzeros(); // 3 entries
-      hw_joint_struct_[i].current_state_.filtered_position = x_est_dense[0];
-      hw_joint_struct_[i].current_state_.filtered_velocity = x_est_dense[1];
-      hw_joint_struct_[i].current_state_.estimated_acceleration = x_est_dense[2];
-      hw_joint_struct_[i].current_state_.acceleration = x_est_dense[2];
+      // Write filtered states back to this joint.
+      const double filtered_position = dense_vector_value(x_est_list_[i], 0);
+      const double filtered_velocity = dense_vector_value(x_est_list_[i], 1);
+      const double estimated_acceleration = dense_vector_value(x_est_list_[i], 2);
+      hw_joint_struct_[i].current_state_.filtered_position = filtered_position;
+      hw_joint_struct_[i].current_state_.filtered_velocity = filtered_velocity;
+      hw_joint_struct_[i].current_state_.estimated_acceleration = estimated_acceleration;
+      hw_joint_struct_[i].current_state_.acceleration = estimated_acceleration;
     }
     return hardware_interface::return_type::OK;
   }
@@ -698,9 +730,9 @@ namespace ros2_control_blue_reach_5
         t.header.frame_id = base;
         t.child_frame_id = robot_prefix + "joint_" + std::to_string(i);
 
-        const auto &v_dense = T_i_[i].nonzeros(); // expected [x y z qw qx qy qz]
-        if (v_dense.size() >= 7)
+        try
         {
+          const auto v_dense = dense_vector(T_i_[i], 7); // [x y z qw qx qy qz]
           t.transform.translation.x = v_dense[0];
           t.transform.translation.y = v_dense[1];
           t.transform.translation.z = v_dense[2];
@@ -712,7 +744,7 @@ namespace ros2_control_blue_reach_5
           q.setZ(v_dense[6]);
           t.transform.rotation = tf2::toMsg(q);
         }
-        else
+        catch (const std::exception &)
         {
           // fallback, zero transform on bad shape
           t.transform.translation.x = 0.0;
@@ -733,9 +765,9 @@ namespace ros2_control_blue_reach_5
         t.header.frame_id = base;
         t.child_frame_id = robot_prefix + "link_com_" + std::to_string(i);
 
-        const auto &v_dense = T_com_i_[i].nonzeros(); // expected [x y z qw qx qy qz]
-        if (v_dense.size() >= 7)
+        try
         {
+          const auto v_dense = dense_vector(T_com_i_[i], 7); // [x y z qw qx qy qz]
           t.transform.translation.x = v_dense[0];
           t.transform.translation.y = v_dense[1];
           t.transform.translation.z = v_dense[2];
@@ -747,7 +779,7 @@ namespace ros2_control_blue_reach_5
           q.setZ(v_dense[6]);
           t.transform.rotation = tf2::toMsg(q);
         }
-        else
+        catch (const std::exception &)
         {
           t.transform.translation.x = 0.0;
           t.transform.translation.y = 0.0;

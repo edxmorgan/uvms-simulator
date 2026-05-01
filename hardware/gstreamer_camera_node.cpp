@@ -15,7 +15,9 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "ros2_control_blue_reach_5/gstreamer_camera_driver.hpp"
 
@@ -30,6 +32,12 @@ public:
   {
     const std::string image_topic =
       this->declare_parameter<std::string>("image_topic", "/alpha/image_raw");
+    const std::string camera_info_topic =
+      this->declare_parameter<std::string>("camera_info_topic", "/alpha/camera_info");
+    const std::string mirror_image_topic =
+      this->declare_parameter<std::string>("mirror_image_topic", "");
+    const std::string mirror_camera_info_topic =
+      this->declare_parameter<std::string>("mirror_camera_info_topic", "");
     const std::string frame_id =
       this->declare_parameter<std::string>("frame_id", "camera_link");
     const std::string pipeline =
@@ -37,14 +45,53 @@ public:
         "pipeline", GStreamerCameraDriver::default_pipeline());
 
     camera_driver_ = std::make_unique<GStreamerCameraDriver>();
-    camera_driver_->configure(this, image_topic, frame_id, pipeline);
+    camera_driver_->configure(
+      this,
+      image_topic,
+      camera_info_topic,
+      frame_id,
+      pipeline,
+      mirror_image_topic,
+      mirror_camera_info_topic);
+    parameter_callback_handle_ = this->add_on_set_parameters_callback(
+      [this](const std::vector<rclcpp::Parameter> & parameters) {
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+        for (const auto & parameter : parameters) {
+          if (parameter.get_name() != "frame_id") {
+            continue;
+          }
+          if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING) {
+            result.successful = false;
+            result.reason = "frame_id must be a string";
+            return result;
+          }
+          const auto frame_id_value = parameter.as_string();
+          if (frame_id_value.empty()) {
+            result.successful = false;
+            result.reason = "frame_id must not be empty";
+            return result;
+          }
+          camera_driver_->set_frame_id(frame_id_value);
+          RCLCPP_INFO(get_logger(), "GStreamer camera frame_id set to %s", frame_id_value.c_str());
+        }
+        return result;
+      });
     camera_driver_->start();
 
     RCLCPP_INFO(
       get_logger(),
-      "GStreamer camera publishing %s with frame_id %s",
+      "GStreamer camera publishing %s and %s with frame_id %s",
       image_topic.c_str(),
+      camera_info_topic.c_str(),
       frame_id.c_str());
+    if (!mirror_image_topic.empty() || !mirror_camera_info_topic.empty()) {
+      RCLCPP_INFO(
+        get_logger(),
+        "GStreamer camera mirroring to %s and %s",
+        mirror_image_topic.empty() ? "<none>" : mirror_image_topic.c_str(),
+        mirror_camera_info_topic.empty() ? "<none>" : mirror_camera_info_topic.c_str());
+    }
   }
 
   ~GStreamerCameraNode() override
@@ -56,6 +103,7 @@ public:
 
 private:
   std::unique_ptr<GStreamerCameraDriver> camera_driver_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr parameter_callback_handle_;
 };
 
 }  // namespace ros2_control_blue_reach_5

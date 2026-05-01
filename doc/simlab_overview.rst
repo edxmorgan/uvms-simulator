@@ -47,8 +47,7 @@ System Layers
   session logging, rosbag2 MCAP recording, and mocap conversion support
   repeatable simulator and hardware experiments.
 - Environment/perception: bathymetry/workspace visualization, collision
-  context, camera drivers, and optional RGB-to-pointcloud utilities support
-  planning and operator feedback.
+  context, and camera drivers support planning and operator feedback.
 
 Guide Map
 ---------
@@ -63,8 +62,8 @@ Guide Map
   controller/replay separation.
 - :doc:`replay_and_experiments`: command replay profiles, reset behavior,
   repeats, and replay-session logging.
-- :doc:`camera_and_perception`: sensor topics, camera launch modes, mount/light
-  commands, and RGB-to-pointcloud utilities.
+- :doc:`camera_and_perception`: sensor topics, camera launch modes, and
+  mount/light commands.
 - :doc:`developer_guide`: developer guide for adding controllers, planners, and
   robot interfaces.
 
@@ -80,7 +79,6 @@ Core Runtime Nodes
   sessions.
 - ``mocap_publisher``: OptiTrack/mocap4r2 bridge output conversion and path
   publishing when mocap is enabled.
-- ``rgb2cloudpoint_publisher``: optional RGB-to-pointcloud perception utility.
 - ``collision_contact_node``, ``voxelviz_node``, and ``env_obstacles_node``:
   environment visualization and collision/context utilities.
 
@@ -116,8 +114,9 @@ Useful launch switches:
   nodes. The default is ``false``.
 - ``record_data:=true``: start rosbag2 MCAP recording.
 - ``gui:=false``: run without RViz.
-- ``launch_camera:=auto|true|false``: control the GStreamer camera node.
-- ``simulate_camera:=true``: use a synthetic test-pattern camera.
+- ``launch_camera:=auto|true|false``: enable or disable camera nodes.
+- ``camera_source:=auto|sim|real``: select whether ``/alpha`` comes from the
+  simulated renderer or the real GStreamer camera node.
 
 Command Replay
 --------------
@@ -168,5 +167,5 @@ Capability Map
 - Command replay from CSV profiles with reset/dynamics metadata.
 - Optional replay-session CSV logging.
 - Mocap pose/path conversion and visualization when enabled.
-- Camera launch, simulated camera mode, and optional RGB-to-pointcloud support.
+- Camera launch and simulated camera mode.
 - Bathymetry/workspace visualization and collision context.

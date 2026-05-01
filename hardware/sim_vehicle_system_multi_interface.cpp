@@ -20,6 +20,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <cstring>
@@ -67,6 +68,32 @@ namespace ros2_control_blue_reach_5
                 }
             }
             return result;
+        }
+
+        double dense_vector_value(const casadi::DM &matrix, const std::size_t index)
+        {
+            const std::size_t rows = static_cast<std::size_t>(matrix.size1());
+            const std::size_t cols = static_cast<std::size_t>(matrix.size2());
+            if (rows == 1 && index < cols)
+            {
+                return static_cast<double>(matrix(0, static_cast<int>(index)).scalar());
+            }
+            if (cols == 1 && index < rows)
+            {
+                return static_cast<double>(matrix(static_cast<int>(index), 0).scalar());
+            }
+            throw std::out_of_range("CasADi output is not a vector with the requested index");
+        }
+
+        std::vector<double> dense_vector(const casadi::DM &matrix, const std::size_t expected_size)
+        {
+            std::vector<double> values;
+            values.reserve(expected_size);
+            for (std::size_t i = 0; i < expected_size; ++i)
+            {
+                values.push_back(dense_vector_value(matrix, i));
+            }
+            return values;
         }
 
         std::vector<double> default_vehicle_simulation_parameters()
@@ -391,10 +418,13 @@ namespace ros2_control_blue_reach_5
                 same_ic_str == "true" || same_ic_str == "True" || same_ic_str == "1";
         }
 
-        RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************robot prefix: %s", hw_vehicle_struct.robot_prefix.c_str());
-        RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************frame id: %s", hw_vehicle_struct.world_frame_id.c_str());
-        RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
-        RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "*************map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
+        RCLCPP_INFO(
+            rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+            "[%s] frames: world=%s body=%s map=%s",
+            hw_vehicle_struct.robot_prefix.c_str(),
+            hw_vehicle_struct.world_frame_id.c_str(),
+            hw_vehicle_struct.body_frame_id.c_str(),
+            hw_vehicle_struct.map_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "use_pwm: %s", use_pwm_str.c_str());
 
         if (same_initial_conditions)
@@ -1082,7 +1112,7 @@ namespace ros2_control_blue_reach_5
         }
 
         // // Convert x_est_ to std::vector<double> or just read from DM?
-        std::vector<double> x_est_v = x_est_.nonzeros();
+        std::vector<double> x_est_v = dense_vector(x_est_, 18);
 
         // Update the estimated state in your hardware vehicle struct
         hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
@@ -1148,10 +1178,10 @@ namespace ros2_control_blue_reach_5
             DM pwm_commands = DM(pwm_command_values);
 
             std::vector<DM> thrusts_commands = utils_service.pwm_to_thrusts(pwm_commands);
-            std::vector<double> thrusts_commands_doubles = thrusts_commands.at(0).nonzeros();
+            std::vector<double> thrusts_commands_doubles = dense_vector(thrusts_commands.at(0), 8);
             std::vector<DM> thrust2bodyf_args = {thrust_config, thrusts_commands_doubles};
             std::vector<DM> body_forces_command_resp = utils_service.thruster_f2body_f(thrust2bodyf_args);
-            std::vector<double> body_forces_command = body_forces_command_resp.at(0).nonzeros();
+            std::vector<double> body_forces_command = dense_vector(body_forces_command_resp.at(0), 6);
 
             hw_vehicle_struct.command_state_.Fx = body_forces_command[0];
             hw_vehicle_struct.command_state_.Fy = body_forces_command[1];
@@ -1219,11 +1249,11 @@ namespace ros2_control_blue_reach_5
 
         std::vector<DM> FTinputs = {thrust_config, uv_input};
         std::vector<DM> thrust_outputs = utils_service.genForces2propThrust(FTinputs);
-        std::vector<double> thrusts = thrust_outputs.at(0).nonzeros();
+        std::vector<double> thrusts = dense_vector(thrust_outputs.at(0), 8);
 
         std::vector<DM> thrust2rads_args = {thrusts};
         std::vector<DM> thruster_rads_outputs = utils_service.thrust2rads(thrust2rads_args);
-        std::vector<double> thrusts_rads_double = thruster_rads_outputs.at(0).nonzeros();
+        std::vector<double> thrusts_rads_double = dense_vector(thruster_rads_outputs.at(0), 8);
 
         for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
         {
@@ -1266,7 +1296,7 @@ namespace ros2_control_blue_reach_5
         // arm_base_f_ext = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         vehicle_simulate_argument = {uv_state, uv_input, vehicle_parameters_new, delta_seconds, arm_base_f_ext};
         vehicle_sim = utils_service.vehicle_dynamics(vehicle_simulate_argument);
-        vehicle_next_states = vehicle_sim.at(0).nonzeros();
+        vehicle_next_states = dense_vector(vehicle_sim.at(0), 12);
 
         hw_vehicle_struct.current_state_.position_x = vehicle_next_states[0];
         hw_vehicle_struct.current_state_.position_y = vehicle_next_states[1];

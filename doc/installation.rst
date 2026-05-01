@@ -39,12 +39,23 @@ Install core apt dependencies:
        ros-$ROS_DISTRO-rviz-2d-overlay-plugins \
        ros-$ROS_DISTRO-rviz-2d-overlay-msgs \
        ros-$ROS_DISTRO-rosbag2 \
-       ros-$ROS_DISTRO-plotjuggler-ros \
        ros-$ROS_DISTRO-interactive-markers \
        ros-$ROS_DISTRO-cv-bridge \
        gstreamer1.0-plugins-base \
        libgstreamer1.0-dev \
        libgstreamer-plugins-base1.0-dev
+
+Install PlotJuggler from Snap for the newer MCAP and scripting support used by
+the launch workflow:
+
+.. code-block:: shell
+
+   sudo snap install plotjuggler
+
+The main launch file starts ``/snap/bin/plotjuggler`` when
+``launch_plotjuggler:=true``. If the ROS package
+``ros-$ROS_DISTRO-plotjuggler-ros`` is also installed, it can remain installed;
+the launch file does not use that older executable.
 
 If CasADi is outside the system linker path:
 
@@ -71,19 +82,13 @@ Workspace Setup
 Python Dependencies
 -------------------
 
-Install Python packages used by SimLab for joystick control, planning, FCL,
-Ruckig, and optional perception:
+Install Python packages used by SimLab for joystick control, planning, FCL, and
+Ruckig:
 
 .. code-block:: shell
 
    python3 -m pip install pyPS4Controller pynput scipy casadi ruckig \
        python-fcl trimesh pycollada
-
-Optional RGB-to-pointcloud support:
-
-.. code-block:: shell
-
-   python3 -m pip install torch torchvision timm opencv-python
 
 OMPL Python Bindings
 --------------------

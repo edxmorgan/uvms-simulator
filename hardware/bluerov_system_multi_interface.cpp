@@ -21,6 +21,7 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <cstring>
@@ -39,6 +40,35 @@ using namespace casadi;
 
 namespace ros2_control_blue_reach_5
 {
+    namespace
+    {
+        double dense_vector_value(const casadi::DM &matrix, const std::size_t index)
+        {
+            const std::size_t rows = static_cast<std::size_t>(matrix.size1());
+            const std::size_t cols = static_cast<std::size_t>(matrix.size2());
+            if (rows == 1 && index < cols)
+            {
+                return static_cast<double>(matrix(0, static_cast<int>(index)).scalar());
+            }
+            if (cols == 1 && index < rows)
+            {
+                return static_cast<double>(matrix(static_cast<int>(index), 0).scalar());
+            }
+            throw std::out_of_range("CasADi output is not a vector with the requested index");
+        }
+
+        std::vector<double> dense_vector(const casadi::DM &matrix, const std::size_t expected_size)
+        {
+            std::vector<double> values;
+            values.reserve(expected_size);
+            for (std::size_t i = 0; i < expected_size; ++i)
+            {
+                values.push_back(dense_vector_value(matrix, i));
+            }
+            return values;
+        }
+    } // namespace
+
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_init(
         const hardware_interface::HardwareComponentInterfaceParams &params)
     {
@@ -932,8 +962,7 @@ namespace ros2_control_blue_reach_5
             P_diag_[i] = double(P_est_(i, i));
         }
 
-        // // Convert x_est_ to std::vector<double> or just read from DM?
-        std::vector<double> x_est_v = x_est_.nonzeros();
+        const std::vector<double> x_est_v = dense_vector(x_est_, 18);
 
         // Update the estimated state in your hardware vehicle struct
         hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
@@ -971,7 +1000,7 @@ namespace ros2_control_blue_reach_5
                                        hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm}};
 
         std::vector<DM> rads_output_dm = utils_service.pwm2rads(pwm_inputs);
-        std::vector<double> rads_output = rads_output_dm.at(0).nonzeros();
+        std::vector<double> rads_output = dense_vector(rads_output_dm.at(0), 8);
 
         for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
         {
@@ -1076,7 +1105,7 @@ namespace ros2_control_blue_reach_5
 
         std::vector<DM> inputs = {thrust_config, user_forces};
         std::vector<DM> thrust_outputs = utils_service.genForces2propThrust(inputs);
-        std::vector<double> thrusts = thrust_outputs.at(0).nonzeros();
+        std::vector<double> thrusts = dense_vector(thrust_outputs.at(0), 8);
         RCLCPP_DEBUG(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                      "Got thruster pwm commands: %f %f %f %f %f %f %f %f",
                      thrusts[0],
@@ -1088,7 +1117,7 @@ namespace ros2_control_blue_reach_5
                      thrusts[6],
                      thrusts[7]);
         std::vector<DM> pwm_input = utils_service.from_thrust_to_pwm(thrust_outputs.at(0));
-        std::vector<double> pwm_commands_from_principal_forces_moments = pwm_input.at(0).nonzeros();
+        std::vector<double> pwm_commands_from_principal_forces_moments = dense_vector(pwm_input.at(0), 8);
 
         if (!hw_vehicle_struct.use_pwm)
         {

@@ -36,11 +36,16 @@ Main menu groups:
 - ``Cmd Replay``: select the active robot's replay profile, reset/play, and
   stop replay. See :doc:`replay_and_experiments` for profile format and
   experiment logging.
+- ``Dynamics Profile``: apply a named robot dynamics parameter profile during
+  simulation.
+- ``Data Recording``: start or stop MCAP recording for the configured robot,
+  reference, performance, mocap, and camera topics.
 - ``Grasper``: open/close the active robot's grasper through feedback
   controllers only.
 - ``Reset Manager``: simulator state reset and release controls. Requests for
   hardware namespaces are rejected with a log message.
-- ``<robot> Control``: select controller and control space for a robot.
+- ``Robot Control``: select controller, control space, and IK settings for the
+  active robot.
 
 Feedback Control and Replay
 ---------------------------
@@ -51,12 +56,10 @@ Feedback control and replay are separate operating modes:
 - ``CmdReplay`` is the CSV replay controller. A profile decides whether each
   subsystem replays commands, tracks references, holds its initial state, or
   publishes zero commands.
-- ``Plan & Execute`` uses the selected feedback controller and refuses to run
-  while ``CmdReplay`` is selected.
-- Replay reset/playback requires both ``CmdReplay`` and an explicitly selected
-  replay profile.
-- Grasper menu commands are rejected while ``CmdReplay`` is active, so they do
-  not queue and apply later.
+- ``Plan & Execute`` belongs to feedback-controller operation.
+- Replay playback is started from ``Cmd Replay`` after selecting ``CmdReplay``
+  and a replay profile.
+- Grasper commands belong to feedback-controller operation.
 
 At startup the default PID controller is selected but inactive. It does not
 publish closed-loop commands until the user explicitly activates a behavior.

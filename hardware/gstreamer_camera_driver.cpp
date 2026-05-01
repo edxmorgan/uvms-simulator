@@ -48,8 +48,11 @@ GStreamerCameraDriver::~GStreamerCameraDriver()
 void GStreamerCameraDriver::configure(
   rclcpp::Node * node,
   const std::string & image_topic,
+  const std::string & camera_info_topic,
   const std::string & frame_id,
-  const std::string & pipeline)
+  const std::string & pipeline,
+  const std::string & mirror_image_topic,
+  const std::string & mirror_camera_info_topic)
 {
   if (!node) {
     throw std::invalid_argument("GStreamerCameraDriver requires a valid rclcpp node");
@@ -59,11 +62,24 @@ void GStreamerCameraDriver::configure(
 
   node_ = node;
   image_topic_ = image_topic;
-  frame_id_ = frame_id;
+  camera_info_topic_ = camera_info_topic;
+  mirror_image_topic_ = mirror_image_topic;
+  mirror_camera_info_topic_ = mirror_camera_info_topic;
+  set_frame_id(frame_id);
   pipeline_ = pipeline;
 
   image_pub_ = node_->create_publisher<sensor_msgs::msg::Image>(
     image_topic_, rclcpp::SystemDefaultsQoS());
+  camera_info_pub_ = node_->create_publisher<sensor_msgs::msg::CameraInfo>(
+    camera_info_topic_, rclcpp::SystemDefaultsQoS());
+  if (!mirror_image_topic_.empty()) {
+    mirror_image_pub_ = node_->create_publisher<sensor_msgs::msg::Image>(
+      mirror_image_topic_, rclcpp::SystemDefaultsQoS());
+  }
+  if (!mirror_camera_info_topic_.empty()) {
+    mirror_camera_info_pub_ = node_->create_publisher<sensor_msgs::msg::CameraInfo>(
+      mirror_camera_info_topic_, rclcpp::SystemDefaultsQoS());
+  }
   realtime_image_pub_ =
     std::make_shared<realtime_tools::RealtimePublisher<sensor_msgs::msg::Image>>(image_pub_);
 }
@@ -73,7 +89,7 @@ void GStreamerCameraDriver::start()
   if (camera_thread_running_) {
     return;
   }
-  if (!node_ || !image_pub_ || !realtime_image_pub_) {
+  if (!node_ || !image_pub_ || !camera_info_pub_ || !realtime_image_pub_) {
     RCLCPP_ERROR(
       rclcpp::get_logger(kLoggerName),
       "Camera driver was not configured before start");
@@ -136,6 +152,12 @@ bool GStreamerCameraDriver::running() const
   return camera_thread_running_;
 }
 
+void GStreamerCameraDriver::set_frame_id(const std::string & frame_id)
+{
+  std::lock_guard<std::mutex> lock(frame_id_mutex_);
+  frame_id_ = frame_id;
+}
+
 std::string GStreamerCameraDriver::default_pipeline()
 {
   return
@@ -180,9 +202,15 @@ void GStreamerCameraDriver::loop()
       continue;
     }
 
+    std::string frame_id;
+    {
+      std::lock_guard<std::mutex> lock(frame_id_mutex_);
+      frame_id = frame_id_;
+    }
+
     sensor_msgs::msg::Image msg;
     msg.header.stamp = node_->now();
-    msg.header.frame_id = frame_id_;
+    msg.header.frame_id = frame_id;
     msg.height = height;
     msg.width = width;
     msg.encoding = "bgr8";
@@ -204,9 +232,30 @@ void GStreamerCameraDriver::loop()
     msg.data.resize(image_size);
     std::memcpy(msg.data.data(), map.data, msg.data.size());
 
+    sensor_msgs::msg::CameraInfo camera_info;
+    camera_info.header = msg.header;
+    camera_info.height = msg.height;
+    camera_info.width = msg.width;
+    camera_info.distortion_model = "plumb_bob";
+    camera_info.d.assign(5, 0.0);
+    const double fx = static_cast<double>(width);
+    const double fy = static_cast<double>(width);
+    const double cx = 0.5 * static_cast<double>(width - 1);
+    const double cy = 0.5 * static_cast<double>(height - 1);
+    camera_info.k = {fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0};
+    camera_info.r = {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+    camera_info.p = {fx, 0.0, cx, 0.0, 0.0, fy, cy, 0.0, 0.0, 0.0, 1.0, 0.0};
+
     gst_buffer_unmap(buffer, &map);
     gst_sample_unref(sample);
 
+    camera_info_pub_->publish(camera_info);
+    if (mirror_camera_info_pub_) {
+      mirror_camera_info_pub_->publish(camera_info);
+    }
+    if (mirror_image_pub_) {
+      mirror_image_pub_->publish(msg);
+    }
     if (realtime_image_pub_ && realtime_image_pub_->trylock()) {
       realtime_image_pub_->msg_ = msg;
       realtime_image_pub_->unlockAndPublish();
