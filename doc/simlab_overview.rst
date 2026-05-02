@@ -116,7 +116,8 @@ Useful launch switches:
 - ``gui:=false``: run without RViz.
 - ``launch_camera:=auto|true|false``: enable or disable camera nodes.
 - ``camera_source:=auto|sim|real``: select whether ``/alpha`` comes from the
-  simulated renderer or the real GStreamer camera node.
+  simulated renderer, the real GStreamer camera node, or automatic mixed
+  real/sim camera selection.
 
 Command Replay
 --------------

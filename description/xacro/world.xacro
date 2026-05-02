@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <xacro:macro name="sim_world">
+  <xacro:macro name="sim_world" params="world_frame:=world">
   
       <!-- world origin -->
-    <link name="world">
+    <link name="${world_frame}">
         <visual>
         <origin rpy="0 0 0" xyz="0 0 0"/>
         <geometry>
@@ -54,7 +54,7 @@
 
     <joint name="world_bottom_joint" type="fixed">
       <child link="world_bottom" />
-      <parent link="world" />
+      <parent link="${world_frame}" />
       <origin xyz="0.0 0.0 -8.0" rpy="0 0 0"/>
     </joint>
 
@@ -75,7 +75,7 @@
 
     <joint name="world_joint" type="fixed">
       <child link="base_link" />
-      <parent link="world" />
+      <parent link="${world_frame}" />
       <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
     </joint>
 

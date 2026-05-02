@@ -37,6 +37,8 @@ namespace ros2_control_blue_reach_5
 {
   namespace
   {
+    constexpr double kTorqueCurrentZeroEpsilon = 1.0e-9;
+
     double dense_vector_value(const casadi::DM &matrix, const std::size_t index)
     {
       const std::size_t rows = static_cast<std::size_t>(matrix.size1());
@@ -521,7 +523,11 @@ namespace ros2_control_blue_reach_5
       hw_joint_struct_[i].current_state_.velocity = hw_joint_struct_[i].async_state_.velocity;
       hw_joint_struct_[i].current_state_.current = hw_joint_struct_[i].async_state_.current;
 
-      if (hw_joint_struct_[i].current_state_.current > 0)
+      if (std::abs(hw_joint_struct_[i].current_state_.current) <= kTorqueCurrentZeroEpsilon)
+      {
+        hw_joint_struct_[i].current_state_.effort = 0.0;
+      }
+      else if (hw_joint_struct_[i].current_state_.current > 0)
       {
         T2C_arg = {DM(hw_joint_struct_[i].actuator_Properties_.kt),
                    DM(hw_joint_struct_[i].actuator_Properties_.forward_I_static),
@@ -533,8 +539,11 @@ namespace ros2_control_blue_reach_5
                    DM(hw_joint_struct_[i].actuator_Properties_.backward_I_static),
                    DM(hw_joint_struct_[i].current_state_.current)};
       };
-      std::vector<DM> torque = utils_service.current2torqueMap(T2C_arg);
-      hw_joint_struct_[i].current_state_.effort = torque.at(0).scalar();
+      if (std::abs(hw_joint_struct_[i].current_state_.current) > kTorqueCurrentZeroEpsilon)
+      {
+        std::vector<DM> torque = utils_service.current2torqueMap(T2C_arg);
+        hw_joint_struct_[i].current_state_.effort = torque.at(0).scalar();
+      }
       hw_joint_struct_[i].current_state_.computed_effort = hw_joint_struct_[i].command_state_.effort;
 
       control_power_ += std::abs(hw_joint_struct_[i].current_state_.effort * hw_joint_struct_[i].current_state_.velocity);
@@ -670,26 +679,36 @@ namespace ros2_control_blue_reach_5
       case mode_level_t::MODE_EFFORT:
         if (!std::isnan(hw_joint_struct_[i].command_state_.effort))
         {
-          if (hw_joint_struct_[i].command_state_.effort > 0)
+          double requested_effort = hw_joint_struct_[i].command_state_.effort;
+          double requested_current = 0.0;
+          if (std::abs(requested_effort) <= kTorqueCurrentZeroEpsilon)
+          {
+            requested_current = 0.0;
+          }
+          else if (requested_effort > 0)
           {
             T2C_arg = {DM(hw_joint_struct_[i].actuator_Properties_.kt),
                        DM(hw_joint_struct_[i].actuator_Properties_.forward_I_static),
-                       DM(hw_joint_struct_[i].command_state_.effort)};
+                       DM(requested_effort)};
           }
           else
           {
             T2C_arg = {DM(hw_joint_struct_[i].actuator_Properties_.kt),
                        DM(hw_joint_struct_[i].actuator_Properties_.backward_I_static),
-                       DM(hw_joint_struct_[i].command_state_.effort)};
+                       DM(requested_effort)};
           }
 
-          std::vector<DM> currentMap = utils_service.torque2currentMap(T2C_arg);
+          if (std::abs(requested_effort) > kTorqueCurrentZeroEpsilon)
+          {
+            std::vector<DM> currentMap = utils_service.torque2currentMap(T2C_arg);
+            requested_current = currentMap.at(0).scalar();
+          }
 
           // Get the target device
           const auto target_device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
 
           // enforce hard limit;
-          const double enforced_target_current = hw_joint_struct_[i].enforce_hard_limits(currentMap.at(0).scalar());
+          const double enforced_target_current = hw_joint_struct_[i].enforce_hard_limits(requested_current);
           // RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "effort mode::current from torque :::%f ", enforced_target_current);
           driver_.setCurrent(enforced_target_current, target_device);
           if (enforced_target_current == 0.0)

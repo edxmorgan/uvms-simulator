@@ -67,6 +67,35 @@ namespace ros2_control_blue_reach_5
             }
             return values;
         }
+
+        template <typename Map>
+        bool bool_param(const Map &params, const std::string &name, const bool default_value)
+        {
+            const auto it = params.find(name);
+            if (it == params.cend())
+            {
+                return default_value;
+            }
+            return it->second == "true" || it->second == "True" || it->second == "1";
+        }
+
+        template <typename Map>
+        std::string string_param(const Map &params, const std::string &name, const std::string &default_value)
+        {
+            const auto it = params.find(name);
+            return it == params.cend() ? default_value : it->second;
+        }
+
+        template <typename Map>
+        int int_param(const Map &params, const std::string &name, const int default_value)
+        {
+            const auto it = params.find(name);
+            if (it == params.cend())
+            {
+                return default_value;
+            }
+            return std::stoi(it->second);
+        }
     } // namespace
 
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_init(
@@ -137,12 +166,16 @@ namespace ros2_control_blue_reach_5
         const std::string use_pwm_str = get_hardware_info().hardware_parameters.at("use_pwm"); // e.g., "true", "false", "1", "0"
         hw_vehicle_struct.use_pwm =
             use_pwm_str == "true" || use_pwm_str == "True" || use_pwm_str == "1";
+        use_dvl_ = bool_param(get_hardware_info().hardware_parameters, "use_dvl", false);
+        dvl_host_ = string_param(get_hardware_info().hardware_parameters, "dvl_host", dvl_host_);
+        dvl_port_ = int_param(get_hardware_info().hardware_parameters, "dvl_port", dvl_port_);
 
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "robot prefix: %s", hw_vehicle_struct.robot_prefix.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "frame id: %s", hw_vehicle_struct.world_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "child frame id: %s", hw_vehicle_struct.body_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "map frame id: %s", hw_vehicle_struct.map_frame_id.c_str());
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "use_pwm: %s", use_pwm_str.c_str());
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "use_dvl: %s", use_dvl_ ? "true" : "false");
         // map_position_x = 5.0;
         // map_position_y = 5.0;
         // map_position_z = 0.0;
@@ -387,70 +420,86 @@ namespace ros2_control_blue_reach_5
 
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Subscribed to /alpha/cameraMountPitch with Reliable QoS");
 
-            // Initialize the realtime dvl publisher
-            dvl_velocity_publisher_ = rclcpp::create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(node_topics_interface_,
-                                                                                                               "/dvl/twist", rclcpp::SystemDefaultsQoS());
-            realtime_dvl_velocity_publisher_ =
-                std::make_shared<realtime_tools::RealtimePublisher<geometry_msgs::msg::TwistWithCovarianceStamped>>(
-                    dvl_velocity_publisher_);
+            if (use_dvl_)
+            {
+                try
+                {
+                    // DVL is hardware optional; a missing network sensor must not block vehicle startup.
+                    dvl_velocity_publisher_ = rclcpp::create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(
+                        node_topics_interface_, "/dvl/twist", rclcpp::SystemDefaultsQoS());
+                    realtime_dvl_velocity_publisher_ =
+                        std::make_shared<realtime_tools::RealtimePublisher<geometry_msgs::msg::TwistWithCovarianceStamped>>(
+                            dvl_velocity_publisher_);
 
-            RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                        "DVL velocity realtime publisher initialized on topic /dvl/twist.");
+                    RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                                "DVL velocity realtime publisher initialized on topic /dvl/twist.");
 
-            dvl_driver_.subscribe([this](const nlohmann::json &msg)
-                                  {
-                // This lambda runs in the DVLDriver poll thread whenever new JSON arrives
+                    dvl_driver_.subscribe([this](const nlohmann::json &msg)
+                                          {
+                        // This lambda runs in the DVLDriver poll thread whenever new JSON arrives.
+                        dvl_msg = blue::dynamics::DVLMessage::from_json(msg);
 
-                // Deserialize into DVLMessage
-                dvl_msg = blue::dynamics::DVLMessage::from_json(msg);
+                        std::lock_guard<std::mutex> lock(dvl_data_mutex_);
 
-                // Lock the mutex to safely update shared data
-                std::lock_guard<std::mutex> lock(dvl_data_mutex_);
+                        switch (dvl_msg.message_type) {
+                            case blue::dynamics::DVLMessageType::VELOCITY: {
+                                dv_vel = std::get<blue::dynamics::DVLVelocityMessage>(dvl_msg.data);
+                                hw_vehicle_struct.dvl_state.altitude = dv_vel.altitude;
+                                hw_vehicle_struct.dvl_state.fom = dv_vel.fom;
+                                hw_vehicle_struct.dvl_state.format = dv_vel.format;
+                                hw_vehicle_struct.dvl_state.status = dv_vel.status;
+                                hw_vehicle_struct.dvl_state.time = dv_vel.time;
+                                hw_vehicle_struct.dvl_state.covariance = dv_vel.covariance;
+                                hw_vehicle_struct.dvl_state.time_of_transmission = dv_vel.time_of_transmission;
+                                hw_vehicle_struct.dvl_state.time_of_validity = dv_vel.time_of_validity;
+                                hw_vehicle_struct.dvl_state.transducers = dv_vel.transducers;
+                                hw_vehicle_struct.dvl_state.type = dv_vel.type;
+                                hw_vehicle_struct.dvl_state.velocity_valid = dv_vel.velocity_valid;
+                                hw_vehicle_struct.dvl_state.vx = dv_vel.vx;
+                                hw_vehicle_struct.dvl_state.vy = dv_vel.vy;
+                                hw_vehicle_struct.dvl_state.vz = dv_vel.vz;
 
-                switch (dvl_msg.message_type) {
-                    case blue::dynamics::DVLMessageType::VELOCITY: {
-                        dv_vel = std::get<blue::dynamics::DVLVelocityMessage>(dvl_msg.data);
-                        hw_vehicle_struct.dvl_state.altitude = dv_vel.altitude;
-                        hw_vehicle_struct.dvl_state.fom = dv_vel.fom;
-                        hw_vehicle_struct.dvl_state.format = dv_vel.format;
-                        hw_vehicle_struct.dvl_state.status = dv_vel.status;
-                        hw_vehicle_struct.dvl_state.time = dv_vel.time;
-                        hw_vehicle_struct.dvl_state.covariance = dv_vel.covariance;
-                        hw_vehicle_struct.dvl_state.time_of_transmission = dv_vel.time_of_transmission;
-                        hw_vehicle_struct.dvl_state.time_of_validity = dv_vel.time_of_validity;
-                        hw_vehicle_struct.dvl_state.transducers = dv_vel.transducers;
-                        hw_vehicle_struct.dvl_state.type = dv_vel.type;
-                        hw_vehicle_struct.dvl_state.velocity_valid = dv_vel.velocity_valid;
-                        hw_vehicle_struct.dvl_state.vx = dv_vel.vx;
-                        hw_vehicle_struct.dvl_state.vy = dv_vel.vy;
-                        hw_vehicle_struct.dvl_state.vz = dv_vel.vz;
+                                new_dvl_data_available_ = true;
+                                break;
+                            }
+                            case blue::dynamics::DVLMessageType::POSITION_LOCAL: {
+                                dvl_pose = std::get<blue::dynamics::DVLPoseMessage>(dvl_msg.data);
+                                hw_vehicle_struct.dvl_state.format = dvl_pose.format;
+                                hw_vehicle_struct.dvl_state.pitch = dvl_pose.pitch;
+                                hw_vehicle_struct.dvl_state.roll = dvl_pose.roll;
+                                hw_vehicle_struct.dvl_state.status = dvl_pose.status;
+                                hw_vehicle_struct.dvl_state.std_dev = dvl_pose.std_dev;
+                                hw_vehicle_struct.dvl_state.ts = dvl_pose.ts;
+                                hw_vehicle_struct.dvl_state.type = dvl_pose.type;
+                                hw_vehicle_struct.dvl_state.x = dvl_pose.x;
+                                hw_vehicle_struct.dvl_state.y = dvl_pose.y;
+                                hw_vehicle_struct.dvl_state.yaw = dvl_pose.yaw;
+                                hw_vehicle_struct.dvl_state.z = dvl_pose.z;
+                                break;
+                            }
+                            case blue::dynamics::DVLMessageType::UNKNOWN:
+                            default:
+                                RCLCPP_WARN(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Received unknown DVL message type.");
+                                break;
+                        } });
 
-                        // Set flag to indicate new data is ready
-                        new_dvl_data_available_ = true;
-                        break;
-                    }
-                    case blue::dynamics::DVLMessageType::POSITION_LOCAL: {
-                        dvl_pose = std::get<blue::dynamics::DVLPoseMessage>(dvl_msg.data);
-                        hw_vehicle_struct.dvl_state.format = dvl_pose.format;
-                        hw_vehicle_struct.dvl_state.pitch = dvl_pose.pitch;
-                        hw_vehicle_struct.dvl_state.roll = dvl_pose.roll;
-                        hw_vehicle_struct.dvl_state.status = dvl_pose.status;
-                        hw_vehicle_struct.dvl_state.std_dev = dvl_pose.std_dev;
-                        hw_vehicle_struct.dvl_state.ts = dvl_pose.ts;
-                        hw_vehicle_struct.dvl_state.type = dvl_pose.type;
-                        hw_vehicle_struct.dvl_state.x = dvl_pose.x;
-                        hw_vehicle_struct.dvl_state.y = dvl_pose.y;
-                        hw_vehicle_struct.dvl_state.yaw = dvl_pose.yaw;
-                        hw_vehicle_struct.dvl_state.z = dvl_pose.z;
-                        break;
-                    }
-                    case blue::dynamics::DVLMessageType::UNKNOWN:
-                    default:
-                        RCLCPP_WARN(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Received unknown DVL message type.");
-                        break;
-                } });
-
-            dvl_driver_.start("192.168.2.95", 16171);
+                    dvl_driver_.start(dvl_host_, dvl_port_);
+                }
+                catch (const std::exception &e)
+                {
+                    RCLCPP_WARN(
+                        rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                        "DVL disabled after startup failure at %s:%d: %s",
+                        dvl_host_.c_str(), dvl_port_, e.what());
+                    use_dvl_ = false;
+                    dvl_velocity_publisher_.reset();
+                    realtime_dvl_velocity_publisher_.reset();
+                }
+            }
+            else
+            {
+                RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "DVL disabled.");
+            }
         }
         catch (const std::exception &e)
         {
@@ -1564,7 +1613,10 @@ namespace ros2_control_blue_reach_5
     {
         try
         {
-            dvl_driver_.stop();
+            if (use_dvl_)
+            {
+                dvl_driver_.stop();
+            }
         }
         catch (const std::exception &e)
         {

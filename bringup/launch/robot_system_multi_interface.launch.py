@@ -128,6 +128,27 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument(
+            "use_dvl",
+            default_value="false",
+            description="Connect to the real DVL driver when using vehicle hardware.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "dvl_host",
+            default_value="192.168.2.95",
+            description="DVL TCP host used when use_dvl is true.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "dvl_port",
+            default_value="16171",
+            description="DVL TCP port used when use_dvl is true.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
             "launch_camera",
             default_value="true",
             description="Start camera nodes. Use true, false, or auto. auto follows real vehicle hardware or simulated camera mode.",
@@ -138,6 +159,13 @@ def generate_launch_description():
             "camera_source",
             default_value="auto",
             description="Selected /alpha camera source: auto, sim, or real. auto uses sim for simulated vehicles and real for real vehicles or custom camera_pipeline.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "world_frame",
+            default_value="world",
+            description="Global planning, visualization, and simulated camera reference frame.",
         )
     )
     declared_arguments.append(
@@ -271,8 +299,12 @@ def launch_setup(context, *args, **kwargs):
     prefix = LaunchConfiguration("prefix").perform(context)
     use_manipulator_hardware = LaunchConfiguration("use_manipulator_hardware").perform(context)
     use_vehicle_hardware = LaunchConfiguration("use_vehicle_hardware").perform(context)
+    use_dvl = LaunchConfiguration("use_dvl").perform(context)
+    dvl_host = LaunchConfiguration("dvl_host").perform(context)
+    dvl_port = LaunchConfiguration("dvl_port").perform(context)
     launch_camera = LaunchConfiguration("launch_camera").perform(context)
     camera_source = LaunchConfiguration("camera_source").perform(context)
+    world_frame = LaunchConfiguration("world_frame").perform(context)
     camera_pipeline = LaunchConfiguration("camera_pipeline").perform(context)
     sim_camera_width = LaunchConfiguration("sim_camera_width").perform(context)
     sim_camera_height = LaunchConfiguration("sim_camera_height").perform(context)
@@ -345,8 +377,20 @@ def launch_setup(context, *args, **kwargs):
             "same_initial_conditions:=",
             same_initial_conditions,
             " ",
+            "world_frame:=",
+            world_frame,
+            " ",
             "use_pwm:=",
-            use_pwm
+            use_pwm,
+            " ",
+            "use_dvl:=",
+            use_dvl,
+            " ",
+            "dvl_host:=",
+            dvl_host,
+            " ",
+            "dvl_port:=",
+            dvl_port,
         ]
     )
 
@@ -367,6 +411,21 @@ def launch_setup(context, *args, **kwargs):
 
     use_mocap_bool = IfCondition(use_mocap).evaluate(context)
     launch_planner_action_server_bool = IfCondition(launch_planner_action_server).evaluate(context)
+    robot_prefixes, robot_base_links, robot_ix, no_robots = modify_controller_config(use_vehicle_hardware_bool,
+                                                                                 use_manipulator_hardware_bool,
+                                                                                  robot_controllers_read_file,
+                                                                                    robot_controllers_modified_file,
+                                                                                      int(sim_robot_count))
+    has_real_robot = "robot_real_" in robot_prefixes
+    sim_camera_prefixes = [
+        prefix for prefix in robot_prefixes
+        if prefix != "robot_real_" or not use_vehicle_hardware_bool
+    ]
+    has_simulated_camera_source = bool(sim_camera_prefixes)
+    mixed_camera_prefixes = list(sim_camera_prefixes)
+    if use_vehicle_hardware_bool and has_real_robot:
+        mixed_camera_prefixes.append("robot_real_")
+    has_mixed_camera_sources = has_simulated_camera_source and use_vehicle_hardware_bool and has_real_robot
     camera_pipeline = camera_pipeline.strip()
     camera_source = camera_source.strip().lower()
     if camera_source not in {"auto", "sim", "real"}:
@@ -374,18 +433,21 @@ def launch_setup(context, *args, **kwargs):
 
     if camera_source == "auto":
         if camera_pipeline:
-            resolved_camera_source = "real"
+            resolved_camera_source = "mixed" if has_mixed_camera_sources else "real"
         elif use_vehicle_hardware_bool:
-            resolved_camera_source = "real"
-        else:
+            resolved_camera_source = "mixed" if has_mixed_camera_sources else "real"
+        elif has_simulated_camera_source:
             resolved_camera_source = "sim"
+        else:
+            resolved_camera_source = "none"
     else:
         resolved_camera_source = camera_source
 
     selected_camera_is_sim = resolved_camera_source == "sim"
+    selected_camera_is_mixed = resolved_camera_source == "mixed"
     launch_camera_normalized = launch_camera.strip().lower()
     if launch_camera_normalized == "auto":
-        launch_camera_bool = resolved_camera_source in {"sim", "real"}
+        launch_camera_bool = resolved_camera_source in {"sim", "real", "mixed"}
     elif launch_camera_normalized in {"true", "1", "yes", "on"}:
         launch_camera_bool = True
     elif launch_camera_normalized in {"false", "0", "no", "off"}:
@@ -393,19 +455,20 @@ def launch_setup(context, *args, **kwargs):
     else:
         raise RuntimeError("launch_camera must be one of: auto, true, false.")
 
+    if launch_camera_bool and resolved_camera_source == "none":
+        logger.warning(
+            "camera_source:=auto found no simulated robot, real robot, or custom camera_pipeline; "
+            "camera launch disabled."
+        )
+        launch_camera_bool = False
+
     if not camera_pipeline and selected_camera_is_sim:
         camera_pipeline = _simulated_camera_pipeline()
 
     is_hardware_uvms = use_manipulator_hardware_bool and use_vehicle_hardware_bool
 
-    robot_prefixes, robot_base_links, robot_ix, no_robots = modify_controller_config(use_vehicle_hardware_bool,
-                                                                                 use_manipulator_hardware_bool,
-                                                                                  robot_controllers_read_file,
-                                                                                    robot_controllers_modified_file,
-                                                                                      int(sim_robot_count))
-    has_simulated_robot = any(prefix != "robot_real_" for prefix in robot_prefixes)
-    if launch_camera_bool and selected_camera_is_sim and not has_simulated_robot:
-        raise RuntimeError("camera_source:=sim requires at least one simulated robot.")
+    if launch_camera_bool and selected_camera_is_sim and not has_simulated_camera_source:
+        raise RuntimeError("camera_source:=sim requires at least one simulated vehicle camera source.")
     logger.info(
         f"camera_source resolved to {resolved_camera_source}; "
         f"launch_camera={launch_camera_bool}"
@@ -421,15 +484,18 @@ def launch_setup(context, *args, **kwargs):
     rviz_config_read_file = str(rviz_config_read.perform(context))
     rviz_config_modified_file = _runtime_file_path(f"rviz_{runtime_tag}.rviz")
     
-    rviz_file_configure(use_vehicle_hardware_bool, 
-                        use_manipulator_hardware_bool,
-                        robot_prefixes, 
-                        robot_base_links, 
-                        robot_ix, 
-                        rviz_config_read_file, 
-                        rviz_config_modified_file, task,
-                        launch_camera_bool,
-                        selected_camera_is_sim)
+    rviz_file_configure(
+        use_vehicle_hardware_bool,
+        use_manipulator_hardware_bool,
+        robot_prefixes,
+        robot_base_links,
+        robot_ix,
+        rviz_config_read_file,
+        rviz_config_modified_file,
+        task,
+        launch_camera=launch_camera_bool,
+        world_frame=world_frame,
+    )
 
     reset_coordinator_proc = ExecuteProcess(
         cmd=[
@@ -518,6 +584,7 @@ def launch_setup(context, *args, **kwargs):
         'no_efforts': 11,
         "use_vehicle_hardware": use_vehicle_hardware_bool,
         "camera_source": resolved_camera_source,
+        "world_frame": world_frame,
         "robot_description": robot_description_content
     }
 
@@ -571,17 +638,24 @@ def launch_setup(context, *args, **kwargs):
         ],
     )
 
-    camera_prefix = "robot_real_" if use_vehicle_hardware_bool else next(
-        (prefix for prefix in robot_prefixes if prefix != "robot_real_"),
-        robot_prefixes[0],
-    )
+    if selected_camera_is_mixed and mixed_camera_prefixes:
+        camera_prefix = "robot_real_" if "robot_real_" in mixed_camera_prefixes else mixed_camera_prefixes[0]
+    elif selected_camera_is_sim and sim_camera_prefixes:
+        camera_prefix = sim_camera_prefixes[0]
+    elif resolved_camera_source == "real" and has_real_robot:
+        camera_prefix = "robot_real_"
+    else:
+        camera_prefix = next(
+            (prefix for prefix in robot_prefixes if prefix != "robot_real_"),
+            robot_prefixes[0] if robot_prefixes else "",
+        )
     selected_camera_params = {
-        "image_topic": "/alpha/image_raw",
-        "camera_info_topic": "/alpha/camera_info",
+        "image_topic": f"{_camera_topic_base(camera_prefix)}/image_raw" if selected_camera_is_mixed else "/alpha/image_raw",
+        "camera_info_topic": f"{_camera_topic_base(camera_prefix)}/camera_info" if selected_camera_is_mixed else "/alpha/camera_info",
         "frame_id": f"{camera_prefix}camera_link",
         **({"pipeline": camera_pipeline} if camera_pipeline else {}),
     }
-    if camera_prefix == "robot_real_":
+    if camera_prefix == "robot_real_" and not selected_camera_is_mixed:
         camera_topic_base = _camera_topic_base(camera_prefix)
         selected_camera_params.update({
             "mirror_image_topic": f"{camera_topic_base}/image_raw",
@@ -604,13 +678,15 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
         parameters=[{
             "robots_prefix": robot_prefixes,
+            "camera_prefixes": mixed_camera_prefixes if selected_camera_is_mixed else sim_camera_prefixes,
+            "render_prefixes": sim_camera_prefixes,
             "robot_description": robot_description_content,
-            "world_frame": "world",
+            "world_frame": world_frame,
             "width": int(sim_camera_width),
             "height": int(sim_camera_height),
             "render_rate": float(sim_camera_rate),
-            "selected_prefix": next((prefix for prefix in robot_prefixes if prefix != "robot_real_"), ""),
-            "publish_selected_output": selected_camera_is_sim,
+            "selected_prefix": mixed_camera_prefixes[0] if selected_camera_is_mixed and mixed_camera_prefixes else (sim_camera_prefixes[0] if sim_camera_prefixes else ""),
+            "publish_selected_output": selected_camera_is_sim or selected_camera_is_mixed,
         }],
     )
 
@@ -645,6 +721,7 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
         parameters=[{
             "robot_description": robot_description_content,
+            "world_frame": world_frame,
         }],
         condition=IfCondition(launch_collision_contact),
     )
@@ -680,6 +757,7 @@ def launch_setup(context, *args, **kwargs):
             output="screen",
             parameters=[{
                 "robot_description": robot_description_content,
+                "world_frame": world_frame,
             }],
         )
 
@@ -733,7 +811,7 @@ def launch_setup(context, *args, **kwargs):
     if launch_camera_bool:
         if selected_camera_node is not None:
             simulator_actions.append(selected_camera_node)
-        if has_simulated_robot:
+        if has_simulated_camera_source:
             simulator_actions.append(sim_camera_renderer_node)
 
     if use_mocap_bool:

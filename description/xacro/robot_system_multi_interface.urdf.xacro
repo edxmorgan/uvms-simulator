@@ -11,6 +11,10 @@
   <xacro:arg name="state_update_frequency" default="250"/>
   <xacro:arg name="description_package" default="ros2_control_blue_reach_5"/>
   <xacro:arg name="use_optitrack" default="false"/>
+  <xacro:arg name="world_frame" default="world"/>
+  <xacro:arg name="use_dvl" default="false"/>
+  <xacro:arg name="dvl_host" default="192.168.2.95"/>
+  <xacro:arg name="dvl_port" default="16171"/>
   <!-- <xacro:arg name="robot_name" default="bruce"/> -->
   <xacro:arg name="robot_name" default="dory"/>
   <!-- Properties -->
@@ -23,6 +27,10 @@
   <xacro:property name="use_vehicle_hardware" value="$(arg use_vehicle_hardware)"/>
   <xacro:property name="use_pwm" value="$(arg use_pwm)"/>
   <xacro:property name="use_optitrack" value="$(arg use_optitrack)"/>
+  <xacro:property name="world_frame" value="$(arg world_frame)"/>
+  <xacro:property name="use_dvl" value="$(arg use_dvl)"/>
+  <xacro:property name="dvl_host" value="$(arg dvl_host)"/>
+  <xacro:property name="dvl_port" value="$(arg dvl_port)"/>
   <xacro:property name="robot_name" value="$(arg robot_name)"/>
 
   <!-- Define constants -->
@@ -37,7 +45,7 @@
   <xacro:include filename="$(find ${description_package})/ros2_control/vehicle_system_multi_interface.ros2_control.xacro" />
 
   <!-- Instantiate the world -->
-  <xacro:sim_world/>
+  <xacro:sim_world world_frame="${world_frame}"/>
 
   <!-- Recursive Macro Definition -->
   <xacro:macro name="instantiate_robots" params="index count">
@@ -83,7 +91,10 @@
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
       same_initial_conditions="${same_initial_conditions}"
-      use_pwm="${use_pwm}"/>
+      use_pwm="${use_pwm}"
+      use_dvl="${use_dvl}"
+      dvl_host="${dvl_host}"
+      dvl_port="${dvl_port}"/>
       
       <!-- Recursively call the macro for the next robot -->
       <xacro:instantiate_robots index="${index + 1}" count="${count}"/>
@@ -123,7 +134,10 @@
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
       same_initial_conditions="${same_initial_conditions}"
-      use_pwm="${use_pwm}"/>
+      use_pwm="${use_pwm}"
+      use_dvl="${use_dvl}"
+      dvl_host="${dvl_host}"
+      dvl_port="${dvl_port}"/>
   </xacro:if>
 
 </robot>

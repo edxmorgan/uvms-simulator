@@ -145,8 +145,8 @@ Camera launch arguments:
 
 - `launch_camera:=true`: default. Starts the selected camera path.
 - `launch_camera:=false`: disables camera nodes.
-- `launch_camera:=auto`: starts the selected camera path when `camera_source` resolves to `sim` or `real`.
-- `camera_source:=auto`: default. Uses the simulated renderer for simulated vehicles and the real GStreamer camera for real vehicle hardware or custom pipelines.
+- `launch_camera:=auto`: starts the selected camera path when `camera_source` resolves to `sim`, `real`, or mixed real/sim camera sources.
+- `camera_source:=auto`: default. Uses the simulated renderer for simulated vehicles, the real GStreamer camera for real vehicle hardware, and mixed selection when real vehicle hardware and simulated robots are launched together.
 - `camera_source:=sim`: forces the simulated renderer to publish `/alpha/image_raw`.
 - `camera_source:=real`: forces the GStreamer camera node to publish `/alpha/image_raw`.
 - `camera_pipeline:=""`: optional custom GStreamer pipeline. If set, it overrides the default pipeline. The pipeline must end with `appsink name=camera_sink`.
@@ -184,6 +184,8 @@ The selected camera publishes `sensor_msgs/msg/Image` on `/alpha/image_raw`. RVi
 ```bash
 ros2 topic hz /alpha/image_raw
 ```
+
+In mixed real/sim launches, per-robot camera topics are also available, for example `/robot_real/camera/image_raw` and `/robot_1/camera/image_raw`. Selecting a robot in the interactive menu updates the selected `/alpha` feed.
 
 Run only the standalone camera node:
 
