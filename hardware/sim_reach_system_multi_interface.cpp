@@ -33,6 +33,8 @@ namespace ros2_control_blue_reach_5
 {
     namespace
     {
+        constexpr double kTorqueCurrentZeroEpsilon = 1.0e-9;
+
         ros2_control_blue_reach_5::msg::SimManipulatorDynamics default_manipulator_dynamics()
         {
             auto msg = ros2_control_blue_reach_5::msg::SimManipulatorDynamics();
@@ -877,25 +879,33 @@ namespace ros2_control_blue_reach_5
             const double tau_cmd = hw_joint_struct_[j].command_state_.effort;
 
             // torque -> current
-            const bool pos_tau = (tau_cmd >= 0.0);
-            std::vector<DM> T2C_arg = {
-                DM(hw_joint_struct_[j].actuator_Properties_.kt),
-                DM(pos_tau ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
-                           : hw_joint_struct_[j].actuator_Properties_.backward_I_static),
-                DM(tau_cmd)};
-            const double I_cmd = utils_service.torque2currentMap(T2C_arg).at(0).scalar();
+            double I_cmd = 0.0;
+            if (std::abs(tau_cmd) > kTorqueCurrentZeroEpsilon)
+            {
+                const bool pos_tau = (tau_cmd > 0.0);
+                std::vector<DM> T2C_arg = {
+                    DM(hw_joint_struct_[j].actuator_Properties_.kt),
+                    DM(pos_tau ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
+                               : hw_joint_struct_[j].actuator_Properties_.backward_I_static),
+                    DM(tau_cmd)};
+                I_cmd = utils_service.torque2currentMap(T2C_arg).at(0).scalar();
+            }
 
             // clamp in current using your existing hard limiter that also enforces position limits
             const double I_safe = hw_joint_struct_[j].enforce_hard_limits(I_cmd);
 
             // current -> torque
-            const bool pos_cur = (I_safe >= 0.0);
-            std::vector<DM> C2T_arg = {
-                DM(hw_joint_struct_[j].actuator_Properties_.kt),
-                DM(pos_cur ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
-                           : hw_joint_struct_[j].actuator_Properties_.backward_I_static),
-                DM(I_safe)};
-            const double tau_safe = utils_service.current2torqueMap(C2T_arg).at(0).scalar();
+            double tau_safe = 0.0;
+            if (std::abs(I_safe) > kTorqueCurrentZeroEpsilon)
+            {
+                const bool pos_cur = (I_safe > 0.0);
+                std::vector<DM> C2T_arg = {
+                    DM(hw_joint_struct_[j].actuator_Properties_.kt),
+                    DM(pos_cur ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
+                               : hw_joint_struct_[j].actuator_Properties_.backward_I_static),
+                    DM(I_safe)};
+                tau_safe = utils_service.current2torqueMap(C2T_arg).at(0).scalar();
+            }
 
             hw_joint_struct_[j].current_state_.current = I_safe;
             hw_joint_struct_[j].current_state_.effort = tau_safe;

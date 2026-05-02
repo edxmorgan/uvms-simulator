@@ -63,8 +63,10 @@ Launch Behavior
 The main launch file controls camera ownership with ``camera_source``:
 
 - ``camera_source:=auto``: default. Uses the simulated renderer when the vehicle
-  is simulated. Uses the real GStreamer camera when the vehicle hardware is
-  active or when a custom ``camera_pipeline`` is provided.
+  is simulated, the real GStreamer camera when only real vehicle hardware owns
+  the camera, and mixed selection when real vehicle hardware and simulated
+  robots are launched together. A custom ``camera_pipeline`` selects the real
+  camera path for the real robot.
 - ``camera_source:=sim``: force the simulated renderer to own ``/alpha``.
 - ``camera_source:=real``: force the GStreamer camera node to own ``/alpha``.
   If ``camera_pipeline`` is empty, the node uses its built-in UDP H264 camera
@@ -75,7 +77,7 @@ Camera launch is controlled separately:
 - ``launch_camera:=true``: default. Start the selected camera path.
 - ``launch_camera:=false``: disable camera nodes.
 - ``launch_camera:=auto``: start the selected camera path when the resolved
-  source is ``sim`` or ``real``.
+  source is ``sim``, ``real``, or mixed.
 
 Additional arguments:
 
@@ -114,18 +116,20 @@ rendered only while a client is subscribed to it, or while it is the selected
 
 The selected feed frame id follows the active source:
 
-- ``robot_real_camera_link`` when ``use_vehicle_hardware:=true``.
-- The first simulated robot camera link otherwise.
+- ``robot_real_camera_link`` when the selected feed is the real camera.
+- ``robot_N_camera_link`` when the selected feed is a simulated robot camera.
 
 RViz automatically enables a ``video feed`` image display when camera launch is
-enabled. In interactive mode, selecting a different simulated robot updates the
-selected simulated camera feed.
+enabled. In interactive mode, selecting a robot updates the selected ``/alpha``
+feed. In mixed real/sim launches, selecting ``robot_real_`` shows the real
+camera, while selecting a simulated robot shows that robot's rendered simulated
+camera.
 
 Hardware Camera
 ---------------
 
-When ``use_vehicle_hardware:=true``, ``camera_source:=auto`` selects the real
-GStreamer camera:
+When ``use_vehicle_hardware:=true`` without simulated robots,
+``camera_source:=auto`` selects the real GStreamer camera:
 
 .. code-block:: shell
 
@@ -144,6 +148,25 @@ To force the camera on without using the vehicle hardware interface:
 Use this when you want to validate the camera node by itself or with a different
 hardware/simulation combination. The default GStreamer pipeline is used unless
 ``camera_pipeline`` is provided.
+
+Mixed Real/Sim Camera
+---------------------
+
+When real vehicle hardware and simulated robots are launched together,
+``camera_source:=auto`` resolves to mixed mode:
+
+.. code-block:: shell
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+       use_manipulator_hardware:=true \
+       use_vehicle_hardware:=true \
+       sim_robot_count:=1 \
+       task:=interactive
+
+The real camera publishes on ``/robot_real/camera/image_raw`` and simulated
+robots publish on their own ``/robot_N/camera/image_raw`` topics. RViz consumes
+the selected ``/alpha/image_raw`` feed. The interactive robot selection menu
+updates which per-robot camera is mirrored to ``/alpha``.
 
 For a simulated vehicle with a real manipulator and a real camera:
 

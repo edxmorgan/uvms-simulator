@@ -22,18 +22,20 @@ class NoAliasDumper(yaml.SafeDumper):
     
 def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_prefixes,
                          robot_base_links, ix, rviz_config_path,
-                         new_rviz_config_path, task, launch_camera=False, selected_camera_is_sim=False)->None:
+                         new_rviz_config_path, task, launch_camera=False,
+                         world_frame="world")->None:
     # Load the RViz configuration file
     with open(rviz_config_path,'r') as file:
         rviz_config = yaml.load(file,yaml.SafeLoader)
     new_rviz_config = copy.deepcopy(rviz_config)
+    visualization_manager = new_rviz_config.setdefault('Visualization Manager', {})
+    visualization_manager.setdefault('Global Options', {})['Fixed Frame'] = world_frame
 
     rviz_view_configure(
         robot_prefixes,
         robot_base_links,
         new_rviz_config,
         task,
-        add_camera_views=launch_camera and selected_camera_is_sim,
     )
     rviz_robot_metrics_overlay_configure(robot_prefixes, new_rviz_config)
     rviz_states_axes_configure(robot_prefixes, new_rviz_config)
@@ -60,17 +62,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
 
 
     if launch_camera:
-        if selected_camera_is_sim:
-            image_stream_display("video feed", "/alpha/image_raw", new_rviz_config, True)
-        else:
-            camera_overlay_display(
-                "video feed",
-                "/alpha/image_raw",
-                new_rviz_config,
-                True,
-                image_rendering="overlay",
-                overlay_alpha=1.0,
-            )
+        image_stream_display("video feed", "/alpha/image_raw", new_rviz_config, True)
 
     if use_vehicle_hardware:
         # IMU visualization

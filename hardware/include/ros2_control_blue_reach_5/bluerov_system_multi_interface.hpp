@@ -191,6 +191,9 @@ namespace ros2_control_blue_reach_5
 
         // DVL driver instance
         a50dvl::driver::DVLDriver dvl_driver_;
+        bool use_dvl_ = false;
+        std::string dvl_host_ = "192.168.2.95";
+        int dvl_port_ = 16171;
 
         // Mutex to protect DVL data
         std::mutex dvl_data_mutex_;
