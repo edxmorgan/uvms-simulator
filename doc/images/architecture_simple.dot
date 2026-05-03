@@ -60,7 +60,7 @@ digraph uvms_simple_architecture {
   ];
 
   hardware [
-    label="Robot and Sensors\nReach manipulator\nBlueROV vehicle\ncamera + IMU/DVL/pressure + mocap",
+    label="Robot and Sensors\nReach manipulator\nBlueROV vehicle\ncamera + IMU/DVL/pressure",
     fillcolor="#eef2f5",
     color="#52616b"
   ];

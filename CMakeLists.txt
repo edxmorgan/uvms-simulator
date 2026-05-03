@@ -24,6 +24,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   Eigen3
   tf2_msgs
   tf2
+  tf2_ros
   realtime_tools
   tf2_geometry_msgs
   sensor_msgs
@@ -161,6 +162,12 @@ install(TARGETS ${PROJECT_LIB}
 
 install(TARGETS gstreamer_camera_node
   RUNTIME DESTINATION lib/${PROJECT_NAME}
+)
+
+install(PROGRAMS
+  bringup/sim_camera_renderer.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME sim_camera_renderer_node
 )
 
 if(BUILD_TESTING)

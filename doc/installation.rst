@@ -82,13 +82,13 @@ Workspace Setup
 Python Dependencies
 -------------------
 
-Install Python packages used by SimLab for joystick control, planning, FCL, and
-Ruckig:
+Install Python packages used by SimLab for joystick control, planning, FCL,
+Ruckig, and simulated camera rendering:
 
 .. code-block:: shell
 
    python3 -m pip install pyPS4Controller pynput scipy casadi ruckig \
-       python-fcl trimesh pycollada
+       python-fcl trimesh pycollada pyvista open3d
 
 OMPL Python Bindings
 --------------------

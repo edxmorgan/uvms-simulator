@@ -362,19 +362,6 @@ Inspect one robot's live metric stream with:
 
    ros2 topic echo /robot_1_/performance/controller
 
-Mocap Interfaces
-----------------
-
-When launched with ``use_mocap:=true``:
-
-- ``mocap4r2_optitrack_driver`` connects to the OptiTrack NatNet server.
-- ``mocap_publisher`` converts rigid body poses into ROS pose/path topics.
-- Main topics include ``/mocap_pose``, ``/mocap_path``, ``/map_mocap_pose``,
-  and ``/map_mocap_path``.
-
-The default launch value is ``use_mocap:=false`` so a missing OptiTrack server
-does not spam startup logs.
-
 Related Guides
 --------------
 
@@ -382,4 +369,4 @@ Related Guides
 - Use :doc:`replay_and_experiments` for command replay profiles and replay
   logging.
 - Use :doc:`camera_and_perception` for sensor topics, camera launch options,
-  and perception utilities.
+  and perception-facing camera streams.

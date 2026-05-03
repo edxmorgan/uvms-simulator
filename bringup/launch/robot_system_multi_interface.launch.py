@@ -196,6 +196,48 @@ def generate_launch_description():
             description="Rendered simulated camera frame rate in Hz.",
         )
     )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_renderer_backend",
+            default_value="pyvista",
+            description="Sim camera renderer backend: pyvista or open3d.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_max_mesh_triangles",
+            default_value="12000",
+            description="Per-visual triangle cap for simulated camera rendering. Lower is faster.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_render_all_cameras",
+            default_value="true",
+            description="Render every simulated camera each frame. Set false to render only the selected feed.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_underwater_effect",
+            default_value="true",
+            description="Apply underwater tint/haze post-processing to the simulated camera image.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_underwater_haze",
+            default_value="0.35",
+            description="Underwater haze strength from 0.0 to 1.0 when sim_camera_underwater_effect is true.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_underwater_tint",
+            default_value="0.55",
+            description="Underwater blue/green tint strength from 0.0 to 1.0 when sim_camera_underwater_effect is true.",
+        )
+    )
 
     declared_arguments.append(
         DeclareLaunchArgument(
@@ -309,6 +351,16 @@ def launch_setup(context, *args, **kwargs):
     sim_camera_width = LaunchConfiguration("sim_camera_width").perform(context)
     sim_camera_height = LaunchConfiguration("sim_camera_height").perform(context)
     sim_camera_rate = LaunchConfiguration("sim_camera_rate").perform(context)
+    sim_camera_max_mesh_triangles = LaunchConfiguration("sim_camera_max_mesh_triangles").perform(context)
+    sim_camera_render_all_cameras = LaunchConfiguration("sim_camera_render_all_cameras").perform(context)
+    sim_camera_underwater_effect = LaunchConfiguration("sim_camera_underwater_effect").perform(context)
+    sim_camera_underwater_haze = LaunchConfiguration("sim_camera_underwater_haze").perform(context)
+    sim_camera_underwater_tint = LaunchConfiguration("sim_camera_underwater_tint").perform(context)
+    sim_camera_renderer_backend = LaunchConfiguration("sim_camera_renderer_backend").perform(context).strip().lower()
+    if sim_camera_renderer_backend not in {"pyvista", "open3d"}:
+        raise RuntimeError("sim_camera_renderer_backend must be one of: pyvista, open3d.")
+    resolved_sim_camera_renderer_backend = sim_camera_renderer_backend
+    logger.info(f"sim camera renderer backend resolved to {resolved_sim_camera_renderer_backend}")
     task = LaunchConfiguration("task").perform(context)
     serial_port = LaunchConfiguration("serial_port").perform(context)
     state_update_frequency = LaunchConfiguration("state_update_frequency").perform(context)
@@ -672,7 +724,7 @@ def launch_setup(context, *args, **kwargs):
             parameters=[selected_camera_params],
         )
     sim_camera_renderer_node = Node(
-        package="simlab",
+        package="ros2_control_blue_reach_5",
         executable="sim_camera_renderer_node",
         name="sim_camera_renderer_node",
         output="screen",
@@ -685,6 +737,12 @@ def launch_setup(context, *args, **kwargs):
             "width": int(sim_camera_width),
             "height": int(sim_camera_height),
             "render_rate": float(sim_camera_rate),
+            "renderer_backend": resolved_sim_camera_renderer_backend,
+            "sim_camera_max_mesh_triangles": int(sim_camera_max_mesh_triangles),
+            "sim_camera_render_all_cameras": _parse_bool_arg("sim_camera_render_all_cameras", sim_camera_render_all_cameras),
+            "sim_camera_underwater_effect": _parse_bool_arg("sim_camera_underwater_effect", sim_camera_underwater_effect),
+            "sim_camera_underwater_haze": float(sim_camera_underwater_haze),
+            "sim_camera_underwater_tint": float(sim_camera_underwater_tint),
             "selected_prefix": mixed_camera_prefixes[0] if selected_camera_is_mixed and mixed_camera_prefixes else (sim_camera_prefixes[0] if sim_camera_prefixes else ""),
             "publish_selected_output": selected_camera_is_sim or selected_camera_is_mixed,
         }],

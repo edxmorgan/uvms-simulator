@@ -19,6 +19,8 @@ Simulator package:
 - ``uvms-simulator/description``: xacro/URDF descriptions.
 - ``uvms-simulator/hardware/gstreamer_camera_*``: GStreamer camera node and
   driver.
+- ``uvms-simulator/bringup/sim_camera_renderer.py``: simulated camera renderer
+  with PyVista and Open3D backends.
 
 SimLab package:
 
@@ -263,8 +265,8 @@ Manipulator command allocation:
 
 Sensor fusion and state estimation:
 
-- Decide where sensor fusion lives. Typical inputs are mocap, IMU,
-  depth/pressure, DVL, odometry, and actuator feedback.
+- Decide where sensor fusion lives. Typical inputs are IMU, depth/pressure,
+  DVL, odometry, and actuator feedback.
 - Publish one coherent estimated state to the rest of the stack instead of
   making each controller fuse sensors independently.
 - Keep frame conversion in the interface or estimator layer. Controllers should
