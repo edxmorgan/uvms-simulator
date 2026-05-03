@@ -47,6 +47,13 @@ sudo apt install git-lfs \
     libgstreamer-plugins-base1.0-dev
 ```
 
+Python dependencies used by SimLab and the simulated camera renderer:
+
+```bash
+python3 -m pip install pyPS4Controller pynput scipy casadi ruckig \
+    python-fcl trimesh pycollada pyvista open3d
+```
+
 Install PlotJuggler from Snap for the newer MCAP and scripting support used by
 the launch workflow:
 
@@ -68,7 +75,7 @@ export LD_LIBRARY_PATH=/path/to/casadi/build/lib:$LD_LIBRARY_PATH
 ## Install
 
 ```bash
-cd ~/ros2_ws/src
+cd ~/ros_ws/src
 git clone https://github.com/edxmorgan/uvms-simulator.git
 vcs import < uvms-simulator/dependency_repos.repos
 
@@ -150,6 +157,9 @@ Camera launch arguments:
 - `camera_source:=sim`: forces the simulated renderer to publish `/alpha/image_raw`.
 - `camera_source:=real`: forces the GStreamer camera node to publish `/alpha/image_raw`.
 - `camera_pipeline:=""`: optional custom GStreamer pipeline. If set, it overrides the default pipeline. The pipeline must end with `appsink name=camera_sink`.
+- `sim_camera_renderer_backend:=pyvista`: default simulated renderer backend. Use `open3d` for comparison or fallback.
+- `sim_camera_render_all_cameras:=true`: renders every simulated robot camera. Set `false` to render only the selected feed for lower load.
+- `sim_camera_underwater_effect:=true`: applies the underwater tint/haze only when the simulated camera is below the water surface. Set `false` for raw geometry/debug views.
 
 The vehicle hardware interface starts the camera automatically:
 
@@ -186,6 +196,8 @@ ros2 topic hz /alpha/image_raw
 ```
 
 In mixed real/sim launches, per-robot camera topics are also available, for example `/robot_real/camera/image_raw` and `/robot_1/camera/image_raw`. Selecting a robot in the interactive menu updates the selected `/alpha` feed.
+
+Camera intrinsics are published on the matching `sensor_msgs/msg/CameraInfo` topic, for example `/alpha/camera_info` or `/robot_1/camera/camera_info`. Camera extrinsics are provided through TF, for example `world -> robot_1_camera_link` or `robot_1_base_link -> robot_1_camera_link`.
 
 Run only the standalone camera node:
 

@@ -39,7 +39,7 @@ Main menu groups:
 - ``Dynamics Profile``: apply a named robot dynamics parameter profile during
   simulation.
 - ``Data Recording``: start or stop MCAP recording for the configured robot,
-  reference, performance, mocap, and camera topics.
+  reference, performance, and camera topics.
 - ``Grasper``: open/close the active robot's grasper through feedback
   controllers only.
 - ``Reset Manager``: simulator state reset and release controls. Requests for

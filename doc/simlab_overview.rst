@@ -3,8 +3,7 @@ Project Overview
 
 This repository set provides a ROS 2 underwater vehicle-manipulator system
 centered on a BlueROV form-factor floating base and a Reach Alpha manipulator.
-It is
-designed to run the same high-level procedures across simulation, mixed
+It is designed to run the same high-level procedures across simulation, mixed
 hardware/simulation, and hardware-in-the-loop experiments.
 
 The stack is split across two main runtime packages:
@@ -17,7 +16,7 @@ The stack is split across two main runtime packages:
 - ``uvms-simlab`` provides the exported ROS package ``simlab``. It contains
   the interactive RViz runtime, controller implementations, planner action
   server/client, replay profiles, experiment logging, joystick interfaces,
-  mocap nodes, and perception utilities.
+  and perception-facing visualization utilities.
 
 Read the stack as one UVMS project: ``uvms-simulator`` owns the system
 description and hardware/simulator interfaces, ``uvms-simlab`` owns the
@@ -44,10 +43,11 @@ System Layers
   replay profiles, grasper commands, and visualization through RViz and
   joystick inputs.
 - Experiment infrastructure: command replay, reset/dynamics metadata, replay
-  session logging, rosbag2 MCAP recording, and mocap conversion support
-  repeatable simulator and hardware experiments.
+  session logging, and rosbag2 MCAP recording support repeatable simulator and
+  hardware experiments.
 - Environment/perception: bathymetry/workspace visualization, collision
-  context, and camera drivers support planning and operator feedback.
+  context, real camera drivers, and simulated camera rendering support planning
+  and operator feedback.
 
 Guide Map
 ---------
@@ -62,7 +62,7 @@ Guide Map
   controller/replay separation.
 - :doc:`replay_and_experiments`: command replay profiles, reset behavior,
   repeats, and replay-session logging.
-- :doc:`camera_and_perception`: sensor topics, camera launch modes, and
+- :doc:`camera_and_perception`: sensors, perception-facing camera streams, and
   mount/light commands.
 - :doc:`developer_guide`: developer guide for adding controllers, planners, and
   robot interfaces.
@@ -77,8 +77,6 @@ Core Runtime Nodes
   by the interactive controller.
 - ``bag_recorder_node``: rosbag2 MCAP recording for simulator and hardware
   sessions.
-- ``mocap_publisher``: OptiTrack/mocap4r2 bridge output conversion and path
-  publishing when mocap is enabled.
 - ``collision_contact_node``, ``voxelviz_node``, and ``env_obstacles_node``:
   environment visualization and collision/context utilities.
 
@@ -110,14 +108,18 @@ Useful launch switches:
 - ``use_manipulator_hardware:=true``: use real Reach Alpha hardware.
 - ``use_vehicle_hardware:=true``: use the vehicle hardware interface.
 - ``sim_robot_count:=N``: spawn N simulated UVMS robots.
-- ``use_mocap:=true``: start OptiTrack/mocap4r2 bridge and mocap visualization
-  nodes. The default is ``false``.
 - ``record_data:=true``: start rosbag2 MCAP recording.
 - ``gui:=false``: run without RViz.
 - ``launch_camera:=auto|true|false``: enable or disable camera nodes.
 - ``camera_source:=auto|sim|real``: select whether ``/alpha`` comes from the
   simulated renderer, the real GStreamer camera node, or automatic mixed
   real/sim camera selection.
+- ``sim_camera_renderer_backend:=pyvista|open3d``: choose the simulated camera
+  renderer backend. ``pyvista`` is the default.
+- ``sim_camera_render_all_cameras:=true|false``: render every simulated robot
+  camera, or only the selected feed.
+- ``sim_camera_underwater_effect:=true|false``: enable or disable the simulated
+  underwater tint/haze applied below the water surface.
 
 Command Replay
 --------------
@@ -167,6 +169,5 @@ Capability Map
 - Direct thruster PWM keyboard testing.
 - Command replay from CSV profiles with reset/dynamics metadata.
 - Optional replay-session CSV logging.
-- Mocap pose/path conversion and visualization when enabled.
-- Camera launch and simulated camera mode.
+- Camera launch, real camera mode, and simulated camera renderer mode.
 - Bathymetry/workspace visualization and collision context.

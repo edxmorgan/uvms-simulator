@@ -67,17 +67,17 @@
 <!-- hardware -->
 <g id="node5" class="node">
 <title>hardware</title>
-<path fill="#eef2f5" stroke="#52616b" stroke-width="1.5" d="M377,-228C377,-228 116,-228 116,-228 110,-228 104,-222 104,-216 104,-216 104,-160 104,-160 104,-154 110,-148 116,-148 116,-148 377,-148 377,-148 383,-148 389,-154 389,-160 389,-160 389,-216 389,-216 389,-222 383,-228 377,-228"/>
+<path fill="#eef2f5" stroke="#52616b" stroke-width="1.5" d="M349.5,-228C349.5,-228 143.5,-228 143.5,-228 137.5,-228 131.5,-222 131.5,-216 131.5,-216 131.5,-160 131.5,-160 131.5,-154 137.5,-148 143.5,-148 143.5,-148 349.5,-148 349.5,-148 355.5,-148 361.5,-154 361.5,-160 361.5,-160 361.5,-216 361.5,-216 361.5,-222 355.5,-228 349.5,-228"/>
 <text text-anchor="middle" x="246.5" y="-205.6" font-family="DejaVu Sans" font-size="13.00" fill="#12324a">Robot and Sensors</text>
 <text text-anchor="middle" x="246.5" y="-191.6" font-family="DejaVu Sans" font-size="13.00" fill="#12324a">Reach manipulator</text>
 <text text-anchor="middle" x="246.5" y="-177.6" font-family="DejaVu Sans" font-size="13.00" fill="#12324a">BlueROV vehicle</text>
-<text text-anchor="middle" x="246.5" y="-163.6" font-family="DejaVu Sans" font-size="13.00" fill="#12324a">camera + IMU/DVL/pressure + mocap</text>
+<text text-anchor="middle" x="246.5" y="-163.6" font-family="DejaVu Sans" font-size="13.00" fill="#12324a">camera + IMU/DVL/pressure</text>
 </g>
 <!-- simulator&#45;&gt;hardware -->
 <g id="edge5" class="edge">
 <title>simulator&#45;&gt;hardware</title>
-<path fill="none" stroke="#1f4e68" stroke-width="1.5" d="M199,-299.67C199,-299.67 199,-236.26 199,-236.26"/>
-<polygon fill="#1f4e68" stroke="#1f4e68" stroke-width="1.5" points="201.8,-236.26 199,-228.26 196.2,-236.26 201.8,-236.26"/>
+<path fill="none" stroke="#1f4e68" stroke-width="1.5" d="M208.17,-299.67C208.17,-299.67 208.17,-236.26 208.17,-236.26"/>
+<polygon fill="#1f4e68" stroke="#1f4e68" stroke-width="1.5" points="210.97,-236.26 208.17,-228.26 205.37,-236.26 210.97,-236.26"/>
 </g>
 <!-- dynamics&#45;&gt;simlab -->
 <g id="edge7" class="edge">
@@ -94,8 +94,8 @@
 <!-- hardware&#45;&gt;simulator -->
 <g id="edge6" class="edge">
 <title>hardware&#45;&gt;simulator</title>
-<path fill="none" stroke="#1f4e68" stroke-width="1.5" stroke-dasharray="5,2" d="M294,-228.33C294,-228.33 294,-291.74 294,-291.74"/>
-<polygon fill="#1f4e68" stroke="#1f4e68" stroke-width="1.5" points="291.2,-291.74 294,-299.74 296.8,-291.74 291.2,-291.74"/>
+<path fill="none" stroke="#1f4e68" stroke-width="1.5" stroke-dasharray="5,2" d="M284.83,-228.33C284.83,-228.33 284.83,-291.74 284.83,-291.74"/>
+<polygon fill="#1f4e68" stroke="#1f4e68" stroke-width="1.5" points="282.03,-291.74 284.83,-299.74 287.63,-291.74 282.03,-291.74"/>
 </g>
 <!-- legend -->
 <g id="node6" class="node">

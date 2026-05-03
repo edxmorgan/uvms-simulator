@@ -227,6 +227,7 @@ namespace blue::dynamics
 
     double light_pwm = 1100;
     double camera_mountPitch_pwm = 1500;
+    double camera_mount_pitch_position = 0.0;
 
     double sim_time = 0;
     double sim_period = 0;

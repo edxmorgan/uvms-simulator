@@ -70,6 +70,20 @@ namespace ros2_control_blue_reach_5
             return result;
         }
 
+        double camera_mount_pwm_to_pitch(const double pwm)
+        {
+            constexpr double kMinPwm = 1100.0;
+            constexpr double kNeutralPwm = 1500.0;
+            constexpr double kMaxPwm = 1900.0;
+            constexpr double kMaxPitchRad = 0.7853981633974483;
+            const double clamped_pwm = std::clamp(pwm, kMinPwm, kMaxPwm);
+            if (clamped_pwm >= kNeutralPwm)
+            {
+                return (clamped_pwm - kNeutralPwm) / (kMaxPwm - kNeutralPwm) * kMaxPitchRad;
+            }
+            return (clamped_pwm - kNeutralPwm) / (kNeutralPwm - kMinPwm) * kMaxPitchRad;
+        }
+
         double dense_vector_value(const casadi::DM &matrix, const std::size_t index)
         {
             const std::size_t rows = static_cast<std::size_t>(matrix.size1());
@@ -225,6 +239,8 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.imu_state = {};
         hw_vehicle_struct.sim_time = 0.0;
         hw_vehicle_struct.sim_period = 0.0;
+        hw_vehicle_struct.camera_mountPitch_pwm = 1500.0;
+        updateCameraMountPitchState();
         control_power_ = 0.0;
         control_energy_ = 0.0;
         delta_seconds = 0.0;
@@ -555,7 +571,7 @@ namespace ros2_control_blue_reach_5
                     transform_publisher_);
 
             auto &transform_message = realtime_transform_publisher_->msg_;
-            transform_message.transforms.resize(1);
+            transform_message.transforms.resize(2);
 
             contact_wrench_sub_ =
                 node_topics_interface_->create_subscription<geometry_msgs::msg::WrenchStamped>(
@@ -574,6 +590,13 @@ namespace ros2_control_blue_reach_5
                         contact_wrench_body_[4] = msg->wrench.torque.y;
                         contact_wrench_body_[5] = msg->wrench.torque.z;
                     });
+
+            auto volatile_qos = rclcpp::QoS(rclcpp::KeepLast(10)).best_effort().durability_volatile();
+            camera_mount_pitch_subscriber_ =
+                node_topics_interface_->create_subscription<std_msgs::msg::Float32>(
+                    "/alpha/cameraMountPitch",
+                    volatile_qos,
+                    std::bind(&SimVehicleSystemMultiInterfaceHardware::cameraMountPitch_callback, this, std::placeholders::_1));
         }
         catch (const std::exception &e)
         {
@@ -1337,8 +1360,30 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.sim_time = time_seconds;
         hw_vehicle_struct.sim_period = delta_seconds;
 
+        auto cam_msg_ptr_ptr = camera_mount_pitch_msg_buffer_.readFromRT();
+        if (cam_msg_ptr_ptr && *cam_msg_ptr_ptr)
+        {
+            std_msgs::msg::Float32::SharedPtr cam_msg_ptr = *cam_msg_ptr_ptr;
+            hw_vehicle_struct.camera_mountPitch_pwm += cam_msg_ptr->data;
+            hw_vehicle_struct.camera_mountPitch_pwm =
+                std::clamp(hw_vehicle_struct.camera_mountPitch_pwm, 1100.0, 1900.0);
+            updateCameraMountPitchState();
+        }
+
         publishRealtimePoseTransform();
         return hardware_interface::return_type::OK;
+    }
+
+    void SimVehicleSystemMultiInterfaceHardware::updateCameraMountPitchState()
+    {
+        hw_vehicle_struct.camera_mount_pitch_position =
+            camera_mount_pwm_to_pitch(hw_vehicle_struct.camera_mountPitch_pwm);
+    }
+
+    void SimVehicleSystemMultiInterfaceHardware::cameraMountPitch_callback(
+        const std_msgs::msg::Float32::SharedPtr msg)
+    {
+        camera_mount_pitch_msg_buffer_.writeFromNonRT(msg);
     }
 
     void SimVehicleSystemMultiInterfaceHardware::publishStaticPoseTransform()
@@ -1426,6 +1471,10 @@ namespace ros2_control_blue_reach_5
         if (realtime_transform_publisher_ && realtime_transform_publisher_->trylock())
         {
             auto &transforms = realtime_transform_publisher_->msg_.transforms;
+            if (transforms.size() < 2)
+            {
+                transforms.resize(2);
+            }
             auto &StateEstimateTransform = transforms.front();
             StateEstimateTransform.header.frame_id = hw_vehicle_struct.map_frame_id;
             StateEstimateTransform.child_frame_id = hw_vehicle_struct.body_frame_id;
@@ -1458,6 +1507,23 @@ namespace ros2_control_blue_reach_5
             StateEstimateTransform.transform.rotation.y = q_fixed.y();
             StateEstimateTransform.transform.rotation.z = q_fixed.z();
             StateEstimateTransform.transform.rotation.w = q_fixed.w();
+
+            auto &camera_mount_transform = transforms[1];
+            camera_mount_transform.header.frame_id = hw_vehicle_struct.body_frame_id;
+            camera_mount_transform.child_frame_id =
+                hw_vehicle_struct.robot_prefix + "camera_mount_link";
+            camera_mount_transform.header.stamp = current_time;
+            camera_mount_transform.transform.translation.x = 0.21;
+            camera_mount_transform.transform.translation.y = 0.0;
+            camera_mount_transform.transform.translation.z = 0.067;
+
+            tf2::Quaternion camera_mount_rotation;
+            camera_mount_rotation.setRPY(0.0, hw_vehicle_struct.camera_mount_pitch_position, 0.0);
+            camera_mount_rotation.normalize();
+            camera_mount_transform.transform.rotation.x = camera_mount_rotation.x();
+            camera_mount_transform.transform.rotation.y = camera_mount_rotation.y();
+            camera_mount_transform.transform.rotation.z = camera_mount_rotation.z();
+            camera_mount_transform.transform.rotation.w = camera_mount_rotation.w();
 
             // Publish the TF
             realtime_transform_publisher_->unlockAndPublish();

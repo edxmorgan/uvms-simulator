@@ -1,10 +1,9 @@
-Sensors, Camera, and Perception
-===============================
+Sensors and Perception
+======================
 
-The stack exposes navigation sensor state, camera data, mocap, and
-visualization streams through ROS topics. Some streams are physical sensor feeds
-from hardware interfaces. Others are state-derived simulator outputs or
-visualization aids.
+The stack exposes navigation sensor state, camera data, and visualization
+streams through ROS topics. Some streams are physical sensor feeds from hardware
+interfaces. Others are state-derived simulator outputs or visualization aids.
 
 Sensor Topic Overview
 ---------------------
@@ -14,25 +13,37 @@ Core sensor topics:
 - ``/dynamic_joint_states``: central robot state stream. In simulation this is
   produced by the simulated hardware interfaces. In hardware or mixed launches,
   entries come from the active hardware and simulator interfaces.
-- ``/mavros/imu/data``: hardware IMU input when the vehicle hardware interface
-  is active.
-- ``/dvl/twist``: DVL velocity output from the vehicle hardware interface.
+- ``/dvl/twist``: DVL velocity output from the vehicle hardware interface. The
+  linear velocity is expressed in ``<robot_prefix>dvl_link``. That frame is
+  statically attached to the vehicle body frame with identity rotation.
 - ``/alpha/image_raw`` and ``/alpha/camera_info``: selected camera feed used
-  by RViz and perception utilities. The selected feed can come from the
+  by RViz and perception-facing consumers. The selected feed can come from the
   simulated renderer or the real GStreamer camera node.
-- ``/mocap_pose``, ``/mocap_path``, ``/map_mocap_pose``,
-  ``/map_mocap_path``: mocap-derived pose/path topics when ``use_mocap:=true``.
 
 Vehicle navigation sensor state is also exported through
 ``/dynamic_joint_states``:
 
 - IMU attitude: ``imu_roll``, ``imu_pitch``, ``imu_yaw`` and unwrap variants.
-- IMU quaternion: ``imu_orientation_w/x/y/z``.
-- IMU angular velocity: ``imu_angular_vel_x/y/z``.
-- IMU linear acceleration: ``imu_linear_acceleration_x/y/z``.
-- Pressure-derived depth: ``depth_from_pressure2``.
-- DVL attitude: ``dvl_gyro_roll``, ``dvl_gyro_pitch``, ``dvl_gyro_yaw``.
-- DVL velocity: ``dvl_speed_x``, ``dvl_speed_y``, ``dvl_speed_z``.
+  These are roll/pitch/yaw angles derived from the exported IMU quaternion. In
+  hardware they follow the incoming IMU message convention; in simulation they
+  are generated from the vehicle attitude state using the simulator IMU
+  convention.
+- IMU quaternion: ``imu_orientation_w/x/y/z``. This is the exported IMU
+  attitude quaternion.
+- IMU angular velocity: ``imu_angular_vel_x/y/z``. In hardware these are copied
+  from the incoming IMU message, so the component frame follows that IMU source.
+- IMU linear acceleration: ``imu_linear_acceleration_x/y/z``. In hardware these
+  are copied from the incoming IMU message, so the component frame follows that
+  IMU source.
+- Pressure-derived depth: ``depth_from_pressure2``. This is depth along the
+  stack's depth convention; in hardware it is computed from pressure relative
+  to standard atmospheric pressure and is positive with increasing pressure.
+- DVL attitude: ``dvl_gyro_roll``, ``dvl_gyro_pitch``, ``dvl_gyro_yaw``. These
+  are roll/pitch/yaw angles copied from the DVL position-local message and
+  follow the DVL sensor convention.
+- DVL velocity: ``dvl_speed_x``, ``dvl_speed_y``, ``dvl_speed_z``. These
+  components are copied from the DVL velocity message and match ``/dvl/twist``
+  in ``<robot_prefix>dvl_link``.
 
 The vehicle state convention used by SimLab is NED position/orientation with
 body-frame velocity and acceleration.
@@ -47,26 +58,29 @@ interfaces and broadcaster topics:
   pressure-derived depth are available through ``/dynamic_joint_states``.
 - Manipulator joint position, velocity, acceleration, and effort are available
   through ``/dynamic_joint_states``.
-- Camera simulation is available through the SimLab camera renderer. It renders
-  the simulated scene from each simulated robot camera frame and publishes ROS
-  image topics.
+- Camera simulation is available through the simulator camera renderer. It
+  renders the URDF visual scene from each simulated robot camera frame and
+  publishes ROS image topics.
 - Environment, workspace, and vehicle-base pointcloud topics are visualization
   streams, not physical sensor models.
 
 The simulated camera is useful for operator view, image transport, RViz display,
-and downstream perception-node checks. It is not a calibrated underwater optical
-model; turbidity, lighting, lens distortion, and camera dynamics are not modeled.
+and downstream perception-node checks. It renders the bathymetry, vehicle,
+manipulator, thrusters, other simulated robots, and a water surface at the world
+waterline. A lightweight underwater tint/haze effect is enabled by default below
+the water surface. It is still not a calibrated underwater optical model; lens
+distortion, camera dynamics, and physically accurate turbidity are not modeled.
 
 Launch Behavior
 ---------------
 
 The main launch file controls camera ownership with ``camera_source``:
 
-- ``camera_source:=auto``: default. Uses the simulated renderer when the vehicle
-  is simulated, the real GStreamer camera when only real vehicle hardware owns
-  the camera, and mixed selection when real vehicle hardware and simulated
-  robots are launched together. A custom ``camera_pipeline`` selects the real
-  camera path for the real robot.
+- ``camera_source:=auto``: default. Uses the simulated renderer when simulated
+  robot cameras exist, the real GStreamer camera when only real vehicle
+  hardware owns the camera, and mixed selection when real vehicle hardware and
+  simulated robots are launched together. A custom ``camera_pipeline`` also
+  selects the real camera path.
 - ``camera_source:=sim``: force the simulated renderer to own ``/alpha``.
 - ``camera_source:=real``: force the GStreamer camera node to own ``/alpha``.
   If ``camera_pipeline`` is empty, the node uses its built-in UDP H264 camera
@@ -86,10 +100,17 @@ Additional arguments:
 - ``sim_camera_width:=480``: rendered simulated camera image width.
 - ``sim_camera_height:=360``: rendered simulated camera image height.
 - ``sim_camera_rate:=5.0``: rendered simulated camera frame rate in Hz.
-
-The camera is independent of the planner, replay, and controller menus. It can
-be launched with hardware, with simulation, or with mixed hardware/simulation
-interfaces.
+- ``sim_camera_renderer_backend:=pyvista``: default simulated renderer backend.
+  Use ``open3d`` for comparison or fallback.
+- ``sim_camera_max_mesh_triangles:=12000``: per-visual triangle cap used while
+  loading visual meshes. Lower values start and render faster with less detail.
+- ``sim_camera_render_all_cameras:=true``: render every simulated robot camera.
+  Set to ``false`` to render only the selected ``/alpha`` feed when performance
+  matters.
+- ``sim_camera_underwater_effect:=true``: apply tint/haze post-processing below
+  the water surface. Above the water surface the raw render is used.
+- ``sim_camera_underwater_haze:=0.35`` and
+  ``sim_camera_underwater_tint:=0.55``: tune the underwater look.
 
 Camera Output
 -------------
@@ -110,9 +131,35 @@ Simulated per-robot feeds publish:
    /robot_2/camera/image_raw
    /robot_2/camera/camera_info
 
-The simulated renderer creates these topics for each simulated robot. A feed is
-rendered only while a client is subscribed to it, or while it is the selected
-``/alpha`` feed.
+The simulated renderer creates these topics for each simulated robot. By
+default every simulated camera is rendered. For lower load, launch with
+``sim_camera_render_all_cameras:=false``; then only the selected camera feed is
+rendered and mirrored to ``/alpha``.
+
+Camera Calibration and TF
+-------------------------
+
+Camera intrinsics are published with each camera image on the matching
+``sensor_msgs/msg/CameraInfo`` topic:
+
+.. code-block:: text
+
+   /alpha/camera_info
+   /robot_1/camera/camera_info
+   /robot_2/camera/camera_info
+
+``CameraInfo`` carries image size, the intrinsic matrix ``K``, projection matrix
+``P``, rectification matrix ``R``, distortion model, and distortion coefficients
+``D``. The simulated camera currently publishes a pinhole camera model with zero
+distortion.
+
+Camera extrinsics are provided through TF, not duplicated on a separate topic.
+Use TF to query the camera pose relative to the world or the robot:
+
+.. code-block:: shell
+
+   ros2 run tf2_ros tf2_echo world robot_1_camera_link
+   ros2 run tf2_ros tf2_echo robot_1_base_link robot_1_camera_link
 
 The selected feed frame id follows the active source:
 
@@ -190,6 +237,30 @@ Pure simulation uses the simulated camera renderer by default:
        use_vehicle_hardware:=false \
        sim_robot_count:=1 \
        task:=interactive
+
+Select a renderer backend:
+
+.. code-block:: shell
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+       use_vehicle_hardware:=false \
+       sim_robot_count:=3 \
+       task:=interactive \
+       sim_camera_renderer_backend:=pyvista
+
+Use ``sim_camera_renderer_backend:=open3d`` to compare against the Open3D
+offscreen renderer. The installed executable name remains
+``sim_camera_renderer_node`` regardless of backend.
+
+Disable the underwater look for raw geometry/debug views:
+
+.. code-block:: shell
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+       use_vehicle_hardware:=false \
+       sim_robot_count:=1 \
+       task:=interactive \
+       sim_camera_underwater_effect:=false
 
 Force the simulated renderer explicitly:
 

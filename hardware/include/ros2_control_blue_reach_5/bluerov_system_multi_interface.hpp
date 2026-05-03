@@ -172,6 +172,7 @@ namespace ros2_control_blue_reach_5
 
         void publishStaticPoseTransform();
         void publishRealtimePoseTransform();
+        void updateCameraMountPitchState();
 
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
 

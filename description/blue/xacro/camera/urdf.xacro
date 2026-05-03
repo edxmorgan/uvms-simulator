@@ -30,10 +30,12 @@
       </inertial>
     </link>
 
-    <joint name="${prefix}camera_mount_joint" type="fixed">
+    <joint name="${prefix}camera_mount_joint" type="revolute">
       <xacro:insert_block name="origin" />
       <parent link="${parent}" />
       <child link="${prefix}camera_mount_link" />
+      <axis xyz="0 1 0" />
+      <limit lower="-0.7853981633974483" upper="0.7853981633974483" effort="1.0" velocity="1.0" />
     </joint>
 
     <joint name="${prefix}camera_joint" type="fixed">

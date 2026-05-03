@@ -48,6 +48,7 @@
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "tf2_msgs/msg/tf_message.hpp"
 #include "tf2_ros/transform_broadcaster.h"
+#include "std_msgs/msg/float32.hpp"
 
 #include <nav_msgs/msg/odometry.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -141,6 +142,8 @@ namespace ros2_control_blue_reach_5
 
         void publishRealtimePoseTransform();
         void publishStaticPoseTransform();
+        void updateCameraMountPitchState();
+        void cameraMountPitch_callback(const std_msgs::msg::Float32::SharedPtr msg);
         double delta_seconds;
         double time_seconds;
 
@@ -182,6 +185,9 @@ namespace ros2_control_blue_reach_5
 
         // ROS 2 subscription handle for contact_wrench_body
         rclcpp::Subscription<geometry_msgs::msg::WrenchStamped>::SharedPtr contact_wrench_sub_;
+
+        rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr camera_mount_pitch_subscriber_;
+        realtime_tools::RealtimeBuffer<std_msgs::msg::Float32::SharedPtr> camera_mount_pitch_msg_buffer_;
 
         double control_energy_{0.0};
         double control_power_{0.0};

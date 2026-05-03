@@ -239,8 +239,8 @@ MCAP to Replay Profiles
 
 Use the ``Data Recording`` RViz menu to start and stop an MCAP recording around
 the behavior you want to capture. The MCAP records ROS topics such as
-``dynamic_joint_states``, ``mocap_pose``, the selected camera feed, and
-per-robot experiment topics:
+``dynamic_joint_states``, the selected camera feed, and per-robot experiment
+topics:
 
 - ``/alpha/image_raw``
 - ``/alpha/camera_info``
