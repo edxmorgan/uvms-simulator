@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <xacro:macro name="bluerov2_heavy_alpha_urdf" params="robot_name prefix x:=0.0 y:=0.0 z:=2.0 rot_r:=0.0 rot_p:=0.0 rot_y:=0.0">
+  <xacro:macro name="bluerov2_heavy_alpha_urdf" params="robot_name prefix x:=0.0 y:=0.0 z:=2.0 rot_r:=0.0 rot_p:=0.0 rot_y:=0.0 attach_to_world:=true">
 
     <link name="${prefix}manipulator_mount_link">
       <visual>
@@ -63,12 +63,13 @@
       </collision>
     </link>
 
-      
-    <joint name="${prefix}base_joint" type="fixed">
-      <child link="${prefix}base_link" />
-      <parent link="base_link" />
-      <origin xyz="${x} ${y} ${z}" rpy="${rot_r} ${rot_p} ${rot_y}"/>
-    </joint>
+    <xacro:if value="${attach_to_world}">
+      <joint name="${prefix}base_joint" type="fixed">
+        <child link="${prefix}base_link" />
+        <parent link="base_link" />
+        <origin xyz="${x} ${y} ${z}" rpy="${rot_r} ${rot_p} ${rot_y}"/>
+      </joint>
+    </xacro:if>
 
     <joint name="${prefix}manipulator_mount_joint" type="fixed">
       <origin rpy="0 0 0" xyz="0.19 0.0 -0.12" />
@@ -99,4 +100,3 @@
 </robot>
   <!-- Used for fixing robot -->
  
-

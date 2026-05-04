@@ -165,6 +165,11 @@ install(TARGETS gstreamer_camera_node
 )
 
 install(PROGRAMS
+  bringup/robot_description_publisher.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(PROGRAMS
   bringup/sim_camera_renderer.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME sim_camera_renderer_node

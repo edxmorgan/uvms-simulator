@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="alpha_5_robot_state_publisher_robot">
+
+  <xacro:arg name="description_package" default="ros2_control_blue_reach_5"/>
+  <xacro:arg name="robot_name" default="dory"/>
+  <xacro:arg name="prefix" default="robot_1_"/>
+
+  <xacro:property name="description_package" value="$(arg description_package)"/>
+  <xacro:property name="robot_name" value="$(arg robot_name)"/>
+  <xacro:property name="prefix" value="$(arg prefix)"/>
+
+  <xacro:include filename="$(find ${description_package})/xacro/urdf.xacro"/>
+
+  <!--
+    TF-only robot description.
+    The vehicle hardware interface owns the global map->base_link transform, so
+    this tree is rooted at ${prefix}base_link and publishes only local robot links.
+  -->
+  <xacro:bluerov2_heavy_alpha_urdf
+    robot_name="${robot_name}"
+    prefix="${prefix}"
+    attach_to_world="false"/>
+
+</robot>

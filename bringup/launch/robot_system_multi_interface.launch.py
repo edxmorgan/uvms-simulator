@@ -560,11 +560,75 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
     )
 
+    world_state_description_content = Command(
+        [
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ",
+            PathJoinSubstitution(
+                [
+                    FindPackageShare("ros2_control_blue_reach_5"),
+                    "xacro",
+                    "robot_state_publisher_world.urdf.xacro",
+                ]
+            ),
+            " ",
+            "world_frame:=",
+            world_frame,
+        ]
+    )
+
+    robot_state_pub_nodes = [
+        Node(
+            package="robot_state_publisher",
+            executable="robot_state_publisher",
+            name=f"robot_state_publisher_{robot_prefix.rstrip('_')}",
+            output="both",
+            remappings=[
+                ("robot_description", f"{robot_prefix.rstrip('_')}/robot_description"),
+            ],
+            parameters=[{
+                "publish_robot_description": False,
+                "robot_description": Command(
+                    [
+                        PathJoinSubstitution([FindExecutable(name="xacro")]),
+                        " ",
+                        PathJoinSubstitution(
+                            [
+                                FindPackageShare("ros2_control_blue_reach_5"),
+                                "xacro",
+                                "robot_state_publisher_robot.urdf.xacro",
+                            ]
+                        ),
+                        " ",
+                        "prefix:=",
+                        robot_prefix,
+                    ]
+                )
+            }],
+        )
+        for robot_prefix in robot_prefixes
+    ]
+
     # Nodes Definitions
-    robot_state_pub_node = Node(
+    world_state_pub_node = Node(
         package="robot_state_publisher",
         executable="robot_state_publisher",
+        name="robot_state_publisher_world",
         output="both",
+        remappings=[
+            ("robot_description", "robot_state_publisher_world/robot_description"),
+        ],
+        parameters=[{
+            "publish_robot_description": False,
+            "robot_description": world_state_description_content,
+        }],
+    )
+
+    robot_description_pub_node = Node(
+        package="ros2_control_blue_reach_5",
+        executable="robot_description_publisher.py",
+        name="robot_description_publisher",
+        output="screen",
         parameters=[robot_description],
     )
 
@@ -852,10 +916,12 @@ def launch_setup(context, *args, **kwargs):
     simulator_actions = [
         reset_coordinator_proc,
         joint_state_broadcaster_spawner,
+        robot_description_pub_node,
         control_node,
         mode,
         run_plotjuggler,
-        robot_state_pub_node,
+        world_state_pub_node,
+        *robot_state_pub_nodes,
         all_spawners[0],
         *chain_handlers,
         switch_after_all,
