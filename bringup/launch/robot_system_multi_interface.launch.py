@@ -356,8 +356,8 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "launch_voxelviz",
-            default_value="true",
-            description="Start voxelized environment visualization.",
+            default_value="false",
+            description="Start voxelized environment visualization. Off by default; enable for RViz voxel debugging.",
         )
     )
     declared_arguments.append(

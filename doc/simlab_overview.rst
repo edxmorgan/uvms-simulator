@@ -78,7 +78,9 @@ Core Runtime Nodes
 - ``bag_recorder_node``: rosbag2 MCAP recording for simulator and hardware
   sessions.
 - ``collision_contact_node``, ``voxelviz_node``, and ``env_obstacles_node``:
-  environment visualization and collision/context utilities.
+  environment visualization and collision/context utilities. Collision-contact
+  and voxel visualization are opt-in debug tools; enable them with
+  ``launch_collision_contact:=true`` or ``launch_voxelviz:=true``.
 
 Launch Modes
 ------------
@@ -111,6 +113,14 @@ Useful launch switches:
 - ``record_data:=true``: start rosbag2 MCAP recording.
 - ``gui:=false``: run without RViz.
 - ``launch_camera:=auto|true|false``: enable or disable camera nodes.
+- ``cleanup_stale_nodes:=true|false``: pre-launch cleanup for stale simulator
+  nodes left by interrupted sessions. This is enabled by default.
+- ``launch_collision_contact:=true|false``: enable the FCL contact/clearance
+  visualization node. It is disabled by default.
+- ``launch_voxelviz:=true|false``: enable the bathymetry voxel cloud
+  visualization node. It is disabled by default.
+- ``interactive_fcl_update_rate:=Hz``: backend FCL refresh rate used by
+  interactive collision-aware helpers. Set ``0`` to disable periodic refresh.
 - ``camera_source:=auto|sim|real``: select whether ``/alpha`` comes from the
   simulated renderer, the real GStreamer camera node, or automatic mixed
   real/sim camera selection.
