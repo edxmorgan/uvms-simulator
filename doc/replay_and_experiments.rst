@@ -246,6 +246,79 @@ This CSV logging belongs to CmdReplay. It records only the replay pass, not the
 full ROS graph. Replay CSV logs are saved under
 ``~/ros_ws/recordings/replay_sessions``.
 
+Plot Replay Sessions
+--------------------
+
+Replay-session CSV files can be plotted with the SimLab replay plotter. Use it
+after running a replay profile with ``recording.enabled`` set to ``true``.
+
+The command-line plotter is:
+
+.. code-block:: bash
+
+   ros2 run simlab plot_replay_session \
+       ~/ros_ws/recordings/replay_sessions/session.csv
+
+If the CSV path is omitted, the plotter uses the newest ``*.csv`` found in
+``~/ros_ws/recordings/replay_sessions``:
+
+.. code-block:: bash
+
+   ros2 run simlab plot_replay_session
+
+Command-line arguments:
+
+- ``csv``: optional replay-session CSV path. Defaults to the newest CSV in
+  ``~/ros_ws/recordings/replay_sessions``.
+- ``--time``: x-axis time column. Choices are ``replay_time_sec``,
+  ``sim_time_sec``, and ``wall_time_sec``. Default is ``replay_time_sec``.
+- ``--arm``: comma-separated arm axes to plot: ``e``, ``d``, ``c``, ``b``,
+  ``axis_e``, ``axis_d``, ``axis_c``, ``axis_b``, or ``all``. Default is
+  ``all``.
+- ``--vehicle-pose``: comma-separated vehicle pose components to plot:
+  ``x``, ``y``, ``z``, ``yaw``, or ``all``. Default is ``all``.
+- ``--vehicle-wrench``: comma-separated vehicle wrench components to plot:
+  ``fx``, ``fy``, ``fz``, ``tx``, ``ty``, ``tz``, or ``all``. Default is
+  ``all``.
+- ``--only``: limit the plotted groups. Choices are ``all``, ``arm``,
+  ``vehicle``, ``q``, ``dq``, ``ddq``, ``effort``, ``wrench``, and ``pose``.
+  Default is ``all``.
+
+Examples:
+
+.. code-block:: bash
+
+   ros2 run simlab plot_replay_session -- --only arm --arm e,d
+   ros2 run simlab plot_replay_session -- --only vehicle --vehicle-wrench fx,fz
+   ros2 run simlab plot_replay_session -- session.csv --time sim_time_sec --only pose
+
+The same plotter is also available as a ROS node:
+
+.. code-block:: bash
+
+   ros2 run simlab replay_plot_node --ros-args \
+       -p csv:=~/ros_ws/recordings/replay_sessions/session.csv
+
+Node parameters:
+
+- ``csv``: replay-session CSV path. If empty, the newest CSV in
+  ``~/ros_ws/recordings/replay_sessions`` is used.
+- ``time``: x-axis time column. Use ``replay_time_sec``, ``sim_time_sec``, or
+  ``wall_time_sec``.
+- ``arm``: same selection syntax as ``--arm``.
+- ``vehicle_pose``: same selection syntax as ``--vehicle-pose``.
+- ``vehicle_wrench``: same selection syntax as ``--vehicle-wrench``.
+- ``only``: same selection syntax as ``--only``.
+
+For example:
+
+.. code-block:: bash
+
+   ros2 run simlab replay_plot_node --ros-args \
+       -p only:=arm \
+       -p arm:=e,d \
+       -p time:=replay_time_sec
+
 MCAP to Replay Profiles
 -----------------------
 
