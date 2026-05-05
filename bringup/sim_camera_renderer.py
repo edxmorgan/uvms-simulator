@@ -18,7 +18,7 @@ from rclpy.parameter import Parameter
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from tf2_ros import Buffer, TransformException, TransformListener
@@ -184,8 +184,8 @@ class SimCameraRendererNode(Node):
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
-        self.image_qos = qos_profile_sensor_data
-        self.info_qos = qos_profile_sensor_data
+        self.image_qos = QoSProfile(depth=1)
+        self.info_qos = QoSProfile(depth=1)
         self.image_publishers = {}
         self.info_publishers = {}
         for prefix in self.render_prefixes:
