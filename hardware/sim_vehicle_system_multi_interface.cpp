@@ -330,6 +330,47 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.current_state_.yaw);
     }
 
+    void SimVehicleSystemMultiInterfaceHardware::apply_pending_reset_request()
+    {
+        std::optional<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> request;
+        std::uint64_t sequence = 0;
+        {
+            std::lock_guard<std::mutex> request_lock(reset_request_mutex_);
+            if (!pending_reset_request_)
+            {
+                return;
+            }
+            request = pending_reset_request_;
+            pending_reset_request_.reset();
+            sequence = reset_request_sequence_;
+        }
+
+        try
+        {
+            reset_vehicle_simulation_state(*request);
+            {
+                std::lock_guard<std::mutex> request_lock(reset_request_mutex_);
+                reset_failure_message_.clear();
+                reset_applied_sequence_ = sequence;
+            }
+        }
+        catch (const std::exception &e)
+        {
+            std::lock_guard<std::mutex> request_lock(reset_request_mutex_);
+            reset_failure_message_ = e.what();
+            reset_failed_sequence_ = sequence;
+            reset_applied_sequence_ = sequence;
+        }
+        catch (...)
+        {
+            std::lock_guard<std::mutex> request_lock(reset_request_mutex_);
+            reset_failure_message_ = "unknown exception while applying vehicle reset";
+            reset_failed_sequence_ = sequence;
+            reset_applied_sequence_ = sequence;
+        }
+        reset_applied_cv_.notify_all();
+    }
+
     void SimVehicleSystemMultiInterfaceHardware::stop_ros_interfaces() noexcept
     {
         if (executor_)
@@ -640,7 +681,6 @@ namespace ros2_control_blue_reach_5
                 const std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> request,
                 std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Response> response)
         {
-            std::lock_guard<std::mutex> lock(simulation_state_mutex_);
             if (request->set_vehicle_dynamics &&
                 !valid_thrust_configuration_matrix(request->vehicle_dynamics.thrust_configuration_matrix))
             {
@@ -648,7 +688,32 @@ namespace ros2_control_blue_reach_5
                 response->message = "vehicle_dynamics.thrust_configuration_matrix must contain a nonzero 6x8 row-major matrix";
                 return;
             }
-            reset_vehicle_simulation_state(*request);
+            std::unique_lock<std::mutex> request_lock(reset_request_mutex_);
+            pending_reset_request_ = *request;
+            const auto sequence = ++reset_request_sequence_;
+            request_lock.unlock();
+            reset_applied_cv_.notify_all();
+
+            request_lock.lock();
+            const bool applied = reset_applied_cv_.wait_for(
+                request_lock,
+                std::chrono::seconds(2),
+                [this, sequence]()
+                {
+                    return reset_applied_sequence_ >= sequence;
+                });
+            if (!applied)
+            {
+                response->success = false;
+                response->message = "timeout applying simulated vehicle reset";
+                return;
+            }
+            if (reset_failed_sequence_ == sequence)
+            {
+                response->success = false;
+                response->message = reset_failure_message_;
+                return;
+            }
             response->success = true;
             response->message = "reset simulated vehicle to requested state";
         };
@@ -1087,6 +1152,7 @@ namespace ros2_control_blue_reach_5
     {
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
+        apply_pending_reset_request();
         // measurements
         casadi::DM y_k = casadi::DM::zeros(7, 1);
         {
@@ -1164,6 +1230,7 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
+        apply_pending_reset_request();
 
         if (commands_held_)
         {

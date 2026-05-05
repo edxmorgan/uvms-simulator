@@ -11,7 +11,8 @@ Simulator package:
 
 - ``uvms-simulator/bringup/launch/robot_system_multi_interface.launch.py``:
   main launch file and task selection.
-- ``uvms-simulator/srv``: reset and dynamics service definitions.
+- ``uvms-simulator/msg`` and ``uvms-simulator/srv``: simulator-owned dynamics,
+  reset, and camera profile interfaces.
 - ``uvms-simulator/hardware``: ros2_control hardware interfaces for real and
   simulated vehicle/manipulator.
 - ``uvms-simulator/bringup/config``: launch-time controller-manager
@@ -28,6 +29,9 @@ SimLab package:
   callback glue.
 - ``uvms-simlab/simlab/uvms_backend.py``: shared backend API used by RViz
   menus and external service clients.
+- ``uvms-simlab/msg``, ``uvms-simlab/srv``, and ``uvms-simlab/action``:
+  SimLab-owned reference, performance, backend command, and planner action
+  interfaces.
 - ``uvms-simlab/simlab/robot.py``: robot state machine, controller registry,
   planner/replay dispatch, joystick bridge, grasper handling, logging.
 - ``uvms-simlab/simlab/controllers``: controller implementations, including

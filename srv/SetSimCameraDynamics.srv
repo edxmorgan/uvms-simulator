@@ -1,0 +1,4 @@
+SimCameraDynamics camera
+---
+bool success
+string message

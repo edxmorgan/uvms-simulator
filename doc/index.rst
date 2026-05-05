@@ -28,7 +28,7 @@ streams, and extension work.
    services_and_interfaces
    controls_and_menus
    replay_and_experiments
-   camera_and_perception
+   sensors_and_perception
    developer_guide
    license
 

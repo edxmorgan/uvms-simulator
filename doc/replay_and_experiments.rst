@@ -41,7 +41,7 @@ Each replay profile contains:
 Use descriptive names because replay profiles appear directly in the RViz
 ``Cmd Replay`` menu. Examples:
 
-- ``arm_payload_0p76kg``
+- ``arm_payload_0p38kg``
 - ``vehicle_fx_10n_20s``
 
 Command CSV
@@ -85,7 +85,9 @@ replay profile through ``reset.robot_dynamics_profile``.
 Installed examples:
 
 - ``dory_alpha``: nominal Dory Alpha profile.
-- ``dory_alpha_payload_0p76kg``: Dory Alpha with a 0.76 kg manipulator payload.
+- ``dory_alpha_payload_0p38kg``: Dory Alpha with a 0.38 kg manipulator payload.
+- ``camera_murky_underwater``: camera-only profile for a murkier simulated
+  underwater view.
 
 Each dynamics profile contains:
 
@@ -96,6 +98,16 @@ Each dynamics profile contains:
 - ``manipulator``: link inertial parameters, friction terms, gravity vector,
   payload mass/inertia, base/world/tip offsets, and simulated manipulator
   constraint parameters.
+- ``camera``: optional simulated camera profile parameters applied through
+  ``/sim_camera_renderer_node/set_sim_camera_dynamics`` when the profile is
+  selected. Supported fields are ``underwater_effect``,
+  ``underwater_haze``, ``underwater_tint``, ``underwater_blur``,
+  ``underwater_noise``, and ``underwater_vignette``.
+
+A profile can contain robot dynamics sections, a camera section, or both.
+Camera settings use the simulator-owned ``SimCameraDynamics`` and
+``SetSimCameraDynamics`` interfaces, so the camera service can run without
+SimLab.
 
 For hardware namespaces, the vehicle parameter block is skipped. The
 manipulator parameter block is sent to the hardware-side dynamics path when the
@@ -250,10 +262,10 @@ topics:
 MCAP bags are saved under
 ``~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS``.
 
-The reference topic uses ``simlab_msgs/msg/ReferenceTargets`` and
+The reference topic uses ``simlab/msg/ReferenceTargets`` and
 contains the world target, vehicle NED/body target, and manipulator reference in
 one timestamped message. The performance topic uses
-``simlab_msgs/msg/ControllerPerformance`` and records normalized tracking,
+``simlab/msg/ControllerPerformance`` and records normalized tracking,
 control-effort, energy, and time-to-tolerance metrics for the active behavior.
 
 Convert one robot from that bag into a CmdReplay profile with:

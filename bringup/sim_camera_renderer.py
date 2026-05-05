@@ -14,13 +14,15 @@ import trimesh
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import TransformStamped
 from rcl_interfaces.msg import SetParametersResult
+from rclpy.parameter import Parameter
 from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
+from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import CameraInfo, Image
 from tf2_ros import Buffer, TransformException, TransformListener
+from ros2_control_blue_reach_5.srv import SetSimCameraDynamics
 
 WATER_SURFACE_Z = 0.0
 
@@ -144,6 +146,9 @@ class SimCameraRendererNode(Node):
         self.declare_parameter("sim_camera_underwater_effect", True)
         self.declare_parameter("sim_camera_underwater_haze", 0.35)
         self.declare_parameter("sim_camera_underwater_tint", 0.55)
+        self.declare_parameter("sim_camera_underwater_blur", 0.0)
+        self.declare_parameter("sim_camera_underwater_noise", 0.0)
+        self.declare_parameter("sim_camera_underwater_vignette", 0.0)
         self.declare_parameter("horizontal_fov_deg", 75.0)
         self.declare_parameter("selected_prefix", "")
         self.declare_parameter("publish_selected_output", True)
@@ -168,6 +173,9 @@ class SimCameraRendererNode(Node):
         self.underwater_effect = bool(self.get_parameter("sim_camera_underwater_effect").value)
         self.underwater_haze = float(np.clip(float(self.get_parameter("sim_camera_underwater_haze").value), 0.0, 1.0))
         self.underwater_tint = float(np.clip(float(self.get_parameter("sim_camera_underwater_tint").value), 0.0, 1.0))
+        self.underwater_blur = float(np.clip(float(self.get_parameter("sim_camera_underwater_blur").value), 0.0, 4.0))
+        self.underwater_noise = float(np.clip(float(self.get_parameter("sim_camera_underwater_noise").value), 0.0, 0.2))
+        self.underwater_vignette = float(np.clip(float(self.get_parameter("sim_camera_underwater_vignette").value), 0.0, 1.0))
         self.horizontal_fov_deg = float(self.get_parameter("horizontal_fov_deg").value)
         self.selected_prefix = self.get_parameter("selected_prefix").value
         if not self.selected_prefix and self.camera_prefixes:
@@ -176,8 +184,8 @@ class SimCameraRendererNode(Node):
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
-        self.image_qos = QoSProfile(depth=1)
-        self.info_qos = QoSProfile(depth=1)
+        self.image_qos = qos_profile_sensor_data
+        self.info_qos = qos_profile_sensor_data
         self.image_publishers = {}
         self.info_publishers = {}
         for prefix in self.render_prefixes:
@@ -207,7 +215,16 @@ class SimCameraRendererNode(Node):
         self._underwater_row = np.linspace(0.0, 1.0, self.height, dtype=np.float32).reshape(self.height, 1, 1)
         self._underwater_color = np.array([0.05, 0.36, 0.48], dtype=np.float32).reshape(1, 1, 3)
         self._underwater_tint_color = np.array([0.58, 0.92, 1.0], dtype=np.float32).reshape(1, 1, 3)
+        yy, xx = np.mgrid[-1.0:1.0:complex(self.height), -1.0:1.0:complex(self.width)]
+        radius = np.clip(np.sqrt(xx * xx + yy * yy), 0.0, 1.0)
+        self._underwater_vignette_mask = (radius * radius).astype(np.float32).reshape(self.height, self.width, 1)
+        self._underwater_rng = np.random.default_rng()
         self.add_on_set_parameters_callback(self._on_set_parameters)
+        self.set_camera_dynamics_service = self.create_service(
+            SetSimCameraDynamics,
+            "~/set_sim_camera_dynamics",
+            self._handle_set_sim_camera_dynamics,
+        )
         self.timer = self.create_timer(1.0 / self.render_rate, self.render_all)
         self.get_logger().info(
             f"{self.renderer_backend} sim_camera_renderer_node render cameras={len(self.render_prefixes)} "
@@ -277,7 +294,44 @@ class SimCameraRendererNode(Node):
                 self.underwater_haze = float(np.clip(float(parameter.value), 0.0, 1.0))
             elif parameter.name == "sim_camera_underwater_tint":
                 self.underwater_tint = float(np.clip(float(parameter.value), 0.0, 1.0))
+            elif parameter.name == "sim_camera_underwater_blur":
+                self.underwater_blur = float(np.clip(float(parameter.value), 0.0, 4.0))
+            elif parameter.name == "sim_camera_underwater_noise":
+                self.underwater_noise = float(np.clip(float(parameter.value), 0.0, 0.2))
+            elif parameter.name == "sim_camera_underwater_vignette":
+                self.underwater_vignette = float(np.clip(float(parameter.value), 0.0, 1.0))
         return SetParametersResult(successful=True)
+
+    def _handle_set_sim_camera_dynamics(self, request, response):
+        parameters = []
+        camera = request.camera
+        if camera.set_underwater_effect:
+            parameters.append(Parameter("sim_camera_underwater_effect", value=bool(camera.underwater_effect)))
+        if camera.set_underwater_haze:
+            parameters.append(Parameter("sim_camera_underwater_haze", value=float(camera.underwater_haze)))
+        if camera.set_underwater_tint:
+            parameters.append(Parameter("sim_camera_underwater_tint", value=float(camera.underwater_tint)))
+        if camera.set_underwater_blur:
+            parameters.append(Parameter("sim_camera_underwater_blur", value=float(camera.underwater_blur)))
+        if camera.set_underwater_noise:
+            parameters.append(Parameter("sim_camera_underwater_noise", value=float(camera.underwater_noise)))
+        if camera.set_underwater_vignette:
+            parameters.append(Parameter("sim_camera_underwater_vignette", value=float(camera.underwater_vignette)))
+
+        if not parameters:
+            response.success = False
+            response.message = "no camera dynamics fields requested"
+            return response
+
+        results = self.set_parameters(parameters)
+        failures = [result.reason for result in results if not result.successful]
+        if failures:
+            response.success = any(result.successful for result in results)
+            response.message = "partially applied with failures: " + "; ".join(reason or "unknown failure" for reason in failures)
+        else:
+            response.success = True
+            response.message = f"applied {len(parameters)} camera dynamics fields"
+        return response
 
     def _visual_mesh_entries(self):
         if not self.robot_description:
@@ -460,21 +514,46 @@ class SimCameraRendererNode(Node):
         normalized = normalized * ((1.0 - tint_strength) + tint_strength * self._underwater_tint_color)
         normalized = normalized * (1.0 - haze_strength) + self._underwater_color * haze_strength
         normalized = (normalized - 0.5) * 0.78 + 0.5
+        if self.underwater_vignette > 0.0:
+            vignette_strength = self.underwater_vignette * submergence
+            normalized *= 1.0 - vignette_strength * self._underwater_vignette_mask
+        if self.underwater_noise > 0.0:
+            noise_std = self.underwater_noise * submergence
+            normalized += self._underwater_rng.normal(0.0, noise_std, normalized.shape).astype(np.float32)
+        if self.underwater_blur > 0.0:
+            normalized = self._box_blur(normalized, int(round(self.underwater_blur * submergence)))
         return np.ascontiguousarray((np.clip(normalized, 0.0, 1.0) * 255.0).astype(np.uint8))
+
+    @staticmethod
+    def _box_blur(image, radius):
+        if radius <= 0:
+            return image
+        kernel_width = 2 * radius + 1
+        padded = np.pad(image, ((0, 0), (radius, radius), (0, 0)), mode="edge")
+        cumsum = np.cumsum(padded, axis=1, dtype=np.float32)
+        cumsum = np.pad(cumsum, ((0, 0), (1, 0), (0, 0)), mode="constant")
+        image = (cumsum[:, kernel_width:, :] - cumsum[:, :-kernel_width, :]) / float(kernel_width)
+        padded = np.pad(image, ((radius, radius), (0, 0), (0, 0)), mode="edge")
+        cumsum = np.cumsum(padded, axis=0, dtype=np.float32)
+        cumsum = np.pad(cumsum, ((1, 0), (0, 0), (0, 0)), mode="constant")
+        return (cumsum[kernel_width:, :, :] - cumsum[:-kernel_width, :, :]) / float(kernel_width)
 
     def _has_subscribers(self, publisher):
         return publisher.get_subscription_count() > 0
 
     def _should_render_prefix(self, prefix):
-        if self.render_all_cameras:
-            return True
-        if prefix != self.selected_prefix:
-            return False
-        return (
+        if (
             self._has_subscribers(self.image_publishers[prefix])
             or self._has_subscribers(self.info_publishers[prefix])
-            or (self.publish_selected_output and self._has_subscribers(self.selected_image_publisher))
-            or (self.publish_selected_output and self._has_subscribers(self.selected_info_publisher))
+        ):
+            return True
+        return (
+            prefix == self.selected_prefix
+            and self.publish_selected_output
+            and (
+                self._has_subscribers(self.selected_image_publisher)
+                or self._has_subscribers(self.selected_info_publisher)
+            )
         )
 
     def render_one(self, prefix, stamp):
@@ -524,9 +603,9 @@ class SimCameraRendererNode(Node):
             if image is None:
                 continue
             info = self.camera_info(prefix, stamp)
-            if self.render_all_cameras or self._has_subscribers(self.image_publishers[prefix]):
+            if self._has_subscribers(self.image_publishers[prefix]):
                 self.image_publishers[prefix].publish(image)
-            if self.render_all_cameras or self._has_subscribers(self.info_publishers[prefix]):
+            if self._has_subscribers(self.info_publishers[prefix]):
                 self.info_publishers[prefix].publish(info)
             if self.publish_selected_output and prefix == self.selected_prefix:
                 if self._has_subscribers(self.selected_image_publisher):
