@@ -18,8 +18,10 @@
 
 #include <chrono>
 #include <array>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -120,6 +122,7 @@ namespace ros2_control_blue_reach_5
         void reset_vehicle_simulation_state(
             const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request);
         void reset_vehicle_estimators();
+        void apply_pending_reset_request();
         void stop_ros_interfaces() noexcept;
 
         // Store the utils function for the robot joints
@@ -151,6 +154,13 @@ namespace ros2_control_blue_reach_5
         std::thread spin_thread_;
         std::shared_ptr<rclcpp::Node> node_topics_interface_;
         std::mutex simulation_state_mutex_;
+        std::mutex reset_request_mutex_;
+        std::condition_variable reset_applied_cv_;
+        std::optional<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> pending_reset_request_;
+        std::uint64_t reset_request_sequence_{0};
+        std::uint64_t reset_applied_sequence_{0};
+        std::uint64_t reset_failed_sequence_{0};
+        std::string reset_failure_message_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::ResetSimUvms>::SharedPtr reset_service_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;

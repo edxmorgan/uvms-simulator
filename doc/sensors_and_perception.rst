@@ -109,8 +109,15 @@ Additional arguments:
   matters.
 - ``sim_camera_underwater_effect:=true``: apply tint/haze post-processing below
   the water surface. Above the water surface the raw render is used.
-- ``sim_camera_underwater_haze:=0.35`` and
-  ``sim_camera_underwater_tint:=0.55``: tune the underwater look.
+- ``sim_camera_underwater_haze:=0.35``,
+  ``sim_camera_underwater_tint:=0.55``,
+  ``sim_camera_underwater_blur:=0.0``,
+  ``sim_camera_underwater_noise:=0.0``, and
+  ``sim_camera_underwater_vignette:=0.0``: tune the underwater profile.
+  These parameters are dynamically updateable on
+  ``/sim_camera_renderer_node``. The simulator also exposes
+  ``/sim_camera_renderer_node/set_sim_camera_dynamics`` for typed profile
+  updates through ``ros2_control_blue_reach_5/srv/SetSimCameraDynamics``.
 
 Camera Output
 -------------

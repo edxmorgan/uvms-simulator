@@ -238,6 +238,27 @@ def generate_launch_description():
             description="Underwater blue/green tint strength from 0.0 to 1.0 when sim_camera_underwater_effect is true.",
         )
     )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_underwater_blur",
+            default_value="0.0",
+            description="Underwater blur strength from 0.0 to 4.0 when sim_camera_underwater_effect is true.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_underwater_noise",
+            default_value="0.0",
+            description="Underwater image noise standard deviation from 0.0 to 0.2 when sim_camera_underwater_effect is true.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_camera_underwater_vignette",
+            default_value="0.0",
+            description="Underwater edge darkening strength from 0.0 to 1.0 when sim_camera_underwater_effect is true.",
+        )
+    )
 
     declared_arguments.append(
         DeclareLaunchArgument(
@@ -278,6 +299,13 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument(
+            "cleanup_stale_nodes",
+            default_value="true",
+            description="Kill stale UVMS simulator processes from previous launches before starting.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
             "mode_enabled",
             default_value="true",
             description="Start the task-specific simlab control node.",
@@ -299,6 +327,13 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument(
+            "plotjuggler_buffer_size",
+            default_value="10",
+            description="PlotJuggler streaming buffer length in seconds. PlotJuggler enforces a minimum of 10.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
             "launch_overlay_text",
             default_value="true",
             description="Start the RViz overlay text bridge.",
@@ -307,8 +342,15 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "launch_collision_contact",
-            default_value="true",
+            default_value="false",
             description="Start collision and clearance visualization.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "interactive_fcl_update_rate",
+            default_value="10.0",
+            description="Interactive controller FCL update rate in Hz. Set 0 to disable periodic FCL updates.",
         )
     )
     declared_arguments.append(
@@ -356,6 +398,9 @@ def launch_setup(context, *args, **kwargs):
     sim_camera_underwater_effect = LaunchConfiguration("sim_camera_underwater_effect").perform(context)
     sim_camera_underwater_haze = LaunchConfiguration("sim_camera_underwater_haze").perform(context)
     sim_camera_underwater_tint = LaunchConfiguration("sim_camera_underwater_tint").perform(context)
+    sim_camera_underwater_blur = LaunchConfiguration("sim_camera_underwater_blur").perform(context)
+    sim_camera_underwater_noise = LaunchConfiguration("sim_camera_underwater_noise").perform(context)
+    sim_camera_underwater_vignette = LaunchConfiguration("sim_camera_underwater_vignette").perform(context)
     sim_camera_renderer_backend = LaunchConfiguration("sim_camera_renderer_backend").perform(context).strip().lower()
     if sim_camera_renderer_backend not in {"pyvista", "open3d"}:
         raise RuntimeError("sim_camera_renderer_backend must be one of: pyvista, open3d.")
@@ -369,11 +414,14 @@ def launch_setup(context, *args, **kwargs):
     same_initial_conditions = LaunchConfiguration("same_initial_conditions").perform(context)
     record_data = LaunchConfiguration("record_data").perform(context)
     record_data_bool = IfCondition(record_data).evaluate(context)
+    cleanup_stale_nodes = LaunchConfiguration("cleanup_stale_nodes").perform(context)
     mode_enabled = LaunchConfiguration("mode_enabled").perform(context)
     use_mocap = LaunchConfiguration("use_mocap").perform(context)
     launch_plotjuggler = LaunchConfiguration("launch_plotjuggler").perform(context)
+    plotjuggler_buffer_size = LaunchConfiguration("plotjuggler_buffer_size").perform(context)
     launch_overlay_text = LaunchConfiguration("launch_overlay_text").perform(context)
     launch_collision_contact = LaunchConfiguration("launch_collision_contact").perform(context)
+    interactive_fcl_update_rate = LaunchConfiguration("interactive_fcl_update_rate").perform(context)
     launch_voxelviz = LaunchConfiguration("launch_voxelviz").perform(context)
     launch_env_obstacles = LaunchConfiguration("launch_env_obstacles").perform(context)
     launch_planner_action_server = LaunchConfiguration("launch_planner_action_server").perform(context)
@@ -687,7 +735,7 @@ def launch_setup(context, *args, **kwargs):
 
     # Define other nodes if needed
     run_plotjuggler = ExecuteProcess(
-        cmd=['/snap/bin/plotjuggler'],
+        cmd=['/snap/bin/plotjuggler', '--buffer_size', plotjuggler_buffer_size],
         output='screen',
         condition=IfCondition(launch_plotjuggler),
     )
@@ -700,6 +748,7 @@ def launch_setup(context, *args, **kwargs):
         'no_efforts': 11,
         "use_vehicle_hardware": use_vehicle_hardware_bool,
         "camera_source": resolved_camera_source,
+        "interactive_fcl_update_rate": float(interactive_fcl_update_rate),
         "world_frame": world_frame,
         "robot_description": robot_description_content
     }
@@ -807,6 +856,9 @@ def launch_setup(context, *args, **kwargs):
             "sim_camera_underwater_effect": _parse_bool_arg("sim_camera_underwater_effect", sim_camera_underwater_effect),
             "sim_camera_underwater_haze": float(sim_camera_underwater_haze),
             "sim_camera_underwater_tint": float(sim_camera_underwater_tint),
+            "sim_camera_underwater_blur": float(sim_camera_underwater_blur),
+            "sim_camera_underwater_noise": float(sim_camera_underwater_noise),
+            "sim_camera_underwater_vignette": float(sim_camera_underwater_vignette),
             "selected_prefix": mixed_camera_prefixes[0] if selected_camera_is_mixed and mixed_camera_prefixes else (sim_camera_prefixes[0] if sim_camera_prefixes else ""),
             "publish_selected_output": selected_camera_is_sim or selected_camera_is_mixed,
         }],
@@ -956,8 +1008,49 @@ def launch_setup(context, *args, **kwargs):
         actions=simulator_actions,)
 
     # Launch nodes
-    nodes = [
-        simulator_agents
-    ]
+    cleanup_stale_nodes_bool = _parse_bool_arg("cleanup_stale_nodes", cleanup_stale_nodes)
+    if cleanup_stale_nodes_bool:
+        stale_process_patterns = [
+            "[s]im_reset_coordinator",
+            "[r]obot_description_publisher.py",
+            "[r]obot_state_publisher",
+            "[i]nteractive_controller",
+            "[b]ag_recorder_node",
+            "[p]lanner_action_server_node",
+            "[c]ollision_contact_node",
+            "[v]oxelviz_node",
+            "[e]nv_obstacles_node",
+            "[s]im_camera_renderer_node",
+            "[g]streamer_camera_node",
+            "[s]tring_to_overlay_text",
+            "[r]viz2",
+            "[p]lotjuggler",
+            "[r]os2_control_node",
+        ]
+        cleanup_script = (
+            "patterns=("
+            + " ".join(f"'{pattern}'" for pattern in stale_process_patterns)
+            + "); "
+            + "echo '[launch cleanup] terminating stale UVMS simulator processes'; "
+            + "for pattern in \"${patterns[@]}\"; do pkill -TERM -f \"$pattern\" 2>/dev/null || true; done; "
+            + "sleep 1; "
+            + "for pattern in \"${patterns[@]}\"; do pkill -KILL -f \"$pattern\" 2>/dev/null || true; done; "
+            + "echo '[launch cleanup] complete'"
+        )
+        cleanup_proc = ExecuteProcess(
+            cmd=["/bin/bash", "-lc", cleanup_script],
+            output="screen",
+            shell=False,
+        )
+        nodes = [
+            cleanup_proc,
+            RegisterEventHandler(
+                OnProcessExit(target_action=cleanup_proc, on_exit=[simulator_agents])
+            ),
+        ]
+    else:
+        nodes = [
+            simulator_agents
+        ]
     
     return nodes

@@ -18,7 +18,6 @@ class RobotDescriptionPublisher(Node):
         qos.durability = DurabilityPolicy.TRANSIENT_LOCAL
         qos.reliability = ReliabilityPolicy.RELIABLE
         self._publisher = self.create_publisher(String, "robot_description", qos)
-        self._timer = self.create_timer(5.0, self._publish)
         self._publish()
 
     def _publish(self):

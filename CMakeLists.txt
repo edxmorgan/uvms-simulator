@@ -47,9 +47,11 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
 endforeach()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/SimCameraDynamics.msg"
   "msg/SimVehicleDynamics.msg"
   "msg/SimManipulatorDynamics.msg"
   "srv/ResetSimUvms.srv"
+  "srv/SetSimCameraDynamics.srv"
   "srv/SetSimDynamics.srv"
 )
 

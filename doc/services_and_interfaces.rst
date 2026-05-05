@@ -158,6 +158,41 @@ the simulated manipulator backend:
    float64 endeffector_damping
    float64 endeffector_stiffness
 
+Simulated Camera Dynamics Service
+---------------------------------
+
+The simulator camera renderer exposes a typed camera profile service:
+
+- ``/sim_camera_renderer_node/set_sim_camera_dynamics``
+  (``ros2_control_blue_reach_5/srv/SetSimCameraDynamics``)
+
+``SetSimCameraDynamics`` carries ``SimCameraDynamics``:
+
+.. code-block:: text
+
+   bool set_underwater_effect
+   bool underwater_effect
+
+   bool set_underwater_haze
+   float64 underwater_haze
+
+   bool set_underwater_tint
+   float64 underwater_tint
+
+   bool set_underwater_blur
+   float64 underwater_blur
+
+   bool set_underwater_noise
+   float64 underwater_noise
+
+   bool set_underwater_vignette
+   float64 underwater_vignette
+
+Each ``set_*`` flag controls whether the corresponding value is applied. The
+same fields are also available as dynamic ROS parameters on
+``/sim_camera_renderer_node``. SimLab dynamics profiles use this service for
+camera-only and combined robot/camera profile updates.
+
 SimLab Backend API
 ------------------
 
@@ -167,14 +202,14 @@ services, so controller selection, planning, replay, grasper commands, dynamics
 profile selection, and waypoint actions follow one behavior path.
 
 The services live on the interactive controller node and use interfaces from
-``simlab_msgs``:
+``simlab``:
 
 - ``/interactive_controller/backend/robot_command``
-  (``simlab_msgs/srv/BackendRobotCommand``)
+  (``simlab/srv/BackendRobotCommand``)
 - ``/interactive_controller/backend/pose_command``
-  (``simlab_msgs/srv/BackendPoseCommand``)
+  (``simlab/srv/BackendPoseCommand``)
 - ``/interactive_controller/backend/waypoint_command``
-  (``simlab_msgs/srv/BackendWaypointCommand``)
+  (``simlab/srv/BackendWaypointCommand``)
 
 ``BackendRobotCommand`` covers robot-scoped actions such as selecting the active
 robot, selecting a controller, selecting a planner, selecting a dynamics
@@ -242,23 +277,23 @@ Examples:
 .. code-block:: shell
 
    ros2 service call /interactive_controller/backend/robot_command \
-     simlab_msgs/srv/BackendRobotCommand \
+     simlab/srv/BackendRobotCommand \
      "{robot_index: 0, command: set_controller, name: PID}"
 
    ros2 service call /interactive_controller/backend/robot_command \
-     simlab_msgs/srv/BackendRobotCommand \
+     simlab/srv/BackendRobotCommand \
      "{robot_index: 0, command: plan_execute}"
 
    ros2 service call /interactive_controller/backend/pose_command \
-     simlab_msgs/srv/BackendPoseCommand \
+     simlab/srv/BackendPoseCommand \
      "{robot_index: 0, command: set_vehicle_target, pose: {position: {x: 1.0, y: 0.0, z: -1.0}, orientation: {w: 1.0}}}"
 
    ros2 service call /interactive_controller/backend/waypoint_command \
-     simlab_msgs/srv/BackendWaypointCommand \
+     simlab/srv/BackendWaypointCommand \
      "{robot_index: 0, command: execute}"
 
    ros2 service call /interactive_controller/backend/robot_command \
-     simlab_msgs/srv/BackendRobotCommand \
+     simlab/srv/BackendRobotCommand \
      "{robot_index: 0, command: start_mcap_recording}"
 
 These services are SimLab interfaces. The simulator package remains limited to
@@ -269,7 +304,7 @@ Planner Action
 --------------
 
 The planner action server is ``/planner`` and uses
-``simlab_msgs/action/PlanVehicle``.
+``simlab/action/PlanVehicle``.
 
 Goal:
 
@@ -331,7 +366,7 @@ Controller Performance Topic
 Each robot publishes a normalized controller-performance stream:
 
 - ``/<prefix>/performance/controller``
-  (``simlab_msgs/msg/ControllerPerformance``)
+  (``simlab/msg/ControllerPerformance``)
 
 The topic is updated from the same command-publish loop that sends vehicle and
 manipulator commands. It compares the measured robot state against the active
@@ -339,22 +374,63 @@ trajectory/reference commands. During vehicle planning, those references are
 the Ruckig trajectory samples. During replay in reference-tracking mode, they
 come from the replay profile desired-state columns.
 
-The message includes:
+The raw vehicle path errors are:
 
-- Cross-track and along-track vehicle error in meters.
-- Unitless normalized vehicle position, attitude, velocity, and acceleration
-  errors.
-- Unitless normalized manipulator position, velocity, and acceleration errors.
-- ``tracking_score`` and ``tracking_score_rms`` for the current active behavior
+- ``vehicle_cross_track_m`` or ``XTE``: cross-track error in meters. This is
+  the component of vehicle position error perpendicular to the current
+  trajectory direction.
+- ``vehicle_along_track_m`` or ``ATE``: along-track error in meters. This is
+  the component of vehicle position error parallel to the current trajectory
+  direction.
+
+The normalized vehicle metrics use the ``n`` prefix in overlays because they
+are unitless:
+
+- ``vehicle_n_cross_track`` or ``nXTE``:
+  ``vehicle_cross_track_m / 0.4 m``.
+- ``vehicle_n_along_track`` or ``nATE``:
+  ``abs(vehicle_along_track_m) / max(target_speed * 1.0 s, 0.4 m)``.
+- ``vehicle_n_position`` or ``nPos``: full 3D position-error norm divided by
+  ``0.4 m``.
+- ``vehicle_n_attitude`` or ``nAtt``: roll/pitch/yaw attitude-error norm
+  divided by ``pi``.
+- ``vehicle_n_linear_velocity`` or ``nVel``: body linear velocity-error norm
+  divided by ``max(target_linear_speed, 0.1 m/s)``.
+- ``vehicle_n_linear_acceleration`` or ``nAcc``: body linear
+  acceleration-error norm divided by
+  ``max(target_linear_acceleration_norm, 0.1 m/s^2)``.
+- ``vehicle_n_angular_velocity`` and ``vehicle_n_angular_acceleration``:
+  normalized body angular velocity and angular acceleration errors.
+
+The normalized manipulator metrics are:
+
+- ``arm_n_position``: RMS joint-position error divided by ``pi``.
+- ``arm_n_velocity``: RMS joint-velocity error divided by
+  ``max(reference_joint_velocity_rms, 0.1 rad/s)``.
+- ``arm_n_acceleration``: RMS joint-acceleration error divided by
+  ``max(reference_joint_acceleration_rms, 0.1 rad/s^2)``.
+
+Aggregate behavior metrics are computed over the current active behavior
+window:
+
+- ``tracking_score``: per-sample RMS aggregate of ``nXTE``, ``nATE``,
+  ``nAtt``, ``nVel``, ``nAcc``, ``arm_n_position``, ``arm_n_velocity``, and
+  ``arm_n_acceleration``.
+- ``tracking_score_rms``: RMS of ``tracking_score`` over the active behavior
   window.
-- ``normalized_control_effort`` and ``effort_per_tracking_score``.
-- ``energy_per_meter`` and ``energy_per_second`` computed from energy used
-  during the current active behavior window.
+- ``normalized_control_effort``: normalized vehicle wrench effort plus
+  normalized manipulator effort.
+- ``effort_per_tracking_score``: ``normalized_control_effort`` divided by
+  ``tracking_score``.
+- ``energy_per_meter`` and ``energy_per_second``: active-window control energy
+  normalized by distance traveled and elapsed time.
 - ``time_to_tolerance_sec``: seconds from behavior activation until
   ``tracking_score`` first reaches the configured tolerance. The value is
   ``-1`` until tolerance has been reached.
-- ``peak_tracking_score``: largest tracking score observed in the current
-  active behavior window.
+- ``peak_tracking_score``: largest ``tracking_score`` observed in the active
+  behavior window.
+- ``sample_count``: number of samples accumulated in the active behavior
+  window.
 
 Inspect one robot's live metric stream with:
 
@@ -368,5 +444,5 @@ Related Guides
 - Use :doc:`controls_and_menus` for RViz menu, joystick, and task behavior.
 - Use :doc:`replay_and_experiments` for command replay profiles and replay
   logging.
-- Use :doc:`camera_and_perception` for sensor topics, camera launch options,
+- Use :doc:`sensors_and_perception` for sensor topics, camera launch options,
   and perception-facing camera streams.

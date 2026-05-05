@@ -62,7 +62,7 @@ Guide Map
   controller/replay separation.
 - :doc:`replay_and_experiments`: command replay profiles, reset behavior,
   repeats, and replay-session logging.
-- :doc:`camera_and_perception`: sensors, perception-facing camera streams, and
+- :doc:`sensors_and_perception`: sensors, perception-facing camera streams, and
   mount/light commands.
 - :doc:`developer_guide`: developer guide for adding controllers, planners, and
   robot interfaces.
@@ -120,6 +120,10 @@ Useful launch switches:
   camera, or only the selected feed.
 - ``sim_camera_underwater_effect:=true|false``: enable or disable the simulated
   underwater tint/haze applied below the water surface.
+- ``sim_camera_underwater_haze``, ``sim_camera_underwater_tint``,
+  ``sim_camera_underwater_blur``, ``sim_camera_underwater_noise``, and
+  ``sim_camera_underwater_vignette``: tune the underwater profile at launch or
+  at runtime with ``ros2 param set /sim_camera_renderer_node ...``.
 
 Command Replay
 --------------

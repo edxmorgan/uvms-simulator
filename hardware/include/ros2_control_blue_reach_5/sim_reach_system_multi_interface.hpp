@@ -17,9 +17,11 @@
 #define ROS2_CONTROL_BLUE_REACH_5__SIM_REACH_SYSTEM_MULTI_INTERFACE_HPP_
 
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -112,6 +114,7 @@ namespace ros2_control_blue_reach_5
         void reset_joint_simulation_state(
             const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request);
         void reset_joint_estimators();
+        void apply_pending_reset_request();
         void stop_ros_interfaces() noexcept;
 
         double payload_mass = 0;
@@ -145,6 +148,13 @@ namespace ros2_control_blue_reach_5
         std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> executor_;
         std::thread spin_thread_;
         std::mutex simulation_state_mutex_;
+        std::mutex reset_request_mutex_;
+        std::condition_variable reset_applied_cv_;
+        std::optional<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> pending_reset_request_;
+        std::uint64_t reset_request_sequence_{0};
+        std::uint64_t reset_applied_sequence_{0};
+        std::uint64_t reset_failed_sequence_{0};
+        std::string reset_failure_message_;
 
         rclcpp::Publisher<tf>::SharedPtr frame_transform_publisher_;
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>> realtime_frame_transform_publisher_;

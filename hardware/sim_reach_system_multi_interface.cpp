@@ -296,6 +296,47 @@ namespace ros2_control_blue_reach_5
             payload_mass);
     }
 
+    void SimReachSystemMultiInterfaceHardware::apply_pending_reset_request()
+    {
+        std::optional<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> request;
+        std::uint64_t sequence = 0;
+        {
+            std::lock_guard<std::mutex> request_lock(reset_request_mutex_);
+            if (!pending_reset_request_)
+            {
+                return;
+            }
+            request = pending_reset_request_;
+            pending_reset_request_.reset();
+            sequence = reset_request_sequence_;
+        }
+
+        try
+        {
+            reset_joint_simulation_state(*request);
+            {
+                std::lock_guard<std::mutex> request_lock(reset_request_mutex_);
+                reset_failure_message_.clear();
+                reset_applied_sequence_ = sequence;
+            }
+        }
+        catch (const std::exception &e)
+        {
+            std::lock_guard<std::mutex> request_lock(reset_request_mutex_);
+            reset_failure_message_ = e.what();
+            reset_failed_sequence_ = sequence;
+            reset_applied_sequence_ = sequence;
+        }
+        catch (...)
+        {
+            std::lock_guard<std::mutex> request_lock(reset_request_mutex_);
+            reset_failure_message_ = "unknown exception while applying manipulator reset";
+            reset_failed_sequence_ = sequence;
+            reset_applied_sequence_ = sequence;
+        }
+        reset_applied_cv_.notify_all();
+    }
+
     void SimReachSystemMultiInterfaceHardware::stop_ros_interfaces() noexcept
     {
         if (executor_)
@@ -496,8 +537,32 @@ namespace ros2_control_blue_reach_5
                 return;
             }
 
-            std::lock_guard<std::mutex> lock(simulation_state_mutex_);
-            reset_joint_simulation_state(*request);
+            std::unique_lock<std::mutex> request_lock(reset_request_mutex_);
+            pending_reset_request_ = *request;
+            const auto sequence = ++reset_request_sequence_;
+            request_lock.unlock();
+            reset_applied_cv_.notify_all();
+
+            request_lock.lock();
+            const bool applied = reset_applied_cv_.wait_for(
+                request_lock,
+                std::chrono::seconds(2),
+                [this, sequence]()
+                {
+                    return reset_applied_sequence_ >= sequence;
+                });
+            if (!applied)
+            {
+                response->success = false;
+                response->message = "timeout applying simulated manipulator reset";
+                return;
+            }
+            if (reset_failed_sequence_ == sequence)
+            {
+                response->success = false;
+                response->message = reset_failure_message_;
+                return;
+            }
             response->success = true;
             response->message = "reset simulated manipulator with requested state";
         };
@@ -755,6 +820,7 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
+        apply_pending_reset_request();
 
         DM q = DM::vertcat({hw_joint_struct_[0].current_state_.position,
                             hw_joint_struct_[1].current_state_.position,
@@ -828,6 +894,7 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
+        apply_pending_reset_request();
 
         if (commands_held_)
         {
