@@ -114,6 +114,7 @@ namespace ros2_control_blue_reach_5
         void reset_joint_simulation_state(
             const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request);
         void reset_joint_estimators();
+        void seed_joint_estimator_from_state(std::size_t index, const Joint::State &state);
         void apply_pending_reset_request();
         void stop_ros_interfaces() noexcept;
 

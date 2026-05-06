@@ -169,6 +169,19 @@ namespace ros2_control_blue_reach_5
         }
     }
 
+    void SimReachSystemMultiInterfaceHardware::seed_joint_estimator_from_state(
+        std::size_t index, const Joint::State &state)
+    {
+        if (index >= x_est_list_.size())
+        {
+            return;
+        }
+        x_est_list_[index] = casadi::DM::zeros(3, 1);
+        x_est_list_[index](0) = state.position;
+        x_est_list_[index](1) = state.velocity;
+        x_est_list_[index](2) = state.acceleration;
+    }
+
     void SimReachSystemMultiInterfaceHardware::reset_joint_simulation_state()
     {
         const std::size_t joint_count = hw_joint_struct_.size();
@@ -222,6 +235,10 @@ namespace ros2_control_blue_reach_5
         time_seconds = 0.0;
         commands_held_ = true;
         reset_joint_estimators();
+        for (std::size_t i = 0; i < hw_joint_struct_.size(); ++i)
+        {
+            seed_joint_estimator_from_state(i, hw_joint_struct_[i].current_state_);
+        }
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
             "[%s] reset simulated manipulator state for %zu joints; commands held until release",
@@ -263,6 +280,8 @@ namespace ros2_control_blue_reach_5
                 joint.command_state_.current = 0.0;
                 joint.command_state_.effort = 0.0;
                 joint.command_state_.computed_effort = 0.0;
+
+                seed_joint_estimator_from_state(i, joint.current_state_);
             }
         }
 

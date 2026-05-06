@@ -114,6 +114,10 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
     record_data:=true
 ```
 
+`gui:=false` disables GUI applications, including RViz, RViz overlays, and
+PlotJuggler. Use `launch_rviz:=false` when you only want to suppress RViz while
+leaving other GUI tools controlled by their own launch flags.
+
 PlotJuggler:
 
 ```bash

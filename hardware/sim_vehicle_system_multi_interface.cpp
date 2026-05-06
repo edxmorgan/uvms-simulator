@@ -228,15 +228,60 @@ namespace ros2_control_blue_reach_5
         }
     }
 
+    void SimVehicleSystemMultiInterfaceHardware::seed_vehicle_estimator_from_state(
+        const blue::dynamics::Vehicle::Pose_vel &state)
+    {
+        x_est_ = casadi::DM::zeros(18, 1);
+        x_est_(0) = state.position_x;
+        x_est_(1) = state.position_y;
+        x_est_(2) = state.position_z;
+        x_est_(3) = state.roll;
+        x_est_(4) = state.pitch;
+        x_est_(5) = state.yaw;
+        x_est_(6) = state.u;
+        x_est_(7) = state.v;
+        x_est_(8) = state.w;
+        x_est_(9) = state.p;
+        x_est_(10) = state.q;
+        x_est_(11) = state.r;
+        x_est_(12) = state.du;
+        x_est_(13) = state.dv;
+        x_est_(14) = state.dw;
+        x_est_(15) = state.dp;
+        x_est_(16) = state.dq;
+        x_est_(17) = state.dr;
+    }
+
+    void SimVehicleSystemMultiInterfaceHardware::seed_vehicle_sensor_state_from_state(
+        const blue::dynamics::Vehicle::Pose_vel &state)
+    {
+        hw_vehicle_struct.depth_from_pressure2 = state.position_z;
+
+        hw_vehicle_struct.imu_state.setEuler(state.roll, -state.pitch, -state.yaw);
+        hw_vehicle_struct.imu_state.roll_unwrap = state.roll;
+        hw_vehicle_struct.imu_state.pitch_unwrap = -state.pitch;
+        hw_vehicle_struct.imu_state.yaw_unwrap = -state.yaw;
+        hw_vehicle_struct.imu_state.angular_vel_x = state.p;
+        hw_vehicle_struct.imu_state.angular_vel_y = state.q;
+        hw_vehicle_struct.imu_state.angular_vel_z = state.r;
+        hw_vehicle_struct.imu_state.linear_acceleration_x = state.du;
+        hw_vehicle_struct.imu_state.linear_acceleration_y = state.dv;
+        hw_vehicle_struct.imu_state.linear_acceleration_z = state.dw;
+
+        hw_vehicle_struct.dvl_state.vx = state.u;
+        hw_vehicle_struct.dvl_state.vy = state.v;
+        hw_vehicle_struct.dvl_state.vz = state.w;
+    }
+
     void SimVehicleSystemMultiInterfaceHardware::reset_vehicle_simulation_state()
     {
         hw_vehicle_struct.current_state_ = hw_vehicle_struct.default_state_;
         hw_vehicle_struct.async_state_ = hw_vehicle_struct.default_state_;
         hw_vehicle_struct.command_state_ = hw_vehicle_struct.default_state_;
         hw_vehicle_struct.estimate_state_ = hw_vehicle_struct.default_state_;
-        hw_vehicle_struct.depth_from_pressure2 = hw_vehicle_struct.default_state_.position_z;
         hw_vehicle_struct.dvl_state = {};
         hw_vehicle_struct.imu_state = {};
+        seed_vehicle_sensor_state_from_state(hw_vehicle_struct.default_state_);
         hw_vehicle_struct.sim_time = 0.0;
         hw_vehicle_struct.sim_period = 0.0;
         hw_vehicle_struct.camera_mountPitch_pwm = 1500.0;
@@ -262,6 +307,7 @@ namespace ros2_control_blue_reach_5
 
         commands_held_ = true;
         reset_vehicle_estimators();
+        seed_vehicle_estimator_from_state(hw_vehicle_struct.default_state_);
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
             "[%s] reset simulated vehicle state for %zu thrusters; commands held until release",
@@ -307,7 +353,8 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.command_state_.Tx = 0.0;
             hw_vehicle_struct.command_state_.Ty = 0.0;
             hw_vehicle_struct.command_state_.Tz = 0.0;
-            hw_vehicle_struct.depth_from_pressure2 = requested_state.position_z;
+            seed_vehicle_sensor_state_from_state(requested_state);
+            seed_vehicle_estimator_from_state(requested_state);
         }
 
         commands_held_ = request.hold_commands;

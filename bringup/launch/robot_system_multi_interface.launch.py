@@ -15,7 +15,11 @@
 
 import glob
 import os
+import re
+import signal
+import subprocess
 import tempfile
+import time
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler, ExecuteProcess, OpaqueFunction, GroupAction
@@ -72,6 +76,85 @@ def _parse_bool_arg(name: str, value: str) -> bool:
     if normalized in {"false", "0", "no", "off"}:
         return False
     raise RuntimeError(f"{name} must be one of: true, false.")
+
+
+def _ancestor_pids(pid: int) -> set[int]:
+    protected = set()
+    current = int(pid)
+    while current > 1 and current not in protected:
+        protected.add(current)
+        try:
+            output = subprocess.check_output(
+                ["ps", "-o", "ppid=", "-p", str(current)],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+            current = int(output) if output else 0
+        except Exception:
+            break
+    return protected
+
+
+def _process_rows() -> list[tuple[int, str]]:
+    try:
+        output = subprocess.check_output(
+            ["ps", "-eo", "pid=,args="],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        return []
+
+    rows = []
+    for line in output.splitlines():
+        parts = line.strip().split(None, 1)
+        if len(parts) != 2:
+            continue
+        try:
+            rows.append((int(parts[0]), parts[1]))
+        except ValueError:
+            continue
+    return rows
+
+
+def _cleanup_stale_processes(patterns: list[str]) -> None:
+    protected = _ancestor_pids(os.getpid())
+    compiled = [re.compile(pattern) for pattern in patterns]
+
+    stale_pids = set()
+    for pid, command in _process_rows():
+        if pid in protected:
+            continue
+        if any(pattern.search(command) for pattern in compiled):
+            stale_pids.add(pid)
+
+    if not stale_pids:
+        logger.info("[launch cleanup] no stale UVMS simulator processes found")
+        return
+
+    logger.info(
+        f"[launch cleanup] terminating {len(stale_pids)} stale UVMS simulator processes"
+    )
+    for pid in sorted(stale_pids):
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            logger.warning(f"[launch cleanup] no permission to terminate pid {pid}")
+
+    time.sleep(1.0)
+    for pid in sorted(stale_pids):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            continue
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            logger.warning(f"[launch cleanup] no permission to kill pid {pid}")
 
 
 def _simulated_camera_pipeline() -> str:
@@ -286,6 +369,13 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "gui",
             default_value="true",
+            description="Global GUI switch. Set false to disable RViz, RViz overlays, and PlotJuggler.",
+        )
+    )
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "launch_rviz",
+            default_value="true",
             description="Start RViz2 automatically with this launch file.",
         )
     )
@@ -410,6 +500,7 @@ def launch_setup(context, *args, **kwargs):
     serial_port = LaunchConfiguration("serial_port").perform(context)
     state_update_frequency = LaunchConfiguration("state_update_frequency").perform(context)
     gui = LaunchConfiguration("gui").perform(context)
+    launch_rviz = LaunchConfiguration("launch_rviz").perform(context)
     sim_robot_count = LaunchConfiguration("sim_robot_count").perform(context)
     same_initial_conditions = LaunchConfiguration("same_initial_conditions").perform(context)
     record_data = LaunchConfiguration("record_data").perform(context)
@@ -420,6 +511,13 @@ def launch_setup(context, *args, **kwargs):
     launch_plotjuggler = LaunchConfiguration("launch_plotjuggler").perform(context)
     plotjuggler_buffer_size = LaunchConfiguration("plotjuggler_buffer_size").perform(context)
     launch_overlay_text = LaunchConfiguration("launch_overlay_text").perform(context)
+    gui_bool = _parse_bool_arg("gui", gui)
+    launch_rviz_bool = gui_bool and _parse_bool_arg("launch_rviz", launch_rviz)
+    launch_rviz_text = "true" if launch_rviz_bool else "false"
+    launch_overlay_text_bool = launch_rviz_bool and _parse_bool_arg("launch_overlay_text", launch_overlay_text)
+    launch_overlay_text_text = "true" if launch_overlay_text_bool else "false"
+    launch_plotjuggler_bool = gui_bool and _parse_bool_arg("launch_plotjuggler", launch_plotjuggler)
+    launch_plotjuggler_text = "true" if launch_plotjuggler_bool else "false"
     launch_collision_contact = LaunchConfiguration("launch_collision_contact").perform(context)
     interactive_fcl_update_rate = LaunchConfiguration("interactive_fcl_update_rate").perform(context)
     launch_voxelviz = LaunchConfiguration("launch_voxelviz").perform(context)
@@ -686,7 +784,7 @@ def launch_setup(context, *args, **kwargs):
         name="rviz2",
         output="log",
         arguments=["-d", rviz_config_modified_file],
-        condition=IfCondition(gui),
+        condition=IfCondition(TextSubstitution(text=launch_rviz_text)),
         additional_env={
             "LD_PRELOAD": "/usr/lib/x86_64-linux-gnu/liboctomap.so"
         },
@@ -701,7 +799,7 @@ def launch_setup(context, *args, **kwargs):
             {"string_topic": "chatter"},
             {"fg_color": "b"}, # colors can be: r,g,b,w,k,p,y (red,green,blue,white,black,pink,yellow)
         ],
-        condition=IfCondition(launch_overlay_text),
+        condition=IfCondition(TextSubstitution(text=launch_overlay_text_text)),
     )
 
     control_node = Node(
@@ -737,7 +835,7 @@ def launch_setup(context, *args, **kwargs):
     run_plotjuggler = ExecuteProcess(
         cmd=['/snap/bin/plotjuggler', '--buffer_size', plotjuggler_buffer_size],
         output='screen',
-        condition=IfCondition(launch_plotjuggler),
+        condition=IfCondition(TextSubstitution(text=launch_plotjuggler_text)),
     )
 
     # start task selected
@@ -864,6 +962,17 @@ def launch_setup(context, *args, **kwargs):
         }],
     )
 
+    dynamic_obstacle_sim_node = Node(
+        package="ros2_control_blue_reach_5",
+        executable="dynamic_obstacle_sim_node",
+        name="dynamic_obstacle_sim_node",
+        output="screen",
+        parameters=[{
+            "world_frame": world_frame,
+            "robot_base_frames": robot_base_links,
+        }],
+    )
+
     optitrack_proc = ExecuteProcess(
         cmd=['ros2', 'launch', 'mocap4r2_optitrack_driver', 'optitrack2.launch.py'],
         output='screen',
@@ -981,6 +1090,7 @@ def launch_setup(context, *args, **kwargs):
         mesh_collision_node,
         voxelviz_node,
         env_obstacles_node,
+        dynamic_obstacle_sim_node,
         bag_recorder_node,
     ]
 
@@ -1011,42 +1121,28 @@ def launch_setup(context, *args, **kwargs):
     cleanup_stale_nodes_bool = _parse_bool_arg("cleanup_stale_nodes", cleanup_stale_nodes)
     if cleanup_stale_nodes_bool:
         stale_process_patterns = [
-            "[s]im_reset_coordinator",
-            "[r]obot_description_publisher.py",
-            "[r]obot_state_publisher",
-            "[i]nteractive_controller",
-            "[b]ag_recorder_node",
-            "[p]lanner_action_server_node",
-            "[c]ollision_contact_node",
-            "[v]oxelviz_node",
-            "[e]nv_obstacles_node",
-            "[s]im_camera_renderer_node",
-            "[g]streamer_camera_node",
-            "[s]tring_to_overlay_text",
-            "[r]viz2",
-            "[p]lotjuggler",
-            "[r]os2_control_node",
+            "[p]ython3 -m bringup.sim_reset_coordinator",
+            "[/]ros2_control_blue_reach_5[/]robot_description_publisher.py",
+            "[/]robot_state_publisher[/]robot_state_publisher",
+            "[/]simlab[/]interactive_controller",
+            "[/]simlab[/]bag_recorder_node",
+            "[/]simlab[/]planner_action_server_node",
+            "[/]simlab[/]collision_contact_node",
+            "[/]simlab[/]voxelviz_node",
+            "[/]simlab[/]env_obstacles_node",
+            "[/]ros2_control_blue_reach_5[/]dynamic_obstacle_sim_node",
+            "[/]ros2_control_blue_reach_5[/]sim_camera_renderer_node",
+            "[/]ros2_control_blue_reach_5[/]gstreamer_camera_node",
+            "[/]string_to_overlay_text",
+            "[/]rviz2[/]rviz2",
+            "[/]snap/bin/plotjuggler",
+            "[/]controller_manager[/]ros2_control_node",
+            "[/]tf2_ros[/]tf2_echo",
+            "[/]bin[/]ros2 run tf2_ros tf2_echo",
         ]
-        cleanup_script = (
-            "patterns=("
-            + " ".join(f"'{pattern}'" for pattern in stale_process_patterns)
-            + "); "
-            + "echo '[launch cleanup] terminating stale UVMS simulator processes'; "
-            + "for pattern in \"${patterns[@]}\"; do pkill -TERM -f \"$pattern\" 2>/dev/null || true; done; "
-            + "sleep 1; "
-            + "for pattern in \"${patterns[@]}\"; do pkill -KILL -f \"$pattern\" 2>/dev/null || true; done; "
-            + "echo '[launch cleanup] complete'"
-        )
-        cleanup_proc = ExecuteProcess(
-            cmd=["/bin/bash", "-lc", cleanup_script],
-            output="screen",
-            shell=False,
-        )
+        _cleanup_stale_processes(stale_process_patterns)
         nodes = [
-            cleanup_proc,
-            RegisterEventHandler(
-                OnProcessExit(target_action=cleanup_proc, on_exit=[simulator_agents])
-            ),
+            simulator_agents
         ]
     else:
         nodes = [

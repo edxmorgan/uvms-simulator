@@ -36,6 +36,11 @@ SimLab package:
   planner/replay dispatch, joystick bridge, grasper handling, logging.
 - ``uvms-simlab/simlab/controllers``: controller implementations, including
   ``CmdReplay``.
+- ``uvms-simlab/simlab/utils``: shared helper modules. ``geometry.py`` contains
+  bounding-volume and marker geometry helpers, ``frames.py`` contains frame and
+  pose conversion helpers, ``meshes.py`` contains URDF mesh/FCL/point-cloud
+  helpers, ``interactive_markers.py`` contains RViz interactive-marker helpers,
+  and ``path_obstacles.py`` contains active-path obstacle placement helpers.
 - ``uvms-simlab/resource/playback_profile``: replay profiles.
 - ``uvms-simlab/resource/dynamics_profiles``: whole-robot dynamics parameter
   profiles selected by replay/reset workflows.
