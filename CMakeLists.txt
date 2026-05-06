@@ -28,6 +28,8 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   realtime_tools
   tf2_geometry_msgs
   sensor_msgs
+  std_msgs
+  visualization_msgs
   geometry_msgs
   nav_msgs
   nav2_msgs
@@ -47,12 +49,16 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
 endforeach()
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/DynamicObstacle.msg"
+  "msg/DynamicObstacleArray.msg"
   "msg/SimCameraDynamics.msg"
   "msg/SimVehicleDynamics.msg"
   "msg/SimManipulatorDynamics.msg"
   "srv/ResetSimUvms.srv"
+  "srv/SetDynamicObstacles.srv"
   "srv/SetSimCameraDynamics.srv"
   "srv/SetSimDynamics.srv"
+  DEPENDENCIES geometry_msgs std_msgs visualization_msgs
 )
 
 # --- Begin GStreamer additions ---
@@ -175,6 +181,12 @@ install(PROGRAMS
   bringup/sim_camera_renderer.py
   DESTINATION lib/${PROJECT_NAME}
   RENAME sim_camera_renderer_node
+)
+
+install(PROGRAMS
+  bringup/dynamic_obstacle_sim.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME dynamic_obstacle_sim_node
 )
 
 if(BUILD_TESTING)

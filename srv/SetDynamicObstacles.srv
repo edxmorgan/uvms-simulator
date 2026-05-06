@@ -1,0 +1,4 @@
+DynamicObstacleArray obstacles
+---
+bool success
+string message

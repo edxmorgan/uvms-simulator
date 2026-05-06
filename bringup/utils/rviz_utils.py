@@ -134,6 +134,12 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         name="planned waypoints",
         enabled=True
     )
+    rviz_marker_array_display(
+        new_rviz_config,
+        topic="/dynamic_obstacle_markers",
+        name="Dynamic Obstacles",
+        enabled=True
+    )
     add_wrench_entries(ix, new_rviz_config, True)
     with open(new_rviz_config_path,'w') as file:
         yaml.dump(new_rviz_config,file,Dumper=NoAliasDumper)
@@ -337,7 +343,7 @@ def camera_overlay_display(
         "Overlay Alpha": overlay_alpha,
         "Topic": {
             "Depth": 5,
-            "Durability Policy": "Volatile",
+            "Durability Policy": "Transient Local",
             "History Policy": "Keep Last",
             "Reliability Policy": "Reliable",
             "Value": topic
@@ -407,6 +413,28 @@ def rviz_contact_markers_display(rviz_config,
         "Value": True
     }
     rviz_config["Visualization Manager"]["Displays"].append(marker_cfg)
+
+
+def rviz_marker_array_display(rviz_config,
+                              topic,
+                              name,
+                              enabled=True):
+    marker_array_cfg = {
+        "Class": "rviz_default_plugins/MarkerArray",
+        "Enabled": enabled,
+        "Name": name,
+        "Namespaces": {},
+        "Queue Size": 100,
+        "Topic": {
+            "Depth": 5,
+            "Durability Policy": "Transient Local",
+            "History Policy": "Keep Last",
+            "Reliability Policy": "Reliable",
+            "Value": topic
+        },
+        "Value": True
+    }
+    rviz_config["Visualization Manager"]["Displays"].append(marker_array_cfg)
 
 
 def generate_random_color(path_type=None, default=False):

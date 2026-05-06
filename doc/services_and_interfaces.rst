@@ -193,6 +193,58 @@ same fields are also available as dynamic ROS parameters on
 ``/sim_camera_renderer_node``. SimLab dynamics profiles use this service for
 camera-only and combined robot/camera profile updates.
 
+Dynamic Obstacle Services
+-------------------------
+
+Dynamic obstacles are owned by the simulator. The low-level simulator service
+sets the exact live obstacle snapshot:
+
+- ``/dynamic_obstacle_sim_node/set_dynamic_obstacles``
+  (``ros2_control_blue_reach_5/srv/SetDynamicObstacles``)
+
+The request carries ``DynamicObstacleArray``:
+
+.. code-block:: text
+
+   std_msgs/Header header          # frame_id must match the simulator world frame
+   DynamicObstacle[] obstacles
+
+Each ``DynamicObstacle`` contains:
+
+.. code-block:: text
+
+   string id
+   geometry_msgs/Pose pose
+   geometry_msgs/Twist twist
+   uint8 collision_type
+   float64[] collision_dimensions
+   uint8 visual_type
+   float64[] visual_dimensions
+   string visual_mesh_resource
+   std_msgs/ColorRGBA color
+
+Supported geometry types are ``sphere``, ``box``, ``cylinder``, and ``mesh``
+through the message constants. Dimension conventions are:
+
+- Sphere: ``[radius]``.
+- Box: ``[x, y, z]``.
+- Cylinder: ``[radius, height]``.
+- Mesh: use ``visual_mesh_resource`` for rendering and collision dimensions as
+  a simple proxy.
+
+Obstacle IDs must be unique within each update. Empty IDs are normalized to
+``obstacle_N`` by index. Duplicate effective IDs are rejected before the
+snapshot is published.
+
+The simulator publishes the accepted snapshot and RViz markers on:
+
+- ``/dynamic_obstacles`` (``ros2_control_blue_reach_5/msg/DynamicObstacleArray``)
+- ``/dynamic_obstacle_markers`` (``visualization_msgs/msg/MarkerArray``)
+
+Static obstacles are published once after an update. Obstacles with nonzero
+linear or angular velocity continue to update at the simulator obstacle publish
+rate.
+
 SimLab Backend API
 ------------------
 
@@ -204,11 +256,13 @@ profile selection, and waypoint actions follow one behavior path.
 The services live on the interactive controller node and use interfaces from
 ``simlab``:
 
-- ``/interactive_controller/backend/robot_command``
+- ``/backend/robot_command``
   (``simlab/srv/BackendRobotCommand``)
-- ``/interactive_controller/backend/pose_command``
+- ``/backend/world_command``
+  (``simlab/srv/BackendWorldCommand``)
+- ``/backend/pose_command``
   (``simlab/srv/BackendPoseCommand``)
-- ``/interactive_controller/backend/waypoint_command``
+- ``/backend/waypoint_command``
   (``simlab/srv/BackendWaypointCommand``)
 
 ``BackendRobotCommand`` covers robot-scoped actions such as selecting the active
@@ -216,6 +270,63 @@ robot, selecting a controller, selecting a planner, selecting a dynamics
 profile, starting or stopping command replay, commanding the grasper, and
 requesting Plan & Execute. Session recording is also exposed here so RViz and
 headless clients use the same backend path.
+
+``BackendWorldCommand`` covers world-level actions that are not robot-scoped.
+The backend service is a convenience layer for named profiles; the simulator
+service remains the source of truth for the live obstacle state.
+
+Request fields:
+
+.. code-block:: text
+
+   string command
+   string name
+   int32 robot_index          # zero-based robot index; used by path-aware helpers
+
+   bool enabled              # used by set_dynamic_replanning
+   float64 rate              # Hz; <= 0 keeps current value
+   float64 cooldown          # seconds; <= 0 keeps current value
+   float64 lookahead_time    # seconds; <= 0 keeps current value
+   float64 safety_margin     # meters; <= 0 keeps current value
+   float64 replan_hysteresis # meters; <= 0 keeps current value
+
+   float64 distance_ahead    # meters; used by spawn_path_obstacle
+   float64 radius            # meters; used by spawn_path_obstacle
+
+Supported ``BackendWorldCommand.command`` values:
+
+- ``set_world_profile``: load the world profile named by ``name`` from
+  ``simlab/resource/world_profiles`` and forward it to
+  ``/dynamic_obstacle_sim_node/set_dynamic_obstacles``.
+- ``clear_dynamic_obstacles``: clear all simulator dynamic obstacles.
+- ``spawn_path_obstacle``: create one spherical obstacle on the active planned
+  path for ``robot_index``. ``distance_ahead`` places it along the remaining
+  path and ``radius`` sets the sphere radius. This is mainly for deterministic
+  replanning tests and frontend-created benchmark scenarios.
+- ``enable_dynamic_replanning``: enable the per-robot dynamic replanning
+  supervisor. Optional numeric fields tune the monitor rate, cooldown,
+  lookahead time, clearance margin, and hysteresis.
+- ``disable_dynamic_replanning``: disable dynamic replanning and release its
+  dynamic-obstacle subscription and timer.
+- ``set_dynamic_replanning``: set ``enabled`` and optionally tune numeric
+  dynamic replanning parameters in one request.
+- ``dynamic_replanning_status``: return the current dynamic replanning state
+  and tuning values, including per-robot replan count, last obstacle, last
+  clearance, and last trigger reason.
+
+Available world-profile examples include ``clear_world``,
+``obstacle_crossing_sphere``, ``static_sphere_field``, and
+``moving_box_corridor``.
+
+Dynamic replanning is event-triggered. Each robot has its own replanning
+supervisor, but the obstacle world is shared. The supervisor samples the
+remaining active path over ``lookahead_time`` and asks the selected planner for
+a replacement path when predicted clearance to a dynamic obstacle drops below
+``safety_margin``. Replanning is non-destructive: the active trajectory remains
+valid while the planner request is pending, and a failed replacement plan does
+not erase the current trajectory. Repeated replans against the same unchanged
+blocked path are suppressed by hysteresis; if an unresolved blocked path becomes
+imminent, the robot stops the mission and holds its current state.
 
 Request fields:
 
@@ -237,7 +348,15 @@ Supported ``BackendRobotCommand.command`` values:
 - ``set_dynamics_profile``: apply dynamics profile named by ``name``.
 - ``plan_execute``: run Plan & Execute.
 - ``reset_simulation``: reset the selected simulated robot.
-- ``release_simulation``: release held commands after simulation reset.
+- ``release_simulation``: release held commands after simulation reset and
+  immediately hold the current vehicle pose with the selected feedback
+  controller. This is the safe API default for headless/frontend clients.
+- ``release_simulation_raw``: release the low-level simulator hold without
+  installing a feedback hold target. This is intended for debugging only.
+- ``hold_current_state`` or ``hold_current_vehicle_pose``: switch to feedback
+  control and hold the current measured vehicle pose and arm state.
+- ``release_and_hold``: install a feedback hold target and release the
+  simulator if it is currently held.
 - ``replay_select_profile``: select CmdReplay profile named by ``name``.
 - ``replay_start``: reset and start CmdReplay. Requires CmdReplay and a
   selected replay profile.
@@ -261,6 +380,12 @@ Supported ``BackendPoseCommand.command`` values:
 - ``add_waypoint``: add a vehicle waypoint. If ``use_current_target`` is
   ``true``, the current backend vehicle target is used. If it is ``false``,
   ``pose`` is copied into the vehicle target before adding the waypoint.
+- ``reset_vehicle_world``: reset the simulated vehicle to ``pose`` expressed in
+  the backend ``world`` frame. The backend converts the pose to the simulator
+  vehicle/map NED convention, clears stale waypoint/path state, installs a
+  feedback hold target at the requested pose, and releases the low-level
+  simulator hold after reset. Frontends should use this command instead of
+  calling ``/robot_N_reset_sim_uvms`` directly with world coordinates.
 
 ``BackendWaypointCommand`` manages vehicle waypoint missions: delete, clear,
 stop, and execute.
@@ -270,35 +395,58 @@ Supported ``BackendWaypointCommand.command`` values:
 - ``delete``: delete ``waypoint_index``.
 - ``clear``: clear all waypoints for the robot.
 - ``stop``: stop the active waypoint mission.
-- ``execute``: execute the waypoint mission.
+- ``execute``: execute the waypoint mission. If the robot is still held after a
+  reset, the backend installs a feedback hold target, releases the simulator,
+  and dispatches the waypoint mission from the release callback.
 
 Examples:
 
 .. code-block:: shell
 
-   ros2 service call /interactive_controller/backend/robot_command \
+   ros2 service call /backend/robot_command \
      simlab/srv/BackendRobotCommand \
      "{robot_index: 0, command: set_controller, name: PID}"
 
-   ros2 service call /interactive_controller/backend/robot_command \
+   ros2 service call /backend/robot_command \
      simlab/srv/BackendRobotCommand \
      "{robot_index: 0, command: plan_execute}"
 
-   ros2 service call /interactive_controller/backend/pose_command \
+   ros2 service call /backend/world_command \
+     simlab/srv/BackendWorldCommand \
+     "{command: set_world_profile, name: obstacle_crossing_sphere}"
+
+   ros2 service call /backend/world_command \
+     simlab/srv/BackendWorldCommand \
+     "{command: set_dynamic_replanning, enabled: true, rate: 5.0, cooldown: 0.5, lookahead_time: 8.0, safety_margin: 0.6, replan_hysteresis: 0.05}"
+
+   ros2 service call /backend/world_command \
+     simlab/srv/BackendWorldCommand \
+     "{command: spawn_path_obstacle, robot_index: 0, distance_ahead: 6.0, radius: 1.0}"
+
+   ros2 service call /backend/world_command \
+     simlab/srv/BackendWorldCommand \
+     "{command: dynamic_replanning_status}"
+
+   ros2 service call /backend/pose_command \
      simlab/srv/BackendPoseCommand \
      "{robot_index: 0, command: set_vehicle_target, pose: {position: {x: 1.0, y: 0.0, z: -1.0}, orientation: {w: 1.0}}}"
 
-   ros2 service call /interactive_controller/backend/waypoint_command \
+   ros2 service call /backend/pose_command \
+     simlab/srv/BackendPoseCommand \
+     "{robot_index: 0, command: reset_vehicle_world, pose: {position: {x: 0.0, y: 0.0, z: -2.0}, orientation: {w: 1.0}}}"
+
+   ros2 service call /backend/waypoint_command \
      simlab/srv/BackendWaypointCommand \
      "{robot_index: 0, command: execute}"
 
-   ros2 service call /interactive_controller/backend/robot_command \
+   ros2 service call /backend/robot_command \
      simlab/srv/BackendRobotCommand \
      "{robot_index: 0, command: start_mcap_recording}"
 
-These services are SimLab interfaces. The simulator package remains limited to
-hardware/simulation interfaces such as reset, release, dynamics parameters,
-camera, and ros2_control hardware plugins.
+These backend services are SimLab interfaces. Simulator-owned services remain
+in ``ros2_control_blue_reach_5`` and cover reset, release, dynamics
+parameters, simulated camera configuration, dynamic obstacles, and
+``ros2_control`` hardware plugins.
 
 Planner Action
 --------------

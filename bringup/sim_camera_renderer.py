@@ -19,7 +19,9 @@ from rclpy.duration import Duration
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSProfile
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolicy
 from rclpy.time import Time
+from ros2_control_blue_reach_5.msg import DynamicObstacle, DynamicObstacleArray
 from sensor_msgs.msg import CameraInfo, Image
 from tf2_ros import Buffer, TransformException, TransformListener
 from ros2_control_blue_reach_5.srv import SetSimCameraDynamics
@@ -74,6 +76,14 @@ def transform_to_matrix(transform: TransformStamped):
     matrix = np.eye(4)
     matrix[:3, :3] = quaternion_matrix((q.x, q.y, q.z, q.w))
     matrix[:3, 3] = (t.x, t.y, t.z)
+    return matrix
+
+
+def pose_to_matrix(pose):
+    matrix = np.eye(4)
+    q = pose.orientation
+    matrix[:3, :3] = quaternion_matrix((q.x, q.y, q.z, q.w))
+    matrix[:3, 3] = (pose.position.x, pose.position.y, pose.position.z)
     return matrix
 
 
@@ -199,6 +209,7 @@ class SimCameraRendererNode(Node):
 
         self.mesh_frames = {}
         self.mesh_cache = {}
+        self.dynamic_obstacle_entries = {}
         self.scene_bounds_min = None
         self.scene_bounds_max = None
         self.pyvista_plotter = None
@@ -207,6 +218,17 @@ class SimCameraRendererNode(Node):
             self._setup_pyvista_backend()
         else:
             self._setup_open3d_backend()
+        self.dynamic_obstacles_sub = self.create_subscription(
+            DynamicObstacleArray,
+            "/dynamic_obstacles",
+            self._dynamic_obstacles_callback,
+            QoSProfile(
+                history=QoSHistoryPolicy.KEEP_LAST,
+                depth=1,
+                durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+                reliability=QoSReliabilityPolicy.RELIABLE,
+            ),
+        )
 
         self.fx = 0.5 * self.width / math.tan(0.5 * math.radians(self.horizontal_fov_deg))
         self.fy = self.fx
@@ -469,6 +491,151 @@ class SimCameraRendererNode(Node):
             f"Loaded PyVista scene meshes={visual_index} triangles={loaded_triangles}"
         )
 
+    def _dynamic_obstacles_callback(self, msg):
+        frame_id = msg.header.frame_id or self.world_frame
+        if frame_id != self.world_frame:
+            self.get_logger().warning(
+                f"Ignoring dynamic obstacles in frame '{frame_id}'; expected '{self.world_frame}'.",
+                throttle_duration_sec=5.0,
+            )
+            return
+
+        desired_names = set()
+        for index, obstacle in enumerate(msg.obstacles):
+            obstacle_id = obstacle.id.strip() or f"obstacle_{index}"
+            name = f"dynamic_obstacle_{obstacle_id}"
+            desired_names.add(name)
+            signature = self._dynamic_obstacle_signature(obstacle)
+            entry = self.dynamic_obstacle_entries.get(name)
+            if entry is None or entry.get("signature") != signature:
+                if entry is not None:
+                    self._remove_dynamic_obstacle(name, entry)
+                entry = self._add_dynamic_obstacle(name, obstacle, signature)
+                if entry is None:
+                    continue
+                self.dynamic_obstacle_entries[name] = entry
+            entry["matrix"] = pose_to_matrix(obstacle.pose)
+
+        for name in list(self.dynamic_obstacle_entries):
+            if name not in desired_names:
+                self._remove_dynamic_obstacle(name, self.dynamic_obstacle_entries.pop(name))
+
+    def _dynamic_obstacle_signature(self, obstacle):
+        visual_type = int(obstacle.visual_type or obstacle.collision_type)
+        dimensions = tuple(float(v) for v in (obstacle.visual_dimensions or obstacle.collision_dimensions))
+        color = obstacle.color
+        return (
+            visual_type,
+            dimensions,
+            str(obstacle.visual_mesh_resource),
+            round(float(color.r), 4),
+            round(float(color.g), 4),
+            round(float(color.b), 4),
+            round(float(color.a), 4),
+        )
+
+    def _dynamic_obstacle_color(self, obstacle):
+        color = obstacle.color
+        if color.a <= 0.0:
+            return (0.95, 0.42, 0.12, 0.75)
+        return (
+            float(np.clip(color.r, 0.0, 1.0)),
+            float(np.clip(color.g, 0.0, 1.0)),
+            float(np.clip(color.b, 0.0, 1.0)),
+            float(np.clip(color.a, 0.0, 1.0)),
+        )
+
+    def _add_dynamic_obstacle(self, name, obstacle, signature):
+        if self.renderer_backend == "pyvista":
+            actor = self._add_pyvista_dynamic_obstacle(obstacle)
+            if actor is None:
+                return None
+            return {"signature": signature, "actor": actor, "matrix": pose_to_matrix(obstacle.pose)}
+
+        mesh, material = self._open3d_dynamic_obstacle_mesh_and_material(obstacle)
+        if mesh is None:
+            return None
+        self.scene.add_geometry(name, mesh, material)
+        return {"signature": signature, "matrix": pose_to_matrix(obstacle.pose)}
+
+    def _remove_dynamic_obstacle(self, name, entry):
+        if self.renderer_backend == "pyvista":
+            actor = entry.get("actor")
+            if actor is not None:
+                self.pyvista_plotter.remove_actor(actor, render=False)
+        else:
+            self.scene.remove_geometry(name)
+
+    def _add_pyvista_dynamic_obstacle(self, obstacle):
+        mesh = self._pyvista_dynamic_obstacle_mesh(obstacle)
+        if mesh is None:
+            return None
+        r, g, b, a = self._dynamic_obstacle_color(obstacle)
+        return self.pyvista_plotter.add_mesh(
+            mesh,
+            color=(r, g, b),
+            opacity=a,
+            smooth_shading=True,
+            ambient=0.35,
+            diffuse=0.65,
+            specular=0.12,
+        )
+
+    def _pyvista_dynamic_obstacle_mesh(self, obstacle):
+        visual_type, dimensions = self._dynamic_obstacle_type_and_dimensions(obstacle)
+        if visual_type == DynamicObstacle.GEOMETRY_SPHERE and len(dimensions) >= 1:
+            return pv.Sphere(radius=max(0.001, dimensions[0]), theta_resolution=32, phi_resolution=16)
+        if visual_type == DynamicObstacle.GEOMETRY_BOX and len(dimensions) >= 3:
+            x, y, z = [max(0.001, value) for value in dimensions[:3]]
+            return pv.Box(bounds=(-0.5 * x, 0.5 * x, -0.5 * y, 0.5 * y, -0.5 * z, 0.5 * z))
+        if visual_type == DynamicObstacle.GEOMETRY_CYLINDER and len(dimensions) >= 2:
+            return pv.Cylinder(
+                center=(0.0, 0.0, 0.0),
+                direction=(0.0, 0.0, 1.0),
+                radius=max(0.001, dimensions[0]),
+                height=max(0.001, dimensions[1]),
+                resolution=32,
+            )
+        if visual_type == DynamicObstacle.GEOMETRY_MESH and obstacle.visual_mesh_resource:
+            return open3d_to_polydata(read_triangle_mesh(resolve_mesh_uri(obstacle.visual_mesh_resource), self.max_mesh_triangles))
+        return None
+
+    def _open3d_dynamic_obstacle_mesh_and_material(self, obstacle):
+        mesh = self._open3d_dynamic_obstacle_mesh(obstacle)
+        if mesh is None:
+            return None, None
+        mesh.compute_vertex_normals()
+        r, g, b, a = self._dynamic_obstacle_color(obstacle)
+        material = o3d.visualization.rendering.MaterialRecord()
+        material.shader = "defaultLitTransparency" if a < 1.0 else "defaultLit"
+        material.base_color = [r, g, b, a]
+        return mesh, material
+
+    def _open3d_dynamic_obstacle_mesh(self, obstacle):
+        visual_type, dimensions = self._dynamic_obstacle_type_and_dimensions(obstacle)
+        if visual_type == DynamicObstacle.GEOMETRY_SPHERE and len(dimensions) >= 1:
+            return o3d.geometry.TriangleMesh.create_sphere(radius=max(0.001, dimensions[0]), resolution=24)
+        if visual_type == DynamicObstacle.GEOMETRY_BOX and len(dimensions) >= 3:
+            x, y, z = [max(0.001, value) for value in dimensions[:3]]
+            mesh = o3d.geometry.TriangleMesh.create_box(width=x, height=y, depth=z)
+            mesh.translate((-0.5 * x, -0.5 * y, -0.5 * z))
+            return mesh
+        if visual_type == DynamicObstacle.GEOMETRY_CYLINDER and len(dimensions) >= 2:
+            return o3d.geometry.TriangleMesh.create_cylinder(
+                radius=max(0.001, dimensions[0]),
+                depth=max(0.001, dimensions[1]),
+                resolution=32,
+            )
+        if visual_type == DynamicObstacle.GEOMETRY_MESH and obstacle.visual_mesh_resource:
+            return read_triangle_mesh(resolve_mesh_uri(obstacle.visual_mesh_resource), self.max_mesh_triangles)
+        return None
+
+    @staticmethod
+    def _dynamic_obstacle_type_and_dimensions(obstacle):
+        visual_type = int(obstacle.visual_type or obstacle.collision_type)
+        dimensions = tuple(float(v) for v in (obstacle.visual_dimensions or obstacle.collision_dimensions))
+        return visual_type, dimensions
+
     def _lookup_matrix(self, frame):
         try:
             transform = self.tf_buffer.lookup_transform(self.world_frame, frame, Time(), timeout=Duration(seconds=0.0))
@@ -487,6 +654,11 @@ class SimCameraRendererNode(Node):
                 actor.user_matrix = matrix
             else:
                 self.scene.set_geometry_transform(name, matrix)
+        for name, entry in self.dynamic_obstacle_entries.items():
+            if self.renderer_backend == "pyvista":
+                entry["actor"].user_matrix = entry["matrix"]
+            else:
+                self.scene.set_geometry_transform(name, entry["matrix"])
 
     def camera_info(self, prefix, stamp):
         msg = CameraInfo()

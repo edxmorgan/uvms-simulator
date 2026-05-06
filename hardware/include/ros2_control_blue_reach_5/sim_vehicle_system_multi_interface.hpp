@@ -122,6 +122,8 @@ namespace ros2_control_blue_reach_5
         void reset_vehicle_simulation_state(
             const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request);
         void reset_vehicle_estimators();
+        void seed_vehicle_estimator_from_state(const blue::dynamics::Vehicle::Pose_vel &state);
+        void seed_vehicle_sensor_state_from_state(const blue::dynamics::Vehicle::Pose_vel &state);
         void apply_pending_reset_request();
         void stop_ros_interfaces() noexcept;
 

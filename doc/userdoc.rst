@@ -43,7 +43,9 @@ Common Launch Arguments
 - ``task:=manual``: run PS4 direct command teleoperation.
 - ``task:=direct_thrusters``: run keyboard direct-thruster control.
 - ``record_data:=true``: start the rosbag2 MCAP recorder.
-- ``gui:=false``: run without RViz.
+- ``gui:=false``: disable GUI applications, including RViz, RViz overlays, and
+  PlotJuggler.
+- ``launch_rviz:=false``: disable only RViz and RViz overlays.
 
 Use the ``interactive`` task for the normal simulator tutorial path. See
 :doc:`controls_and_menus` for the menu and joystick behavior of each task.
