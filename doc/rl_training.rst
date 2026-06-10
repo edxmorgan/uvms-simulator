@@ -37,7 +37,8 @@ Python Training Loop
 
    env = UvmsBatchEnv(
        robot_count=env_cfg["robot_count"],
-       dt=env_cfg["dt"],
+       control_dt=env_cfg["control_dt"],
+       sim_dt=env_cfg["sim_dt"],
        max_episode_steps=env_cfg["max_episode_steps"],
        seed=env_cfg["seed"],
        task=task_cfg["name"],
@@ -54,13 +55,41 @@ Python Training Loop
 Timing Contract
 ---------------
 
-The ROS runtime uses ``controller_manager.update_rate`` as the
-``ros2_control`` loop frequency. The hardware receives that loop period as
-``period.seconds()`` in ``read`` and ``write``. Set the RL experiment ``dt`` to
-``1.0 / update_rate`` when training a policy intended for the ROS runtime.
+The RL API separates the policy/control step from the internal simulation step.
+One ``env.step(action)`` applies one policy action, holds it constant, advances
+the simulator for one or more internal substeps, then returns one observation,
+reward, and done flag per environment.
 
-The packaged ``hover_vehicle`` experiment uses ``dt: 0.006666666666666667``,
-matching the current ``150 Hz`` controller config.
+.. code-block:: text
+
+   control_dt = policy action interval
+   sim_dt     = internal simulator integration interval
+   substeps   = control_dt / sim_dt
+
+For transfer to the ROS runtime, match ``control_dt`` to the action interval
+used by the controller path. The ROS runtime uses
+``controller_manager.update_rate`` as the ``ros2_control`` loop frequency, so
+start with:
+
+.. code-block:: text
+
+   control_dt = 1.0 / controller_manager.update_rate
+
+Set ``sim_dt`` to the simulator integration period. If the simulator integrates
+at the same rate as the controller, use ``sim_dt: control_dt``. If it integrates
+faster, use the smaller simulator period and let ``uvms_rl`` substep.
+
+Example for a ``150 Hz`` controller and ``600 Hz`` simulator:
+
+.. code-block:: yaml
+
+   env:
+     control_dt: 0.006666666666666667
+     sim_dt: 0.001666666666666667
+
+The packaged ``hover_vehicle`` smoke test currently sets ``sim_dt`` equal to
+``control_dt`` until the production simulator integration rate is encoded in the
+experiment config.
 
 Data Contract
 -------------
@@ -134,7 +163,8 @@ Add experiments in ``uvms-simlab/uvms_rl``.
 
    env:
      robot_count: 1024
-     dt: 0.01
+     control_dt: 0.006666666666666667
+     sim_dt: 0.001666666666666667
      max_episode_steps: 500
      seed: 7
 
