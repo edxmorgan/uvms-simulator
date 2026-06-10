@@ -1,0 +1,16 @@
+# Reset the mock/batched UVMS simulator.
+
+bool hold_commands
+
+# Optional new selected robot index.
+bool set_selected_robot
+uint32 selected_robot_index
+
+# Optional explicit observation/state reset. If provided, states must be
+# flattened row-major [robot_count, observation_dim]. If empty, all states
+# reset to zero.
+float32[] states
+---
+bool success
+string message
+uint64 tick_id

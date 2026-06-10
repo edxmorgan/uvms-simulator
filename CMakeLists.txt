@@ -42,6 +42,7 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
+find_package(pybind11 REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
@@ -54,6 +55,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SimCameraDynamics.msg"
   "msg/SimVehicleDynamics.msg"
   "msg/SimManipulatorDynamics.msg"
+  "msg/BatchCommand.msg"
+  "msg/BatchObservation.msg"
+  "srv/ResetBatchSim.srv"
   "srv/ResetSimUvms.srv"
   "srv/SetDynamicObstacles.srv"
   "srv/SetSimCameraDynamics.srv"
@@ -73,11 +77,25 @@ message(STATUS "GStreamer App libraries: ${GSTREAMER_APP_LIBRARIES}")
 # --- End GStreamer additions ---
 
 set(PROJECT_LIB ${PROJECT_NAME}_hardware)
+set(BATCH_UVMS_CORE_LIB ${PROJECT_NAME}_batch_uvms_core)
+
+add_library(
+  ${BATCH_UVMS_CORE_LIB}
+  STATIC
+  hardware/batch_uvms_core.cpp
+)
+target_compile_features(${BATCH_UVMS_CORE_LIB} PUBLIC cxx_std_17)
+target_include_directories(${BATCH_UVMS_CORE_LIB} PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
+  $<INSTALL_INTERFACE:include/ros2_control_blue_reach_5>
+)
+set_target_properties(${BATCH_UVMS_CORE_LIB} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 ## COMPILE
 add_library(
   ${PROJECT_LIB}
   SHARED
+  hardware/batch_sim_uvms_system_hardware.cpp
   hardware/sim_reach_system_multi_interface.cpp
   hardware/reach_system_multi_Interface.cpp
   hardware/utils.cpp
@@ -96,7 +114,7 @@ add_library(
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(${PROJECT_LIB} PUBLIC "${cpp_typesupport_target}")
 
-target_link_libraries(${PROJECT_LIB} PUBLIC casadi)
+target_link_libraries(${PROJECT_LIB} PUBLIC casadi ${BATCH_UVMS_CORE_LIB})
 
 target_compile_features(${PROJECT_LIB} PUBLIC cxx_std_17)
 target_include_directories(${PROJECT_LIB} PUBLIC
@@ -112,6 +130,13 @@ set_target_properties(${PROJECT_LIB} PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 # Causes the visibility macros to use dllexport rather than dllimport,
 # which is appropriate when building the dll but not consuming it.
 target_compile_definitions(${PROJECT_LIB} PRIVATE "ROS2_CONTROL_BLUE_REACH_5_BUILDING_DLL")
+
+pybind11_add_module(_batch_uvms_core hardware/python/batch_uvms_core_pybind.cpp)
+target_compile_features(_batch_uvms_core PUBLIC cxx_std_17)
+target_link_libraries(_batch_uvms_core PRIVATE ${BATCH_UVMS_CORE_LIB})
+target_include_directories(_batch_uvms_core PRIVATE
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/hardware/include>
+)
 
 add_executable(gstreamer_camera_node
   hardware/gstreamer_camera_node.cpp
@@ -161,11 +186,15 @@ install(
 # Install the Python package "bringup"  ← ADDED
 ament_python_install_package(bringup)
 
-install(TARGETS ${PROJECT_LIB}
+install(TARGETS ${PROJECT_LIB} ${BATCH_UVMS_CORE_LIB}
   EXPORT export_ros2_control_blue_reach_5
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
+)
+
+install(TARGETS _batch_uvms_core
+  LIBRARY DESTINATION ${PYTHON_INSTALL_DIR}/${PROJECT_NAME}
 )
 
 install(TARGETS gstreamer_camera_node

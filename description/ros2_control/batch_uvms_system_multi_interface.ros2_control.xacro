@@ -1,0 +1,154 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!--
+    Batched whole-body UVMS simulation hardware interface.
+
+    This xacro models the batch as one ros2_control system. Large-N robot
+    state/action arrays move through the batch ROS API; ros2_control exposes
+    aggregate diagnostics and one selected UVMS proxy for debugging.
+
+    Fixed mock model shape:
+      vehicle_state_dim=12 means [x, y, z, roll, pitch, yaw, u, v, w, p, q, r]
+      arm_joint_count=5 means q[5] + qd[5]
+      observation_dim=22, action_dim=13
+  -->
+  <xacro:macro name="batch_uvms_system_multi_interface" params="
+      name
+      robot_count
+      state_update_frequency
+      world_frame_id:=world
+      selected_proxy_parent_link:=world
+      selected_robot_index:=0
+      publish_state_rate:=10.0
+      batch_observation_topic:=/uvms_batch/observations
+      batch_command_topic:=/uvms_batch/commands
+      batch_reset_service:=/uvms_batch/reset">
+
+    <link name="${name}_selected_arm_link_0"/>
+    <link name="${name}_selected_arm_link_1"/>
+    <link name="${name}_selected_arm_link_2"/>
+    <link name="${name}_selected_arm_link_3"/>
+    <link name="${name}_selected_arm_link_4"/>
+    <link name="${name}_selected_arm_link_5"/>
+
+    <joint name="${name}_selected_arm_mount" type="fixed">
+      <parent link="${selected_proxy_parent_link}"/>
+      <child link="${name}_selected_arm_link_0"/>
+    </joint>
+
+    <joint name="${name}_selected_arm_joint_1" type="continuous">
+      <parent link="${name}_selected_arm_link_0"/>
+      <child link="${name}_selected_arm_link_1"/>
+      <axis xyz="0 0 1"/>
+    </joint>
+    <joint name="${name}_selected_arm_joint_2" type="continuous">
+      <parent link="${name}_selected_arm_link_1"/>
+      <child link="${name}_selected_arm_link_2"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+    <joint name="${name}_selected_arm_joint_3" type="continuous">
+      <parent link="${name}_selected_arm_link_2"/>
+      <child link="${name}_selected_arm_link_3"/>
+      <axis xyz="0 1 0"/>
+    </joint>
+    <joint name="${name}_selected_arm_joint_4" type="continuous">
+      <parent link="${name}_selected_arm_link_3"/>
+      <child link="${name}_selected_arm_link_4"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+    <joint name="${name}_selected_arm_joint_5" type="continuous">
+      <parent link="${name}_selected_arm_link_4"/>
+      <child link="${name}_selected_arm_link_5"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+
+    <ros2_control name="${name}" type="system">
+      <hardware>
+        <plugin>ros2_control_blue_reach_5/BatchSimUvmsSystemHardware</plugin>
+        <param name="robot_count">${robot_count}</param>
+        <param name="world_frame_id">${world_frame_id}</param>
+        <param name="state_update_frequency">${state_update_frequency}</param>
+        <param name="selected_robot_index">${selected_robot_index}</param>
+        <param name="publish_state_rate">${publish_state_rate}</param>
+        <param name="batch_observation_topic">${batch_observation_topic}</param>
+        <param name="batch_command_topic">${batch_command_topic}</param>
+        <param name="batch_reset_service">${batch_reset_service}</param>
+      </hardware>
+
+      <gpio name="${name}_batch_io">
+        <command_interface name="selected_robot_index"/>
+        <command_interface name="hold_commands"/>
+        <command_interface name="reset_epoch"/>
+        <command_interface name="selected_vehicle.force.x"/>
+        <command_interface name="selected_vehicle.force.y"/>
+        <command_interface name="selected_vehicle.force.z"/>
+        <command_interface name="selected_vehicle.torque.x"/>
+        <command_interface name="selected_vehicle.torque.y"/>
+        <command_interface name="selected_vehicle.torque.z"/>
+
+        <state_interface name="robot_count"/>
+        <state_interface name="sim_time"/>
+        <state_interface name="sim_period"/>
+        <state_interface name="step_count"/>
+        <state_interface name="gpu_step_ms"/>
+        <state_interface name="host_to_device_ms"/>
+        <state_interface name="device_to_host_ms"/>
+        <state_interface name="publish_ms"/>
+        <state_interface name="dropped_command_count"/>
+        <state_interface name="selected_robot_index"/>
+
+        <state_interface name="selected_vehicle.position.x"/>
+        <state_interface name="selected_vehicle.position.y"/>
+        <state_interface name="selected_vehicle.position.z"/>
+        <state_interface name="selected_vehicle.roll"/>
+        <state_interface name="selected_vehicle.pitch"/>
+        <state_interface name="selected_vehicle.yaw"/>
+        <state_interface name="selected_vehicle.velocity.x"/>
+        <state_interface name="selected_vehicle.velocity.y"/>
+        <state_interface name="selected_vehicle.velocity.z"/>
+        <state_interface name="selected_vehicle.angular_velocity.x"/>
+        <state_interface name="selected_vehicle.angular_velocity.y"/>
+        <state_interface name="selected_vehicle.angular_velocity.z"/>
+        <state_interface name="selected_vehicle.force.x"/>
+        <state_interface name="selected_vehicle.force.y"/>
+        <state_interface name="selected_vehicle.force.z"/>
+        <state_interface name="selected_vehicle.torque.x"/>
+        <state_interface name="selected_vehicle.torque.y"/>
+        <state_interface name="selected_vehicle.torque.z"/>
+      </gpio>
+
+      <joint name="${name}_selected_arm_joint_1">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+        <command_interface name="effort"/>
+      </joint>
+      <joint name="${name}_selected_arm_joint_2">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+        <command_interface name="effort"/>
+      </joint>
+      <joint name="${name}_selected_arm_joint_3">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+        <command_interface name="effort"/>
+      </joint>
+      <joint name="${name}_selected_arm_joint_4">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+        <command_interface name="effort"/>
+      </joint>
+      <joint name="${name}_selected_arm_joint_5">
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>
+        <command_interface name="effort"/>
+      </joint>
+    </ros2_control>
+  </xacro:macro>
+
+</robot>

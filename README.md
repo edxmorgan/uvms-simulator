@@ -13,6 +13,7 @@ Exported package name: `ros2_control_blue_reach_5`
 - CasADi-backed vehicle and manipulator dynamics
 - RViz, TF, rosbag, PlotJuggler, and HIL bringup utilities
 - Per-robot combined reset and release services for simulated UVMS robots
+- Experimental batched UVMS core for large-N simulation and future RL training adapters
 
 ## Requirements
 
