@@ -70,7 +70,8 @@ FloatArray vehicle_step(
     py::handle vehicle_wrench_obj,
     py::handle vehicle_params_obj,
     py::handle dt_obj,
-    py::handle external_wrench_obj) {
+    py::handle external_wrench_obj,
+    int max_threads) {
     FloatArray x_vehicle = as_array(x_vehicle_obj, "x_vehicle");
     FloatArray vehicle_wrench = as_array(vehicle_wrench_obj, "vehicle_wrench");
     FloatArray vehicle_params = as_array(vehicle_params_obj, "vehicle_params");
@@ -91,7 +92,10 @@ FloatArray vehicle_step(
     FloatArray out({n, kVehicleStateDim});
     uvms_cpu::VehicleStepHostPointers ptrs{
         data(x_vehicle), data(vehicle_wrench), data(vehicle_params), data(dt), data(external_wrench), mutable_data(out)};
-    uvms_cpu::step_vehicle(ptrs, static_cast<int>(n));
+    {
+        py::gil_scoped_release release;
+        uvms_cpu::step_vehicle(ptrs, static_cast<int>(n), max_threads);
+    }
     return out;
 }
 
@@ -104,7 +108,8 @@ FloatArray arm_step(
     py::handle ee_damping_obj,
     py::handle ee_stiffness_obj,
     py::handle lock_mask_obj,
-    py::handle baumgarte_alpha_obj) {
+    py::handle baumgarte_alpha_obj,
+    int max_threads) {
     FloatArray x_arm = as_array(x_arm_obj, "x_arm");
     FloatArray arm_torque = as_array(arm_torque_obj, "arm_torque");
     FloatArray dt = as_array(dt_obj, "dt");
@@ -138,7 +143,10 @@ FloatArray arm_step(
     uvms_cpu::ArmStepHostPointers ptrs{
         data(x_arm), data(arm_torque), data(dt), data(arm_params), data(ee_mass), data(ee_damping),
         data(ee_stiffness), data(lock_mask), data(baumgarte_alpha), mutable_data(out)};
-    uvms_cpu::step_arm(ptrs, static_cast<int>(n));
+    {
+        py::gil_scoped_release release;
+        uvms_cpu::step_arm(ptrs, static_cast<int>(n), max_threads);
+    }
     return out;
 }
 
@@ -154,7 +162,8 @@ FloatArray uvms_step(
     py::handle ee_damping_obj,
     py::handle ee_stiffness_obj,
     py::handle lock_mask_obj,
-    py::handle baumgarte_alpha_obj) {
+    py::handle baumgarte_alpha_obj,
+    int max_threads) {
     FloatArray x_uvms = as_array(x_uvms_obj, "x_uvms");
     FloatArray vehicle_wrench = as_array(vehicle_wrench_obj, "vehicle_wrench");
     FloatArray arm_torque = as_array(arm_torque_obj, "arm_torque");
@@ -195,7 +204,10 @@ FloatArray uvms_step(
         data(x_uvms), data(vehicle_wrench), data(arm_torque), data(vehicle_params), data(arm_params),
         data(dt), data(external_wrench), data(ee_mass), data(ee_damping), data(ee_stiffness),
         data(lock_mask), data(baumgarte_alpha), mutable_data(out)};
-    uvms_cpu::step_uvms(ptrs, static_cast<int>(n));
+    {
+        py::gil_scoped_release release;
+        uvms_cpu::step_uvms(ptrs, static_cast<int>(n), max_threads);
+    }
     return out;
 }
 
@@ -210,7 +222,20 @@ PYBIND11_MODULE(_uvms_cpu_dynamics, module) {
     module.attr("ARM_TORQUE_DIM") = py::int_(kArmTorqueDim);
     module.attr("VEHICLE_PARAM_DIM") = py::int_(kVehicleParamDim);
     module.attr("ARM_PARAM_DIM") = py::int_(kArmParamDim);
-    module.def("vehicle_step", &vehicle_step);
-    module.def("arm_step", &arm_step);
-    module.def("uvms_step", &uvms_step);
+    module.def(
+        "vehicle_step", &vehicle_step,
+        py::arg("x_vehicle"), py::arg("vehicle_wrench"), py::arg("vehicle_params"),
+        py::arg("dt"), py::arg("external_wrench"), py::arg("max_threads") = 0);
+    module.def(
+        "arm_step", &arm_step,
+        py::arg("x_arm"), py::arg("arm_torque"), py::arg("dt"), py::arg("arm_params"),
+        py::arg("ee_mass"), py::arg("ee_damping"), py::arg("ee_stiffness"),
+        py::arg("lock_mask"), py::arg("baumgarte_alpha"), py::arg("max_threads") = 0);
+    module.def(
+        "uvms_step", &uvms_step,
+        py::arg("x_uvms"), py::arg("vehicle_wrench"), py::arg("arm_torque"),
+        py::arg("vehicle_params"), py::arg("arm_params"), py::arg("dt"),
+        py::arg("external_wrench"), py::arg("ee_mass"), py::arg("ee_damping"),
+        py::arg("ee_stiffness"), py::arg("lock_mask"), py::arg("baumgarte_alpha"),
+        py::arg("max_threads") = 0);
 }

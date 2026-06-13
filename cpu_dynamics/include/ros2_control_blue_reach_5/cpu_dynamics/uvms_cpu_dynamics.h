@@ -42,8 +42,8 @@ struct UvmsStepHostPointers {
     float* x_uvms_next;
 };
 
-void step_vehicle(const VehicleStepHostPointers& ptrs, int batch_size);
-void step_arm(const ArmStepHostPointers& ptrs, int batch_size);
-void step_uvms(const UvmsStepHostPointers& ptrs, int batch_size);
+void step_vehicle(const VehicleStepHostPointers& ptrs, int batch_size, int max_threads = 0);
+void step_arm(const ArmStepHostPointers& ptrs, int batch_size, int max_threads = 0);
+void step_uvms(const UvmsStepHostPointers& ptrs, int batch_size, int max_threads = 0);
 
 }  // namespace uvms_cpu
