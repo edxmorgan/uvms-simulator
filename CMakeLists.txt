@@ -11,6 +11,31 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "(GNU|Clang)")
   add_compile_options(-Wall -Wextra)
 endif()
 
+set(UVMS_ENABLE_CUDA_DYNAMICS "AUTO" CACHE STRING "Build CUDA UVMS dynamics: AUTO, ON, or OFF")
+set_property(CACHE UVMS_ENABLE_CUDA_DYNAMICS PROPERTY STRINGS AUTO ON OFF)
+set(UVMS_CUDA_ARCHITECTURES "90-virtual" CACHE STRING "CUDA architectures for optional UVMS GPU dynamics")
+set(UVMS_CUDA_DYNAMICS_AVAILABLE FALSE)
+
+if(NOT UVMS_ENABLE_CUDA_DYNAMICS STREQUAL "OFF")
+  if(DEFINED ENV{CUDACXX} AND EXISTS "$ENV{CUDACXX}")
+    set(CMAKE_CUDA_COMPILER "$ENV{CUDACXX}" CACHE FILEPATH "CUDA compiler" FORCE)
+  endif()
+  find_program(UVMS_NVCC_EXECUTABLE NAMES nvcc HINTS /usr/local/cuda/bin)
+  if(UVMS_NVCC_EXECUTABLE)
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+      set(CMAKE_CUDA_ARCHITECTURES "${UVMS_CUDA_ARCHITECTURES}" CACHE STRING "CUDA architectures" FORCE)
+    endif()
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+    set(UVMS_CUDA_DYNAMICS_AVAILABLE TRUE)
+    message(STATUS "UVMS CUDA dynamics enabled with CMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES}")
+  elseif(UVMS_ENABLE_CUDA_DYNAMICS STREQUAL "ON")
+    message(FATAL_ERROR "UVMS_ENABLE_CUDA_DYNAMICS=ON but nvcc was not found. Set CUDACXX=/path/to/nvcc or use UVMS_ENABLE_CUDA_DYNAMICS=OFF.")
+  else()
+    message(STATUS "UVMS CUDA dynamics disabled: nvcc not found")
+  endif()
+endif()
+
 # find dependencies
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   hardware_interface
@@ -78,6 +103,10 @@ message(STATUS "GStreamer App libraries: ${GSTREAMER_APP_LIBRARIES}")
 
 set(PROJECT_LIB ${PROJECT_NAME}_hardware)
 set(BATCH_UVMS_CORE_LIB ${PROJECT_NAME}_batch_uvms_core)
+
+if(UVMS_CUDA_DYNAMICS_AVAILABLE)
+  add_subdirectory(gpu_dynamics)
+endif()
 
 add_library(
   ${BATCH_UVMS_CORE_LIB}
@@ -226,4 +255,7 @@ endif()
 ament_export_targets(export_ros2_control_blue_reach_5 HAS_LIBRARY_TARGET)
 ament_export_dependencies(${THIS_PACKAGE_INCLUDE_DEPENDS})
 ament_export_dependencies(rosidl_default_runtime)
+if(UVMS_CUDA_DYNAMICS_AVAILABLE)
+  ament_export_dependencies(CUDAToolkit)
+endif()
 ament_package()

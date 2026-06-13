@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "casadi_real": "float",
+  "kernels": [
+    {
+      "function_name": "Vnext_reg",
+      "kernel_name": "Vnext_reg_kernel",
+      "device_name": "device_Vnext_reg_eval",
+      "header": "Vnext_reg.cuh",
+      "source": "Vnext_reg.cu",
+      "batch_inputs": [
+        0,
+        1,
+        2,
+        3,
+        4
+      ],
+      "inputs": [
+        {
+          "index": 0,
+          "name": "i0",
+          "shape": [
+            12,
+            1
+          ],
+          "nnz": 12
+        },
+        {
+          "index": 1,
+          "name": "i1",
+          "shape": [
+            6,
+            1
+          ],
+          "nnz": 6
+        },
+        {
+          "index": 2,
+          "name": "i2",
+          "shape": [
+            33,
+            1
+          ],
+          "nnz": 33
+        },
+        {
+          "index": 3,
+          "name": "i3",
+          "shape": [
+            1,
+            1
+          ],
+          "nnz": 1
+        },
+        {
+          "index": 4,
+          "name": "i4",
+          "shape": [
+            6,
+            1
+          ],
+          "nnz": 6
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "o0",
+          "shape": [
+            12,
+            1
+          ],
+          "nnz": 12
+        }
+      ],
+      "work": {
+        "sz_arg": 5,
+        "sz_res": 1,
+        "sz_iw": 0,
+        "sz_w": 830,
+        "n_nodes": 35530,
+        "n_instructions": 35542
+      }
+    },
+    {
+      "function_name": "Mnext_reg",
+      "kernel_name": "Mnext_reg_kernel",
+      "device_name": "device_Mnext_reg_eval",
+      "header": "Mnext_reg_fe5.cuh",
+      "source": "Mnext_reg_fe5.cu",
+      "batch_inputs": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "inputs": [
+        {
+          "index": 0,
+          "name": "i0",
+          "shape": [
+            10,
+            1
+          ],
+          "nnz": 10
+        },
+        {
+          "index": 1,
+          "name": "i1",
+          "shape": [
+            5,
+            1
+          ],
+          "nnz": 5
+        },
+        {
+          "index": 2,
+          "name": "i2",
+          "shape": [
+            1,
+            1
+          ],
+          "nnz": 1
+        },
+        {
+          "index": 3,
+          "name": "i3",
+          "shape": [
+            81,
+            1
+          ],
+          "nnz": 81
+        },
+        {
+          "index": 4,
+          "name": "i4",
+          "shape": [
+            1,
+            1
+          ],
+          "nnz": 1
+        },
+        {
+          "index": 5,
+          "name": "i5",
+          "shape": [
+            1,
+            1
+          ],
+          "nnz": 1
+        },
+        {
+          "index": 6,
+          "name": "i6",
+          "shape": [
+            1,
+            1
+          ],
+          "nnz": 1
+        },
+        {
+          "index": 7,
+          "name": "i7",
+          "shape": [
+            4,
+            1
+          ],
+          "nnz": 4
+        },
+        {
+          "index": 8,
+          "name": "i8",
+          "shape": [
+            1,
+            1
+          ],
+          "nnz": 1
+        }
+      ],
+      "outputs": [
+        {
+          "index": 0,
+          "name": "o0",
+          "shape": [
+            10,
+            1
+          ],
+          "nnz": 10
+        }
+      ],
+      "work": {
+        "sz_arg": 9,
+        "sz_res": 1,
+        "sz_iw": 0,
+        "sz_w": 1073,
+        "n_nodes": 320304,
+        "n_instructions": 320314
+      }
+    }
+  ]
+}
