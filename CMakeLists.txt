@@ -104,6 +104,8 @@ message(STATUS "GStreamer App libraries: ${GSTREAMER_APP_LIBRARIES}")
 set(PROJECT_LIB ${PROJECT_NAME}_hardware)
 set(BATCH_UVMS_CORE_LIB ${PROJECT_NAME}_batch_uvms_core)
 
+add_subdirectory(cpu_dynamics)
+
 if(UVMS_CUDA_DYNAMICS_AVAILABLE)
   add_subdirectory(gpu_dynamics)
 endif()
