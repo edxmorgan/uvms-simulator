@@ -201,15 +201,13 @@ built with CUDA dynamics enabled. It does not silently fall back to CPU; if the
 GPU extension or PyTorch CUDA support is missing, construction fails so the
 training run cannot accidentally use the wrong backend.
 
-Before training against the GPU backend, validate the built kernels:
+Before training against the GPU backend, validate the installed GPU dynamics
+once after building:
 
 .. code-block:: bash
 
    ros2 run ros2_control_blue_reach_5 uvms_gpu_dynamics_correctness
    ros2 run ros2_control_blue_reach_5 uvms_gpu_dynamics_benchmark
 
-The GPU UVMS step intentionally avoids the monolithic arm ``fe5`` CUDA
-translation unit. The public arm step still advances by the requested ``dt``;
-internally the generated arm dynamics are split into smaller CUDA work units so
-native Blackwell builds remain reliable while preserving the same integration
-contract expected by the RL backend.
+After those pass, switch the experiment config to ``backend: gpu`` and use the
+same task and trainer code.
