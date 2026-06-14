@@ -11,9 +11,6 @@ target_include_directories(${UVMS_CPU_DYNAMICS_LIB} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
-target_include_directories(${UVMS_CPU_DYNAMICS_LIB} PRIVATE
-  ${PROJECT_SOURCE_DIR}/gpu_dynamics/generated
-)
 set_target_properties(${UVMS_CPU_DYNAMICS_LIB} PROPERTIES
   OUTPUT_NAME uvms_cpu_dynamics
   POSITION_INDEPENDENT_CODE ON
