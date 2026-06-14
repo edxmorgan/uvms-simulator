@@ -11,9 +11,9 @@ Exported package name: `ros2_control_blue_reach_5`
 - Simulated and hardware-backed `ros2_control` system interfaces
 - Multi-robot UVMS spawning
 - CasADi-backed vehicle and manipulator dynamics
-- RViz, TF, rosbag, PlotJuggler, and HIL bringup utilities
+- RViz, TF, rosbag, PlotJuggler, and HIL launch utilities
 - Per-robot combined reset and release services for simulated UVMS robots
-- Experimental batched UVMS core for large-N simulation and future RL training adapters
+- Batched CPU/GPU UVMS core for large-N simulation and RL training through `uvms_rl`
 
 ## Requirements
 

@@ -88,9 +88,9 @@ Example for a ``150 Hz`` controller and ``600 Hz`` simulator:
      control_dt: 0.006666666666666667
      sim_dt: 0.001666666666666667
 
-The packaged ``hover_vehicle`` smoke test currently sets ``sim_dt`` equal to
-``control_dt`` until the production simulator integration rate is encoded in the
-experiment config.
+The packaged ``hover_vehicle`` smoke test sets ``sim_dt`` equal to
+``control_dt`` for a simple one-substep rollout. For transfer experiments, set
+both values explicitly to the controller and simulator rates you want to match.
 
 Data Contract
 -------------
