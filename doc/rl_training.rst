@@ -15,11 +15,15 @@ Quick Start
    colcon build --packages-select ros2_control_blue_reach_5 simlab
    source install/setup.bash
 
-   ros2 run simlab uvms_rl_random_policy --config hover_vehicle --steps 100
+   ros2 run simlab uvms_rl_train_rsl \
+     --config hover_vehicle_stage1_fixed \
+     --backend gpu \
+     --device cuda \
+     --num-envs 2048
 
-``hover_vehicle`` is the packaged smoke-test experiment. It runs random actions
-against ``1024`` environments by default and prints observation, reward, done,
-time, and task metric summaries.
+``hover_vehicle_stage1_fixed`` is the first curriculum experiment. It trains a
+fixed-target hover policy through the GPU batch backend and writes logs and
+checkpoints under ``recordings/rl_runs`` unless ``--log-dir`` is supplied.
 
 Python Training Loop
 --------------------
@@ -81,14 +85,21 @@ The packaged command trains from the experiment's ``trainer.rsl_rl`` config:
 
 .. code-block:: bash
 
-   ros2 run simlab uvms_rl_train_rsl --config hover_vehicle --iterations 25
+   ros2 run simlab uvms_rl_train_rsl --config hover_vehicle_stage1_fixed --backend gpu --device cuda
 
 Training logs and checkpoints are written under ``recordings/rl_runs`` by
-default. Use a small override while checking the code path:
+default. Override the backend, number of environments, iteration count, or log
+directory from the command line:
 
 .. code-block:: bash
 
-   ros2 run simlab uvms_rl_train_rsl --config hover_vehicle --num-envs 128 --iterations 2
+   ros2 run simlab uvms_rl_train_rsl \
+     --config hover_vehicle_stage1_fixed \
+     --backend gpu \
+     --device cuda \
+     --num-envs 2048 \
+     --iterations 3 \
+     --log-dir /tmp/uvms_rsl_hover_stage1
 
 RSL-RL does not call ``reset`` before training, so the adapter resets once at
 construction. During training it performs same-step resets for completed
@@ -131,8 +142,8 @@ Example for a ``150 Hz`` controller and ``600 Hz`` simulator:
      control_dt: 0.006666666666666667
      sim_dt: 0.001666666666666667
 
-The packaged ``hover_vehicle`` smoke test sets ``sim_dt`` equal to
-``control_dt`` for a simple one-substep rollout. For transfer experiments, set
+The packaged hover experiments set ``sim_dt`` equal to ``control_dt`` for a
+simple one-substep rollout. For transfer experiments, set
 both values explicitly to the controller and simulator rates you want to match.
 
 Data Contract
@@ -228,7 +239,7 @@ experiment owns its config and task code in one place:
    cd ~/ros_ws
    colcon build --packages-select simlab
    source install/setup.bash
-   ros2 run simlab uvms_rl_random_policy --config my_experiment --steps 100
+   ros2 run simlab uvms_rl_train_rsl --config my_experiment --backend cpu --iterations 1
 
 Backend Boundary
 ----------------
