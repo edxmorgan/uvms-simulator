@@ -318,6 +318,25 @@ public:
     commands_held_ = false;
   }
 
+  void set_observations(py::array_t<float, py::array::c_style | py::array::forcecast> observations)
+  {
+    observations_host_ = flatten_float_array(observations);
+    if (observations_host_.size() != robot_count_ * BatchUvmsCore::kObservationDim) {
+      throw std::invalid_argument("observations must have shape [robot_count, observation_dim] or flat matching size");
+    }
+
+    std::vector<float> vehicle_host;
+    std::vector<float> arm_host;
+    split_observations(observations_host_, robot_count_, vehicle_host, arm_host);
+    vehicle_state_.copy_from_host(vehicle_host);
+    arm_state_.copy_from_host(arm_host);
+    vehicle_next_.fill(0.0F);
+    arm_next_.fill(0.0F);
+    rewards_.assign(robot_count_, 0.0F);
+    dones_.assign(robot_count_, 0U);
+    observations_dirty_ = false;
+  }
+
   void set_vehicle_params(py::array_t<float, py::array::c_style | py::array::forcecast> params)
   {
     const std::vector<float> flat = flatten_float_array(params);
@@ -578,6 +597,7 @@ PYBIND11_MODULE(_batch_uvms_gpu_core, module)
       py::arg("baumgarte_alpha"))
     .def("set_actions", &PyBatchUvmsGpuCore::set_actions, py::arg("actions"), py::arg("tick_id"))
     .def("set_actions_from_device", &PyBatchUvmsGpuCore::set_actions_from_device, py::arg("actions_ptr"), py::arg("tick_id"))
+    .def("set_observations", &PyBatchUvmsGpuCore::set_observations, py::arg("observations"))
     .def("step", &PyBatchUvmsGpuCore::step, py::arg("dt"))
     .def("observations", &PyBatchUvmsGpuCore::observations)
     .def("actions", &PyBatchUvmsGpuCore::actions)

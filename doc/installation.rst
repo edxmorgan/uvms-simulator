@@ -90,6 +90,13 @@ Ruckig, and simulated camera rendering:
    python3 -m pip install pyPS4Controller pynput scipy casadi ruckig \
        python-fcl trimesh pycollada pyvista open3d
 
+Install the optional RSL-RL training dependency when you want to train through
+the ``uvms_rl`` RSL-RL adapter:
+
+.. code-block:: shell
+
+   python3 -m pip install rsl-rl-lib
+
 OMPL Python Bindings
 --------------------
 

@@ -52,6 +52,7 @@ public:
   void set_task(std::shared_ptr<BatchUvmsTask> task);
   void reset(bool hold_commands);
   bool reset(bool hold_commands, const std::vector<float> & observations);
+  bool set_observations(const std::vector<float> & observations);
   bool set_vehicle_params(const std::vector<float> & params);
   bool set_arm_params(const std::vector<float> & params);
   void set_arm_environment(

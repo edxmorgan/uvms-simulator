@@ -53,6 +53,49 @@ Python Training Loop
 ``obs`` is the task observation used by the policy. Use
 ``env.sim_observations()`` only when you need the raw simulator state.
 
+RSL-RL Adapter
+--------------
+
+Use ``RslRlUvmsEnv`` when training with
+`RSL-RL <https://github.com/leggedrobotics/rsl_rl>`_. The adapter wraps
+``UvmsBatchEnv`` as RSL-RL's ``VecEnv`` interface and returns observations as a
+``TensorDict`` with the ``policy`` observation group.
+
+Install RSL-RL first if it is not already present:
+
+.. code-block:: bash
+
+   python3 -m pip install rsl-rl-lib
+
+.. code-block:: python
+
+   from rsl_rl.runners import OnPolicyRunner
+   from uvms_rl.rsl_adapter import RslRlUvmsEnv
+
+
+   env = RslRlUvmsEnv.from_experiment("hover_vehicle")
+   runner = OnPolicyRunner(env, train_cfg, log_dir="runs/hover_vehicle", device=str(env.device))
+   runner.learn(num_learning_iterations=1000)
+
+The packaged command trains from the experiment's ``trainer.rsl_rl`` config:
+
+.. code-block:: bash
+
+   ros2 run simlab uvms_rl_train_rsl --config hover_vehicle --iterations 25
+
+Training logs and checkpoints are written under ``recordings/rl_runs`` by
+default. Use a small override while checking the code path:
+
+.. code-block:: bash
+
+   ros2 run simlab uvms_rl_train_rsl --config hover_vehicle --num-envs 128 --iterations 2
+
+RSL-RL does not call ``reset`` before training, so the adapter resets once at
+construction. During training it performs same-step resets for completed
+environment rows: returned ``dones`` still mark the terminal transition, while
+the returned observations for those rows are already the next episode's initial
+observations.
+
 Timing Contract
 ---------------
 
@@ -148,6 +191,11 @@ experiment owns its config and task code in one place:
 
        def reset(self, env):
            # Return initial raw simulator state with shape [N, 22].
+           ...
+
+       def reset_indices(self, env, indices):
+           # Return reset raw simulator states with shape [len(indices), 22].
+           # Required when using RSL-RL same-step resets.
            ...
 
        def policy_observation(self, env, sim_obs, actions):

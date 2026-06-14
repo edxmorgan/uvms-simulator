@@ -153,6 +153,17 @@ bool BatchUvmsCore::reset(bool hold_commands, const std::vector<float> & observa
   return true;
 }
 
+bool BatchUvmsCore::set_observations(const std::vector<float> & observations)
+{
+  if (!observation_shape_matches(observations.size())) {
+    return false;
+  }
+  observations_ = observations;
+  next_observations_.assign(robot_count_ * kObservationDim, 0.0F);
+  compute_task();
+  return true;
+}
+
 bool BatchUvmsCore::set_vehicle_params(const std::vector<float> & params)
 {
   if (params.size() != kVehicleParamDim) {

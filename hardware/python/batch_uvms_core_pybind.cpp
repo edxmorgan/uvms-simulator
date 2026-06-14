@@ -81,6 +81,14 @@ public:
     }
   }
 
+  void set_observations(py::array_t<float, py::array::c_style | py::array::forcecast> observations)
+  {
+    const std::vector<float> flat = flatten_float_array(observations);
+    if (!core_.set_observations(flat)) {
+      throw std::invalid_argument("observations must have shape [robot_count, observation_dim] or flat matching size");
+    }
+  }
+
   void set_vehicle_params(py::array_t<float, py::array::c_style | py::array::forcecast> params)
   {
     const std::vector<float> flat = flatten_float_array(params);
@@ -182,6 +190,7 @@ PYBIND11_MODULE(_batch_uvms_core, module)
       py::arg("endeffector_stiffness"),
       py::arg("baumgarte_alpha"))
     .def("set_actions", &PyBatchUvmsCore::set_actions, py::arg("actions"), py::arg("tick_id"))
+    .def("set_observations", &PyBatchUvmsCore::set_observations, py::arg("observations"))
     .def("step", &PyBatchUvmsCore::step, py::arg("dt"))
     .def("observations", &PyBatchUvmsCore::observations)
     .def("actions", &PyBatchUvmsCore::actions)
