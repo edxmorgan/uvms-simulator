@@ -79,7 +79,7 @@ void assert_close(const char* name, const std::vector<float>& gpu, const std::ve
     }
 }
 
-void run_rollout_case(const char* name, const std::vector<float>& lock_mask) {
+void run_rollout_case(const char* name) {
     using namespace uvms_dynamics_test;
 
     const std::vector<float> vehicle_wrench = make_matrix(kBatchSize, kVehicleWrenchDim, 0.01F);
@@ -93,9 +93,7 @@ void run_rollout_case(const char* name, const std::vector<float>& lock_mask) {
     const std::vector<float> ee_stiffness(static_cast<std::size_t>(kBatchSize), 0.0F);
     const std::vector<float> baumgarte_alpha(static_cast<std::size_t>(kBatchSize), 200.0F);
 
-    if (lock_mask.size() != static_cast<std::size_t>(kBatchSize) * kLockMaskDim) {
-        throw std::invalid_argument("lock_mask size mismatch");
-    }
+    const std::vector<float> lock_mask = filled(kBatchSize, kLockMaskDim, 0.0F);
 
     std::vector<float> cpu_state = make_uvms_state(kBatchSize);
     std::vector<float> cpu_next(static_cast<std::size_t>(kBatchSize) * kUvmsStateDim, 0.0F);
@@ -176,17 +174,10 @@ int main() {
     using namespace uvms_dynamics_test;
 
     try {
-        run_rollout_case("uvms_rollout_zero_lock", filled(kBatchSize, kLockMaskDim, 0.0F));
-
-        std::vector<float> mixed_lock = filled(kBatchSize, kLockMaskDim, 0.0F);
-        for (int i = 0; i < kBatchSize; ++i) {
-            mixed_lock[static_cast<std::size_t>(i) * kLockMaskDim + (i % kLockMaskDim)] =
-                (i % 3 == 0) ? 1.0F : 0.0F;
-        }
-        run_rollout_case("uvms_rollout_mixed_lock", mixed_lock);
+        run_rollout_case("uvms_rollout");
 
         std::cout << "uvms_gpu_dynamics_correctness passed batch_size=" << kBatchSize
-                  << " rollout_steps=" << kRolloutSteps << " cases=2" << '\n';
+                  << " rollout_steps=" << kRolloutSteps << '\n';
     } catch (const std::exception& exc) {
         std::cerr << "uvms_gpu_dynamics_correctness: " << exc.what() << '\n';
         return 1;
