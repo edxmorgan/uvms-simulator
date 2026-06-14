@@ -28,12 +28,12 @@ Python Training Loop
 
    import numpy as np
    from uvms_rl import UvmsBatchEnv
-   from uvms_rl.config import load_experiment_config
+   from uvms_rl.config import load_experiment
 
 
-   cfg = load_experiment_config("hover_vehicle")
-   env_cfg = cfg["env"]
-   task_cfg = cfg["task"]
+   experiment = load_experiment("hover_vehicle")
+   env_cfg = experiment.config["env"]
+   task_cfg = experiment.config["task"]
 
    env = UvmsBatchEnv(
        robot_count=env_cfg["robot_count"],
@@ -42,7 +42,7 @@ Python Training Loop
        max_episode_steps=env_cfg["max_episode_steps"],
        seed=env_cfg["seed"],
        backend=env_cfg.get("backend", "cpu"),
-       task=task_cfg["name"],
+       task=experiment.task_cls,
        task_config=task_cfg,
    )
 
@@ -124,14 +124,23 @@ Action layout:
 Add an Experiment
 -----------------
 
-Add experiments in ``uvms-simlab/uvms_rl``.
+Add experiments as folders under ``uvms-simlab/uvms_rl/experiments``. Each
+experiment owns its config and task code in one place:
 
-1. Create ``uvms_rl/tasks/<task_name>.py`` with a ``TaskBase`` subclass:
+.. code-block:: text
+
+   uvms_rl/experiments/my_experiment/
+   |-- config.yaml
+   `-- task.py
+
+1. Create ``uvms_rl/experiments/my_experiment/task.py``:
 
 .. code-block:: python
 
-   class MyTask(TaskBase):
-       name = "my_task"
+   from uvms_rl.task_base import TaskBase
+
+
+   class Task(TaskBase):
 
        @property
        def policy_observation_dim(self) -> int:
@@ -149,16 +158,7 @@ Add experiments in ``uvms-simlab/uvms_rl``.
            # Return rewards [N], dones [N], and metric dict.
            ...
 
-2. Register it in ``uvms_rl/tasks/registry.py``:
-
-.. code-block:: python
-
-   TASKS = {
-       "hover_vehicle": HoverVehicleTask,
-       "my_task": MyTask,
-   }
-
-3. Add ``uvms_rl/experiments/<experiment>.yaml``:
+2. Add ``uvms_rl/experiments/my_experiment/config.yaml``:
 
 .. code-block:: yaml
 
@@ -171,17 +171,16 @@ Add experiments in ``uvms-simlab/uvms_rl``.
      seed: 7
 
    task:
-     name: my_task
      target_x: [-2.0, 2.0]
 
-4. Rebuild and run:
+3. Rebuild and run:
 
 .. code-block:: bash
 
    cd ~/ros_ws
    colcon build --packages-select simlab
    source install/setup.bash
-   ros2 run simlab uvms_rl_random_policy --config <experiment> --steps 100
+   ros2 run simlab uvms_rl_random_policy --config my_experiment --steps 100
 
 Backend Boundary
 ----------------
