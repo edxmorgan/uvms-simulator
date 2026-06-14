@@ -178,8 +178,10 @@ Action layout:
 Add an Experiment
 -----------------
 
-Add experiments as folders under ``uvms-simlab/uvms_rl/experiments``. Each
-experiment owns its config and task code in one place:
+Add experiments as folders under ``uvms-simlab/uvms_rl/experiments``. An
+experiment should own its config. Reusable task implementations should live in
+``uvms-simlab/uvms_rl/tasks`` so multiple curriculum stages can share the same
+reward/reset logic without importing from each other.
 
 .. code-block:: text
 
@@ -187,7 +189,8 @@ experiment owns its config and task code in one place:
    |-- config.yaml
    `-- task.py
 
-1. Create ``uvms_rl/experiments/my_experiment/task.py``:
+1. Create a reusable task implementation, for example
+   ``uvms_rl/tasks/my_task.py``:
 
 .. code-block:: python
 
@@ -217,7 +220,14 @@ experiment owns its config and task code in one place:
            # Return rewards [N], dones [N], and metric dict.
            ...
 
-2. Add ``uvms_rl/experiments/my_experiment/config.yaml``:
+2. Point the experiment folder at that task with a tiny
+   ``uvms_rl/experiments/my_experiment/task.py``:
+
+.. code-block:: python
+
+   from uvms_rl.tasks.my_task import Task
+
+3. Add ``uvms_rl/experiments/my_experiment/config.yaml``:
 
 .. code-block:: yaml
 
@@ -232,7 +242,7 @@ experiment owns its config and task code in one place:
    task:
      target_x: [-2.0, 2.0]
 
-3. Rebuild and run:
+4. Rebuild and run:
 
 .. code-block:: bash
 
