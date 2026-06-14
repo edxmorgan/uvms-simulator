@@ -4,10 +4,10 @@
   "kernels": [
     {
       "function_name": "Vnext_reg",
-      "kernel_name": "Vnext_reg_kernel",
-      "device_name": "device_Vnext_reg_eval",
-      "header": "Vnext_reg.cuh",
-      "source": "Vnext_reg.cu",
+      "kernel_name": "Vnext_reg_gpu_kernel",
+      "device_name": "device_Vnext_reg_gpu_eval",
+      "header": "Vnext_reg_gpu.cuh",
+      "source": "Vnext_reg_gpu.cu",
       "batch_inputs": [
         0,
         1,
@@ -80,14 +80,15 @@
         "sz_w": 830,
         "n_nodes": 35530,
         "n_instructions": 35542
-      }
+      },
+      "implementation": "GPU-private Vnext_reg_gpu codegen wrapper"
     },
     {
       "function_name": "Mnext_reg",
-      "kernel_name": "Mnext_reg_kernel",
-      "device_name": "device_Mnext_reg_eval",
-      "header": "Mnext_reg_fe5.cuh",
-      "source": "Mnext_reg_fe5.cu",
+      "kernel_name": "Mnext_reg_fe1x5_gpu_kernel",
+      "device_name": "Mnext_reg_fe1_cse",
+      "header": "Mnext_reg_fe1_cse.cuh",
+      "source": "../runtime/mnext_reg_fe1x5.cu",
       "batch_inputs": [
         0,
         1,
@@ -197,10 +198,11 @@
         "sz_arg": 9,
         "sz_res": 1,
         "sz_iw": 0,
-        "sz_w": 1073,
-        "n_nodes": 320304,
-        "n_instructions": 320314
-      }
+        "sz_w": 1028,
+        "n_nodes": 275515,
+        "n_instructions": 275565
+      },
+      "implementation": "five GPU-private Mnext_reg_fe1_cse substeps with dt/5; preserves all Mnext_reg inputs and always evaluates the full lock-mask-aware expression"
     }
   ]
 }

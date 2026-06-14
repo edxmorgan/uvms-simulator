@@ -81,6 +81,32 @@ public:
     }
   }
 
+  void set_vehicle_params(py::array_t<float, py::array::c_style | py::array::forcecast> params)
+  {
+    const std::vector<float> flat = flatten_float_array(params);
+    if (!core_.set_vehicle_params(flat)) {
+      throw std::invalid_argument("vehicle params must have shape [33]");
+    }
+  }
+
+  void set_arm_params(py::array_t<float, py::array::c_style | py::array::forcecast> params)
+  {
+    const std::vector<float> flat = flatten_float_array(params);
+    if (!core_.set_arm_params(flat)) {
+      throw std::invalid_argument("arm params must have shape [81]");
+    }
+  }
+
+  void set_arm_environment(
+    float endeffector_mass,
+    float endeffector_damping,
+    float endeffector_stiffness,
+    float baumgarte_alpha)
+  {
+    core_.set_arm_environment(
+      endeffector_mass, endeffector_damping, endeffector_stiffness, baumgarte_alpha);
+  }
+
   void step(double dt)
   {
     core_.step(dt);
@@ -146,6 +172,15 @@ PYBIND11_MODULE(_batch_uvms_core, module)
   py::class_<PyBatchUvmsCore>(module, "BatchUvmsCore")
     .def(py::init<std::size_t>(), py::arg("robot_count"))
     .def("reset", &PyBatchUvmsCore::reset, py::arg("hold_commands") = false, py::arg("observations") = py::none())
+    .def("set_vehicle_params", &PyBatchUvmsCore::set_vehicle_params, py::arg("params"))
+    .def("set_arm_params", &PyBatchUvmsCore::set_arm_params, py::arg("params"))
+    .def(
+      "set_arm_environment",
+      &PyBatchUvmsCore::set_arm_environment,
+      py::arg("endeffector_mass"),
+      py::arg("endeffector_damping"),
+      py::arg("endeffector_stiffness"),
+      py::arg("baumgarte_alpha"))
     .def("set_actions", &PyBatchUvmsCore::set_actions, py::arg("actions"), py::arg("tick_id"))
     .def("step", &PyBatchUvmsCore::step, py::arg("dt"))
     .def("observations", &PyBatchUvmsCore::observations)

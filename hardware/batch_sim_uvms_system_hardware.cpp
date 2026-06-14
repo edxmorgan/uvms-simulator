@@ -142,7 +142,7 @@ hardware_interface::CallbackReturn BatchSimUvmsSystemHardware::on_init(
 
   RCLCPP_INFO(
     rclcpp::get_logger("BatchSimUvmsSystemHardware"),
-    "configured mock whole-body batch UVMS hardware: robots=%zu obs_dim=%zu action_dim=%zu arm_joint_count=%zu",
+    "configured whole-body batch UVMS dynamics hardware: robots=%zu obs_dim=%zu action_dim=%zu arm_joint_count=%zu",
     robot_count_, observation_dim_, action_dim_, arm_joint_count_);
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -183,7 +183,7 @@ hardware_interface::CallbackReturn BatchSimUvmsSystemHardware::on_configure(
           response->tick_id = core_.tick_id();
         }
         response->success = true;
-        response->message = "reset mock batch UVMS simulator";
+        response->message = "reset batch UVMS dynamics simulator";
       });
 
     executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
@@ -199,7 +199,7 @@ hardware_interface::CallbackReturn BatchSimUvmsSystemHardware::on_configure(
   reset_buffers(true);
   RCLCPP_INFO(
     rclcpp::get_logger("BatchSimUvmsSystemHardware"),
-    "mock batch UVMS ROS API ready: actions=%s observations=%s reset=%s",
+    "batch UVMS ROS API ready: actions=%s observations=%s reset=%s",
     batch_command_topic_.c_str(), batch_observation_topic_.c_str(), batch_reset_service_.c_str());
   return hardware_interface::CallbackReturn::SUCCESS;
 }

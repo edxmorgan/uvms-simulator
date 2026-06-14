@@ -31,15 +31,29 @@ struct ArmStepDevicePointers {
 // Full UVMS dynamics is exposed as separate vehicle and arm batch kernels.
 void launch_vehicle_step(const VehicleStepDevicePointers& ptrs,
                          int batch_size,
-                         int threads_per_block = 128,
+                         int threads_per_block = 256,
                          std::uintptr_t stream_ptr = 0,
                          bool sync = false);
 
 void launch_arm_step(const ArmStepDevicePointers& ptrs,
                      int batch_size,
-                     int threads_per_block = 128,
+                     int threads_per_block = 256,
                      std::uintptr_t stream_ptr = 0,
                      bool sync = false);
+
+void launch_prepare_arm_step(const float* x_arm,
+                             float* arm_torque,
+                             float* lock_mask,
+                             int batch_size,
+                             int threads_per_block = 256,
+                             std::uintptr_t stream_ptr = 0,
+                             bool sync = false);
+
+void launch_clamp_arm_state(float* x_arm,
+                            int batch_size,
+                            int threads_per_block = 256,
+                            std::uintptr_t stream_ptr = 0,
+                            bool sync = false);
 
 void device_synchronize();
 

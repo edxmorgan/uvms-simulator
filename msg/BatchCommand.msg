@@ -13,7 +13,7 @@ uint32 arm_action_dim
 uint32 arm_joint_count
 
 # Flattened row-major [robot_count, action_dim].
-# The mock backend interprets:
-#   actions[:, 0:6] as vehicle body acceleration commands
-#   actions[:, vehicle_action_dim:vehicle_action_dim+arm_action_dim] as arm joint accelerations
+# The UVMS dynamics backend interprets:
+#   actions[:, 0:6] as vehicle wrench [Fx, Fy, Fz, Tx, Ty, Tz]
+#   actions[:, vehicle_action_dim:vehicle_action_dim+arm_action_dim] as arm joint torques
 float32[] actions

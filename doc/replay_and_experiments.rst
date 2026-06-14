@@ -232,12 +232,13 @@ Replay session recording is controlled per replay profile:
 
 Recorded rows cover the replay interval. Typical columns include:
 
-- Arm position: ``q_alpha_axis_e/d/c/b``.
-- Arm velocity: ``dq_alpha_axis_e/d/c/b``.
-- Arm acceleration: ``ddq_alpha_axis_e/d/c/b``.
-- Arm measured/applied effort: ``effort_alpha_axis_e/d/c/b``.
+- Arm position: ``q_alpha_axis_e/d/c/b/a``.
+- Arm velocity: ``dq_alpha_axis_e/d/c/b/a``.
+- Arm acceleration: ``ddq_alpha_axis_e/d/c/b/a``.
+- Arm measured/applied effort: ``effort_alpha_axis_e/d/c/b/a``.
 - Arm command: ``cmd_tau_axis_e/d/c/b/a``.
-- Vehicle pose, body velocity, body acceleration, wrench, and command wrench.
+- Vehicle pose, body velocity, body acceleration, applied wrench, and command
+  wrench.
 
 Keep ``recording.enabled`` set to ``false`` for profiles where per-pass replay
 logs are unnecessary.
@@ -273,8 +274,8 @@ Command-line arguments:
 - ``--time``: x-axis time column. Choices are ``replay_time_sec``,
   ``sim_time_sec``, and ``wall_time_sec``. Default is ``replay_time_sec``.
 - ``--arm``: comma-separated arm axes to plot: ``e``, ``d``, ``c``, ``b``,
-  ``axis_e``, ``axis_d``, ``axis_c``, ``axis_b``, or ``all``. Default is
-  ``all``.
+  ``a``, ``axis_e``, ``axis_d``, ``axis_c``, ``axis_b``, ``axis_a``, or
+  ``all``. Default is ``all``.
 - ``--vehicle-pose``: comma-separated vehicle pose components to plot:
   ``x``, ``y``, ``z``, ``yaw``, or ``all``. Default is ``all``.
 - ``--vehicle-wrench``: comma-separated vehicle wrench components to plot:

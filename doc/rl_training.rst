@@ -41,6 +41,7 @@ Python Training Loop
        sim_dt=env_cfg["sim_dt"],
        max_episode_steps=env_cfg["max_episode_steps"],
        seed=env_cfg["seed"],
+       backend=env_cfg.get("backend", "cpu"),
        task=task_cfg["name"],
        task_config=task_cfg,
    )
@@ -100,7 +101,7 @@ The first dimension is the environment batch size.
 
    task observations: [robot_count, task.policy_observation_dim]
    raw sim state:     [robot_count, 22]
-   actions:           [robot_count, 13]
+   actions:           [robot_count, 11]
    rewards:           [robot_count]
    dones:             [robot_count]
 
@@ -117,8 +118,8 @@ Action layout:
 
 .. code-block:: text
 
-   vehicle_action_0..vehicle_action_7,
-   arm_action_0..arm_action_4
+   vehicle_wrench: force.x, force.y, force.z, torque.x, torque.y, torque.z
+   arm_torque: arm_joint_1..arm_joint_5
 
 Add an Experiment
 -----------------
@@ -162,6 +163,7 @@ Add experiments in ``uvms-simlab/uvms_rl``.
 .. code-block:: yaml
 
    env:
+     backend: cpu
      robot_count: 1024
      control_dt: 0.006666666666666667
      sim_dt: 0.001666666666666667
@@ -184,6 +186,31 @@ Add experiments in ``uvms-simlab/uvms_rl``.
 Backend Boundary
 ----------------
 
-The current backend is the CPU mock ``BatchUvmsCore``. The Python task API is
-kept separate so a future GPU dynamics core can replace the backend without
-rewriting task definitions or trainer code.
+The task API is independent of the dynamics backend. CPU dynamics are the
+portable baseline. GPU dynamics use the CUDA batch core for high-throughput
+rollouts under the same task, reward, reset, and trainer code.
+
+Experiment configs should name the backend explicitly:
+
+.. code-block:: yaml
+
+   env:
+     backend: cpu
+
+Use ``backend: gpu`` only on machines where ``ros2_control_blue_reach_5`` was
+built with CUDA dynamics enabled. It does not silently fall back to CPU; if the
+GPU extension or PyTorch CUDA support is missing, construction fails so the
+training run cannot accidentally use the wrong backend.
+
+Before training against the GPU backend, validate the built kernels:
+
+.. code-block:: bash
+
+   ros2 run ros2_control_blue_reach_5 uvms_gpu_dynamics_correctness
+   ros2 run ros2_control_blue_reach_5 uvms_gpu_dynamics_benchmark
+
+The GPU UVMS step intentionally avoids the monolithic arm ``fe5`` CUDA
+translation unit. The public arm step still advances by the requested ``dt``;
+internally the generated arm dynamics are split into smaller CUDA work units so
+native Blackwell builds remain reliable while preserving the same integration
+contract expected by the RL backend.

@@ -42,14 +42,23 @@ public:
   static constexpr std::size_t kArmJointCount = 5;
   static constexpr std::size_t kArmStateDim = 2 * kArmJointCount;
   static constexpr std::size_t kObservationDim = kVehicleStateDim + kArmStateDim;
-  static constexpr std::size_t kVehicleActionDim = 8;
+  static constexpr std::size_t kVehicleActionDim = 6;
   static constexpr std::size_t kArmActionDim = kArmJointCount;
   static constexpr std::size_t kActionDim = kVehicleActionDim + kArmActionDim;
+  static constexpr std::size_t kVehicleParamDim = 33;
+  static constexpr std::size_t kArmParamDim = 81;
 
   void configure(std::size_t robot_count);
   void set_task(std::shared_ptr<BatchUvmsTask> task);
   void reset(bool hold_commands);
   bool reset(bool hold_commands, const std::vector<float> & observations);
+  bool set_vehicle_params(const std::vector<float> & params);
+  bool set_arm_params(const std::vector<float> & params);
+  void set_arm_environment(
+    float endeffector_mass,
+    float endeffector_damping,
+    float endeffector_stiffness,
+    float baumgarte_alpha);
   bool set_actions(const std::vector<float> & actions, std::uint64_t tick_id);
   bool set_selected_action(
     std::size_t selected_robot_index,
@@ -92,6 +101,11 @@ public:
 
 private:
   std::size_t clamp_robot_index(std::size_t robot_index) const;
+  void resize_dynamics_buffers();
+  void pack_dynamics_actions();
+  void apply_arm_actuator_model();
+  void update_arm_lock_mask();
+  void clamp_arm_state(std::vector<float> & observations);
   void compute_task();
   void reset_task();
 
@@ -99,7 +113,20 @@ private:
   std::size_t robot_count_{1};
   std::size_t selected_robot_index_{0};
   std::vector<float> observations_;
+  std::vector<float> next_observations_;
   std::vector<float> actions_;
+  std::vector<float> vehicle_wrench_;
+  std::vector<float> arm_torque_;
+  std::vector<float> vehicle_params_;
+  std::vector<float> arm_params_;
+  std::vector<float> dt_;
+  std::vector<float> external_wrench_;
+  std::vector<float> ee_mass_;
+  std::vector<float> ee_damping_;
+  std::vector<float> ee_stiffness_;
+  std::vector<float> lock_mask_;
+  std::vector<std::uint8_t> arm_lock_state_;
+  std::vector<float> baumgarte_alpha_;
   std::vector<float> rewards_;
   std::vector<std::uint8_t> dones_;
   bool commands_held_{true};

@@ -13,11 +13,12 @@ uint32 vehicle_action_dim
 uint32 arm_action_dim
 
 # Flattened row-major [robot_count, observation_dim].
-# The mock backend observation is:
+# The UVMS dynamics backend observation is:
 # [vehicle_state(12), arm_position(arm_joint_count), arm_velocity(arm_joint_count)].
 float32[] observations
 
-# RL-oriented fields. The mock backend fills rewards with 0 and dones with 0.
+# RL-oriented fields. BatchUvmsCore fills rewards with 0 and dones with 0
+# unless a C++ task is attached.
 float32[] rewards
 uint8[] dones
 

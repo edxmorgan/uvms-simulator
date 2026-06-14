@@ -8,10 +8,11 @@
     state/action arrays move through the batch ROS API; ros2_control exposes
     aggregate diagnostics and one selected UVMS proxy for debugging.
 
-    Fixed mock model shape:
+    Fixed UVMS dynamics shape:
       vehicle_state_dim=12 means [x, y, z, roll, pitch, yaw, u, v, w, p, q, r]
       arm_joint_count=5 means q[5] + qd[5]
-      observation_dim=22, action_dim=13
+      action_dim=11 means vehicle_wrench[6] + arm_torque[5]
+      observation_dim=22, action_dim=11
   -->
   <xacro:macro name="batch_uvms_system_multi_interface" params="
       name
