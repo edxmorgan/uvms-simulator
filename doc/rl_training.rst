@@ -46,6 +46,7 @@ Python Training Loop
        max_episode_steps=env_cfg["max_episode_steps"],
        seed=env_cfg["seed"],
        backend=env_cfg.get("backend", "cpu"),
+       dynamics_profile=env_cfg["dynamics_profile"],
        task=experiment.task_cls,
        task_config=task_cfg,
    )
@@ -168,6 +169,9 @@ Raw simulator state layout:
    arm_q1..arm_q5,
    arm_qd1..arm_qd5
 
+The vehicle pose is the dynamics NED state. ``z`` is positive depth/down, so
+underwater hover targets should use positive ``target_z`` values.
+
 Action layout:
 
 .. code-block:: text
@@ -233,6 +237,7 @@ reward/reset logic without importing from each other.
 
    env:
      backend: cpu
+     dynamics_profile: dory_alpha
      robot_count: 1024
      control_dt: 0.006666666666666667
      sim_dt: 0.001666666666666667
@@ -264,11 +269,17 @@ Experiment configs should name the backend explicitly:
 
    env:
      backend: cpu
+     dynamics_profile: dory_alpha
 
 Use ``backend: gpu`` only on machines where ``ros2_control_blue_reach_5`` was
 built with CUDA dynamics enabled. It does not silently fall back to CPU; if the
 GPU extension or PyTorch CUDA support is missing, construction fails so the
 training run cannot accidentally use the wrong backend.
+
+``dynamics_profile`` is also required. It names the same whole-robot dynamics
+profile used by the hardware simulator replay path. Missing profiles fail at
+environment construction time instead of silently falling back to hidden
+defaults.
 
 Before training against the GPU backend, validate the installed GPU dynamics
 once after building:
