@@ -332,18 +332,6 @@ else()
   message(STATUS "UVMS build: local docs disabled (UVMS_BUILD_DOCS=OFF)")
 endif()
 
-if(UVMS_CUDA_DYNAMICS_AVAILABLE)
-  set(UVMS_BUILD_SUMMARY "UVMS OK: CPU=ON GPU=ON DOCS=${UVMS_BUILD_DOCS} CUDA=${CMAKE_CUDA_COMPILER} ARCH=${CMAKE_CUDA_ARCHITECTURES} FAST=${UVMS_CUDA_FAST_COMPILE}")
-else()
-  set(UVMS_BUILD_SUMMARY "UVMS OK: CPU=ON GPU=OFF DOCS=${UVMS_BUILD_DOCS}")
-endif()
-
-add_custom_target(uvms_build_summary ALL
-  COMMAND /bin/sh -c "echo '${UVMS_BUILD_SUMMARY}' >&2"
-  COMMENT "Reporting UVMS build summary"
-  VERBATIM
-)
-
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
 endif()
