@@ -324,9 +324,11 @@ remaining active path over ``lookahead_time`` and asks the selected planner for
 a replacement path when predicted clearance to a dynamic obstacle drops below
 ``safety_margin``. Replanning is non-destructive: the active trajectory remains
 valid while the planner request is pending, and a failed replacement plan does
-not erase the current trajectory. Repeated replans against the same unchanged
-blocked path are suppressed by hysteresis; if an unresolved blocked path becomes
-imminent, the robot stops the mission and holds its current state.
+not erase the current trajectory. The replan request passes a nominal vehicle
+speed so planners can time-index dynamic obstacle predictions while checking
+candidate states. Repeated replans against the same unchanged blocked path are
+suppressed by hysteresis; if an unresolved blocked path becomes imminent, the
+robot stops the mission and holds its current state.
 
 Request fields:
 
@@ -485,9 +487,9 @@ Feedback:
 
    string stage
 
-Supported planner names include ``Bitstar`` and ``RRTstar``. The interactive
+Supported planner names include ``Bitstar``, ``RRTstar``, and ``RRTConnect``. The interactive
 controller wraps this action through ``PlannerActionClient`` and converts the
-result into Ruckig trajectory execution.
+result into vehicle trajectory-generator execution.
 
 State Topic
 -----------
@@ -519,7 +521,7 @@ Each robot publishes a normalized controller-performance stream:
 The topic is updated from the same command-publish loop that sends vehicle and
 manipulator commands. It compares the measured robot state against the active
 trajectory/reference commands. During vehicle planning, those references are
-the Ruckig trajectory samples. During replay in reference-tracking mode, they
+the active trajectory-generator samples. During replay in reference-tracking mode, they
 come from the replay profile desired-state columns.
 
 The raw vehicle path errors are:

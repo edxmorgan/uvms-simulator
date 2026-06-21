@@ -32,18 +32,23 @@ Main menu groups:
 - ``Robots``: select active robot when multiple simulated robots exist.
 - ``Waypoints``: add, delete, clear, or stop vehicle waypoint missions.
 - ``Path Planner``: select the active robot's planner backend, currently
-  ``Bitstar`` or ``RRTstar``.
+  ``Bitstar``, ``RRTstar``, or ``RRTConnect``.
+- ``Dynamic Obstacles``: add a generated spherical obstacle ahead of the
+  selected robot's active path, clear dynamic obstacles, enable/disable dynamic
+  replanning, and print replanning status. Adding a path obstacle from this menu
+  enables dynamic replanning if it is not already active.
 - ``Cmd Replay``: select the active robot's replay profile, reset/play, and
   stop replay. See :doc:`replay_and_experiments` for profile format and
   experiment logging.
 - ``Dynamics Profile``: apply a named robot dynamics parameter profile during
   simulation.
 - ``Data Recording``: start or stop MCAP recording for the configured robot,
-  reference, performance, and camera topics.
+  reference, performance, camera, and dynamic obstacle topics.
 - ``Grasper``: open/close the active robot's grasper through feedback
   controllers only.
-- ``Reset Manager``: simulator state reset and release controls. Requests for
-  hardware namespaces are rejected with a log message.
+- ``Reset Manager``: simulator state reset and release controls. Reset clears
+  the selected robot's waypoint/path state and the global dynamic obstacle set.
+  Requests for hardware namespaces are rejected with a log message.
 - ``Robot Control``: select controller, control space, and IK settings for the
   active robot.
 

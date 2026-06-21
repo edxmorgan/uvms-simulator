@@ -214,6 +214,36 @@ Then register it:
        MyPlanner,
    ]
 
+
+Adding a Trajectory Generator
+-----------------------------
+
+Vehicle trajectory generators are class-based plugins. They live under
+``uvms-simlab/simlab/trajectory_generators`` and are registered through
+``DEFAULT_VEHICLE_TRAJECTORY_GENERATOR_CLASSES``. The selected generator turns
+a planner path into the pose, velocity, and acceleration references tracked by
+the active controller.
+
+To add a trajectory generator:
+
+- Create a file, for example
+  ``simlab/trajectory_generators/my_generator.py``.
+- Inherit from ``VehicleTrajectoryGeneratorTemplate``.
+- Implement ``start_from_path(...)``, ``update(yaw_blend_factor)``, and
+  ``close()``.
+- Add the class to ``DEFAULT_VEHICLE_TRAJECTORY_GENERATOR_CLASSES`` in
+  ``simlab/trajectory_generators/__init__.py``.
+- Select it with the ``vehicle_trajectory_generator`` ROS parameter.
+
+Example selection:
+
+.. code-block:: bash
+
+   ros2 run simlab interactive_controller --ros-args \
+     -p vehicle_trajectory_generator:=ruckig
+
+The default generator is ``ruckig``.
+
 Adding a Dynamics Backend or Robot Interface
 --------------------------------------------
 

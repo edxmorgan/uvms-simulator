@@ -239,6 +239,8 @@ Recorded rows cover the replay interval. Typical columns include:
 - Arm command: ``cmd_tau_axis_e/d/c/b/a``.
 - Vehicle pose, body velocity, body acceleration, applied wrench, and command
   wrench.
+- Dynamic obstacle summary: ``dynamic_obstacle_count`` and
+  ``dynamic_obstacle_ids``.
 
 Keep ``recording.enabled`` set to ``false`` for profiles where per-pass replay
 logs are unnecessary.
@@ -246,6 +248,12 @@ logs are unnecessary.
 This CSV logging belongs to CmdReplay. It records only the replay pass, not the
 full ROS graph. Replay CSV logs are saved under
 ``~/ros_ws/recordings/replay_sessions``.
+
+When dynamic obstacles are present, CmdReplay also writes a sidecar JSON file
+next to the CSV using the same stem and the suffix
+``_dynamic_obstacles.json``. The sidecar stores the dynamic obstacle snapshot at
+the start and stop of the replay pass. Use MCAP recording when you need the full
+time-varying obstacle topic stream.
 
 Plot Replay Sessions
 --------------------
@@ -325,16 +333,23 @@ MCAP to Replay Profiles
 
 Use the ``Data Recording`` RViz menu to start and stop an MCAP recording around
 the behavior you want to capture. The MCAP records ROS topics such as
-``dynamic_joint_states``, the selected camera feed, and per-robot experiment
-topics:
+``dynamic_joint_states``, the selected camera feed, dynamic obstacle state, and
+per-robot experiment topics:
 
 - ``/alpha/image_raw``
 - ``/alpha/camera_info``
+- ``/dynamic_obstacles``
+- ``/dynamic_obstacle_markers``
 - ``/<prefix>/reference/targets``
 - ``/<prefix>/performance/controller``
 
 MCAP bags are saved under
 ``~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS``.
+
+The dynamic obstacle topics are recorded with transient-local QoS so starting a
+recording after a static obstacle already exists still captures the latest
+obstacle snapshot. Replaying the MCAP can reproduce the obstacle state stream for
+visualization and offline debugging.
 
 The reference topic uses ``simlab/msg/ReferenceTargets`` and
 contains the world target, vehicle NED/body target, and manipulator reference in

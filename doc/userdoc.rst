@@ -123,10 +123,15 @@ at launch:
 
 Bags are saved under ``~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS``.
 Replay-session CSV logs are saved under
-``~/ros_ws/recordings/replay_sessions`` when enabled by a replay profile.
+``~/ros_ws/recordings/replay_sessions`` when enabled by a replay profile. If
+dynamic obstacles are present, each replay-session CSV is paired with a
+``*_dynamic_obstacles.json`` sidecar containing the start/stop obstacle snapshot
+for that replay pass.
+
 MCAP recordings include measured robot state, the selected camera feed on
-``/alpha/image_raw`` and ``/alpha/camera_info``, and per-robot desired target
-topics for vehicle pose/velocity/acceleration and arm
+``/alpha/image_raw`` and ``/alpha/camera_info``, dynamic obstacle state on
+``/dynamic_obstacles`` and ``/dynamic_obstacle_markers``, and per-robot desired
+target topics for vehicle pose/velocity/acceleration and arm
 position/velocity/acceleration. They also include per-robot controller
 performance metrics on ``/<prefix>/performance/controller``; see
 :doc:`services_and_interfaces` for the metric fields.
