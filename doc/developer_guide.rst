@@ -152,16 +152,24 @@ After rebuilding, ``MyController`` appears in the RViz controller menu.
 Adding a Planner
 ----------------
 
-Planner choices are class-based, like controllers. They live under
-``uvms-simlab/simlab/planners``. The RViz menu and planner action server both
-read from ``DEFAULT_PLANNER_CLASSES``.
+Motion planning code lives under ``uvms-simlab/simlab/motion_planning``.
+The current stack exposes separable planner, trajectory-generator, and dynamic
+replanner components, but that separation is not a hard algorithmic rule. An
+integrated motion-planning method such as GPMP or CHOMP can own path generation,
+trajectory timing, and dynamic replanning behind one implementation when that is
+the cleaner model.
+
+Planner choices are class-based. They live under
+``uvms-simlab/simlab/motion_planning/planners``. The RViz menu and planner
+action server both read from ``DEFAULT_PLANNER_CLASSES``.
 
 To add a planner:
 
-- Create a planner file, for example ``simlab/planners/my_planner.py``.
+- Create a planner file, for example
+  ``simlab/motion_planning/planners/my_planner.py``.
 - Inherit from ``PlannerTemplate``.
 - Add the class to ``DEFAULT_PLANNER_CLASSES`` in
-  ``simlab/planners/__init__.py``.
+  ``simlab/motion_planning/planners/__init__.py``.
 - Confirm the result dict contains ``xyz``, ``quat_wxyz``, ``count``,
   ``is_success``, ``path_length_cost``, ``geom_length``, and ``message``.
 
@@ -171,7 +179,7 @@ Example:
 
    import numpy as np
 
-   from simlab.planners.base import PlannerTemplate
+   from simlab.motion_planning.planners.base import PlannerTemplate
 
 
    class MyPlanner(PlannerTemplate):
@@ -205,7 +213,7 @@ Then register it:
 
 .. code-block:: python
 
-   from simlab.planners.my_planner import MyPlanner
+   from simlab.motion_planning.planners.my_planner import MyPlanner
 
    DEFAULT_PLANNER_CLASSES = [
        RrtStarPlanner,
@@ -218,21 +226,21 @@ Then register it:
 Adding a Trajectory Generator
 -----------------------------
 
-Vehicle trajectory generators are class-based plugins. They live under
-``uvms-simlab/simlab/trajectory_generators`` and are registered through
-``DEFAULT_VEHICLE_TRAJECTORY_GENERATOR_CLASSES``. The selected generator turns
-a planner path into the pose, velocity, and acceleration references tracked by
-the active controller.
+Vehicle trajectory generators are class-based plugins under
+``uvms-simlab/simlab/motion_planning/trajectory_generators`` and are registered
+through ``DEFAULT_VEHICLE_TRAJECTORY_GENERATOR_CLASSES``. The selected generator
+turns a planner path into the pose, velocity, and acceleration references
+tracked by the active controller.
 
 To add a trajectory generator:
 
 - Create a file, for example
-  ``simlab/trajectory_generators/my_generator.py``.
+  ``simlab/motion_planning/trajectory_generators/my_generator.py``.
 - Inherit from ``VehicleTrajectoryGeneratorTemplate``.
 - Implement ``start_from_path(...)``, ``update(yaw_blend_factor)``, and
   ``close()``.
 - Add the class to ``DEFAULT_VEHICLE_TRAJECTORY_GENERATOR_CLASSES`` in
-  ``simlab/trajectory_generators/__init__.py``.
+  ``simlab/motion_planning/trajectory_generators/__init__.py``.
 - Select it with the ``vehicle_trajectory_generator`` ROS parameter.
 
 Example selection:
