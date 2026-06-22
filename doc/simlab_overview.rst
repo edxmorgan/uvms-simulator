@@ -60,8 +60,6 @@ Guide Map
   inspection commands.
 - :doc:`controls_and_menus`: RViz menus, task modes, joystick behavior, and
   controller/replay separation.
-- :doc:`dynamic_replanning`: dynamic obstacle setup, path-obstacle demos, and
-  online replanning behavior.
 - :doc:`replay_and_experiments`: command replay profiles, reset behavior,
   repeats, and replay-session logging.
 - :doc:`sensors_and_perception`: sensors, perception-facing camera streams, and

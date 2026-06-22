@@ -275,6 +275,24 @@ Example selection:
 
 The default generator is ``ruckig``.
 
+Planner and trajectory runtime notes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Dynamic replanning is implemented as part of the motion-planning pipeline, not
+as a separate algorithm family. The active dynamic replanner samples the
+remaining trajectory against the shared dynamic-obstacle world. When clearance
+falls below the configured margin, it asks the selected planner for a
+replacement path and lets the selected trajectory generator build the new
+executable trajectory. The current trajectory remains active while this request
+is pending.
+
+Vehicle path planning uses a spherical vehicle approximation and plans the
+translation path. Planner requests project vehicle start and goal quaternions to
+yaw-only before calling OMPL so transient roll or pitch during trajectory
+tracking does not make an otherwise valid live start state invalid. This
+projection affects only the planner request; it does not change the controller
+state.
+
 Adding a Dynamics Backend or Robot Interface
 --------------------------------------------
 

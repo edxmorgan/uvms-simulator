@@ -35,8 +35,9 @@ Main menu groups:
   ``Bitstar``, ``RRTstar``, or ``RRTConnect``.
 - ``Dynamic Obstacles``: add a generated spherical obstacle ahead of the
   selected robot's active path, clear dynamic obstacles, enable/disable dynamic
-  replanning, and print replanning status. Adding a path obstacle from this menu
-  enables dynamic replanning if it is not already active.
+  replanning, and print replanning status. ``Add Path Obstacle`` requires an
+  active planned path and enables dynamic replanning if it is not already
+  active. ``Clear Obstacles`` removes all dynamic obstacles from the simulator.
 - ``Cmd Replay``: select the active robot's replay profile, reset/play, and
   stop replay. See :doc:`replay_and_experiments` for profile format and
   experiment logging.

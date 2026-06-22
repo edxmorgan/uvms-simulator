@@ -417,18 +417,6 @@ Examples:
      simlab/srv/BackendWorldCommand \
      "{command: set_world_profile, name: obstacle_crossing_sphere}"
 
-   ros2 service call /backend/world_command \
-     simlab/srv/BackendWorldCommand \
-     "{command: set_dynamic_replanning, enabled: true, rate: 5.0, cooldown: 0.5, lookahead_time: 8.0, safety_margin: 0.6, replan_hysteresis: 0.05}"
-
-   ros2 service call /backend/world_command \
-     simlab/srv/BackendWorldCommand \
-     "{command: spawn_path_obstacle, robot_index: 0, distance_ahead: 6.0, radius: 1.0}"
-
-   ros2 service call /backend/world_command \
-     simlab/srv/BackendWorldCommand \
-     "{command: dynamic_replanning_status}"
-
    ros2 service call /backend/pose_command \
      simlab/srv/BackendPoseCommand \
      "{robot_index: 0, command: set_vehicle_target, pose: {position: {x: 1.0, y: 0.0, z: -1.0}, orientation: {w: 1.0}}}"
@@ -449,6 +437,36 @@ These backend services are SimLab interfaces. Simulator-owned services remain
 in ``ros2_control_blue_reach_5`` and cover reset, release, dynamics
 parameters, simulated camera configuration, dynamic obstacles, and
 ``ros2_control`` hardware plugins.
+
+Path-obstacle test flow
+~~~~~~~~~~~~~~~~~~~~~~~
+
+For a deterministic dynamic-obstacle/replanning check, start an interactive
+launch, create a long vehicle target or waypoint mission, then place one or
+more path obstacles through ``/backend/world_command``. The obstacle is placed
+on the selected robot's active path, so the same command can be used from RViz,
+scripts, or frontend clients.
+
+.. code-block:: shell
+
+   ros2 service call /backend/world_command simlab/srv/BackendWorldCommand \
+     "{command: clear_dynamic_obstacles}"
+
+   ros2 service call /backend/world_command simlab/srv/BackendWorldCommand \
+     "{command: set_dynamic_replanning, enabled: true, rate: 5.0, cooldown: 0.5, lookahead_time: 8.0, safety_margin: 0.6, replan_hysteresis: 0.05}"
+
+   ros2 service call /backend/world_command simlab/srv/BackendWorldCommand \
+     "{command: spawn_path_obstacle, name: blocker_1, robot_index: 0, distance_ahead: 4.0, radius: 0.75}"
+
+   ros2 service call /backend/world_command simlab/srv/BackendWorldCommand \
+     "{command: dynamic_replanning_status}"
+
+Expected behavior is that the obstacle appears in RViz, the active path is
+checked against the updated obstacle set, the selected planner searches for a
+replacement path, and the selected trajectory generator starts a replacement
+trajectory if planning succeeds. A failed replacement plan leaves the current
+trajectory intact until the conflict becomes imminent, at which point the
+mission is stopped and the robot holds state.
 
 Planner Action
 --------------
