@@ -1,2 +1,7 @@
 *.so filter=lfs diff=lfs merge=lfs -text
 *.png filter=lfs diff=lfs merge=lfs -text
+
+# Generated CasADi dynamics dominate GitHub's language statistics otherwise.
+# Keep handwritten CUDA/C++ runtime files counted normally.
+cpu_dynamics/generated/** linguist-generated=true
+gpu_dynamics/generated/** linguist-generated=true
