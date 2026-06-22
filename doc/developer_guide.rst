@@ -152,18 +152,48 @@ After rebuilding, ``MyController`` appears in the RViz controller menu.
 Adding a Planner
 ----------------
 
-Planner choices are class-based, like controllers. They live under
-``uvms-simlab/simlab/planners``. The RViz menu and planner action server both
-read from ``DEFAULT_PLANNER_CLASSES``.
+Motion planning code lives under ``uvms-simlab/simlab/motion_planning``.
+The current stack exposes separable planner, trajectory-generator, and dynamic
+replanner components, but that separation is not a hard algorithmic rule. An
+integrated motion-planning method such as GPMP or CHOMP can own path generation,
+trajectory timing, and dynamic replanning behind one implementation when that is
+the cleaner model.
+
+All motion-planning algorithms should return a ``MotionPlanResult`` from
+``simlab.motion_planning.result``. The result declares which execution shape the
+algorithm produced:
+
+- ``MotionPlanKind.PATH``: geometric waypoints. The selected trajectory
+  generator, currently ``ruckig``, time-parameterizes the path before the
+  controller tracks it.
+- ``MotionPlanKind.TIMED_TRAJECTORY``: already time-parameterized trajectory
+  samples. This is the natural target for CHOMP/GPMP-style optimizers when they
+  produce timing or derivatives directly.
+- ``MotionPlanKind.CONTROL_SEQUENCE``: direct controls or short-horizon
+  references. This is the natural target for MPC or integrated
+  planner-controller methods.
+
+The current ``PlanVehicle`` ROS action transports ``MotionPlanKind.PATH``
+results for the existing OMPL/Ruckig pipeline. Timed trajectories and direct
+control-sequence execution need a richer execution transport before they can
+bypass the trajectory generator at runtime without losing timing, derivative,
+or control information. The plugin result contract already separates those
+algorithmic outputs from the split pipeline so CHOMP, GPMP, or MPC-style
+plugins have a clear target as that execution transport is added.
+
+Planner choices are class-based. They live under
+``uvms-simlab/simlab/motion_planning/planners``. The RViz menu and planner
+action server both read from ``DEFAULT_PLANNER_CLASSES``.
 
 To add a planner:
 
-- Create a planner file, for example ``simlab/planners/my_planner.py``.
+- Create a planner file, for example
+  ``simlab/motion_planning/planners/my_planner.py``.
 - Inherit from ``PlannerTemplate``.
 - Add the class to ``DEFAULT_PLANNER_CLASSES`` in
-  ``simlab/planners/__init__.py``.
-- Confirm the result dict contains ``xyz``, ``quat_wxyz``, ``count``,
-  ``is_success``, ``path_length_cost``, ``geom_length``, and ``message``.
+  ``simlab/motion_planning/planners/__init__.py``.
+- Return a ``MotionPlanResult``. Planner plugins should not return raw result
+  dictionaries.
 
 Example:
 
@@ -171,7 +201,8 @@ Example:
 
    import numpy as np
 
-   from simlab.planners.base import PlannerTemplate
+   from simlab.motion_planning.planners.base import PlannerTemplate
+   from simlab.motion_planning.result import MotionPlanKind, MotionPlanResult
 
 
    class MyPlanner(PlannerTemplate):
@@ -191,21 +222,21 @@ Example:
            xyz = np.asarray([start_xyz, goal_xyz], dtype=float)
            quat = np.asarray([start_quat_wxyz, goal_quat_wxyz], dtype=float)
            length = float(np.linalg.norm(xyz[-1] - xyz[0]))
-           return {
-               "is_success": True,
-               "xyz": xyz,
-               "quat_wxyz": quat,
-               "count": int(xyz.shape[0]),
-               "path_length_cost": length,
-               "geom_length": length,
-               "message": "MyPlanner returned a straight-line path.",
-           }
+           return MotionPlanResult(
+               is_success=True,
+               kind=MotionPlanKind.PATH,
+               xyz=xyz,
+               quat_wxyz=quat,
+               path_length_cost=length,
+               geom_length=length,
+               message="MyPlanner returned a straight-line path.",
+           )
 
 Then register it:
 
 .. code-block:: python
 
-   from simlab.planners.my_planner import MyPlanner
+   from simlab.motion_planning.planners.my_planner import MyPlanner
 
    DEFAULT_PLANNER_CLASSES = [
        RrtStarPlanner,
@@ -213,6 +244,36 @@ Then register it:
        RrtConnectPlanner,
        MyPlanner,
    ]
+
+
+Adding a Trajectory Generator
+-----------------------------
+
+Vehicle trajectory generators are class-based plugins under
+``uvms-simlab/simlab/motion_planning/trajectory_generators`` and are registered
+through ``DEFAULT_VEHICLE_TRAJECTORY_GENERATOR_CLASSES``. The selected generator
+turns a planner path into the pose, velocity, and acceleration references
+tracked by the active controller.
+
+To add a trajectory generator:
+
+- Create a file, for example
+  ``simlab/motion_planning/trajectory_generators/my_generator.py``.
+- Inherit from ``VehicleTrajectoryGeneratorTemplate``.
+- Implement ``start_from_path(...)``, ``update(yaw_blend_factor)``, and
+  ``close()``.
+- Add the class to ``DEFAULT_VEHICLE_TRAJECTORY_GENERATOR_CLASSES`` in
+  ``simlab/motion_planning/trajectory_generators/__init__.py``.
+- Select it with the ``vehicle_trajectory_generator`` ROS parameter.
+
+Example selection:
+
+.. code-block:: bash
+
+   ros2 run simlab interactive_controller --ros-args \
+     -p vehicle_trajectory_generator:=ruckig
+
+The default generator is ``ruckig``.
 
 Adding a Dynamics Backend or Robot Interface
 --------------------------------------------

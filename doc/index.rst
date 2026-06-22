@@ -27,7 +27,9 @@ streams, and extension work.
    hil_setup
    services_and_interfaces
    controls_and_menus
+   dynamic_replanning
    replay_and_experiments
+   rl_training
    sensors_and_perception
    developer_guide
    license

@@ -27,6 +27,13 @@
       The ros2_control blue sim uv simulation using a multi-interface hardware interface-type.
     </description>
   </class>
+  <class name="ros2_control_blue_reach_5/BatchSimUvmsSystemHardware"
+         type="ros2_control_blue_reach_5::BatchSimUvmsSystemHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Mock batched whole-body UVMS simulator hardware interface for large-N ROS/RL integration.
+    </description>
+  </class>
 </library>
 
 <!-- ros2 bag record -a -o my_bag1 -->

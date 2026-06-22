@@ -60,6 +60,8 @@ Guide Map
   inspection commands.
 - :doc:`controls_and_menus`: RViz menus, task modes, joystick behavior, and
   controller/replay separation.
+- :doc:`dynamic_replanning`: dynamic obstacle setup, path-obstacle demos, and
+  online replanning behavior.
 - :doc:`replay_and_experiments`: command replay profiles, reset behavior,
   repeats, and replay-session logging.
 - :doc:`sensors_and_perception`: sensors, perception-facing camera streams, and
@@ -77,9 +79,8 @@ Core Runtime Nodes
   by the interactive controller.
 - ``bag_recorder_node``: rosbag2 MCAP recording for simulator and hardware
   sessions.
-- ``collision_contact_node``, ``voxelviz_node``, and ``env_obstacles_node``:
-  environment visualization and collision/context utilities. Collision-contact
-  and voxel visualization are opt-in debug tools; enable them with
+- ``collision_contact_node`` and ``voxelviz_node``: opt-in environment
+  visualization and collision/context debug tools. Enable them with
   ``launch_collision_contact:=true`` or ``launch_voxelviz:=true``.
 
 Launch Modes

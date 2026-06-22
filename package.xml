@@ -15,6 +15,8 @@
   <buildtool_depend>eigen3_cmake_module</buildtool_depend>
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
 
+  <build_depend>pybind11-dev</build_depend>
+
   <depend>hardware_interface</depend>
   <depend>pluginlib</depend>
   <depend>rclpy</depend>
@@ -40,6 +42,8 @@
   <depend>angles</depend>
   <depend>rcl_interfaces</depend>
   <depend>rosidl_default_runtime</depend>
+
+  <exec_depend>python3-numpy</exec_depend>
 
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>uvms_controller</exec_depend>

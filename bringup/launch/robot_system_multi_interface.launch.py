@@ -452,13 +452,6 @@ def generate_launch_description():
     )
     declared_arguments.append(
         DeclareLaunchArgument(
-            "launch_env_obstacles",
-            default_value="true",
-            description="Start environment obstacle publishing.",
-        )
-    )
-    declared_arguments.append(
-        DeclareLaunchArgument(
             "launch_planner_action_server",
             default_value="false",
             description="Start the planner action server even without the interactive controller.",
@@ -521,7 +514,6 @@ def launch_setup(context, *args, **kwargs):
     launch_collision_contact = LaunchConfiguration("launch_collision_contact").perform(context)
     interactive_fcl_update_rate = LaunchConfiguration("interactive_fcl_update_rate").perform(context)
     launch_voxelviz = LaunchConfiguration("launch_voxelviz").perform(context)
-    launch_env_obstacles = LaunchConfiguration("launch_env_obstacles").perform(context)
     launch_planner_action_server = LaunchConfiguration("launch_planner_action_server").perform(context)
     task = task.lower()
     use_pwm = str(task in {'direct_thrusters'})
@@ -1020,16 +1012,6 @@ def launch_setup(context, *args, **kwargs):
         condition=IfCondition(launch_voxelviz),
     )
 
-    env_obstacles_node = Node(
-        package="simlab",
-        executable="env_obstacles_node",
-        name="env_obstacles_node",
-        output="screen",
-        parameters=[{
-            "robot_description": robot_description_content,
-        }],
-        condition=IfCondition(launch_env_obstacles),
-    )
 
     planner_action_server_node = None
     if task == "interactive" or launch_planner_action_server_bool:
@@ -1089,7 +1071,6 @@ def launch_setup(context, *args, **kwargs):
         rviz_after_switch,
         mesh_collision_node,
         voxelviz_node,
-        env_obstacles_node,
         dynamic_obstacle_sim_node,
         bag_recorder_node,
     ]
@@ -1129,7 +1110,6 @@ def launch_setup(context, *args, **kwargs):
             "[/]simlab[/]planner_action_server_node",
             "[/]simlab[/]collision_contact_node",
             "[/]simlab[/]voxelviz_node",
-            "[/]simlab[/]env_obstacles_node",
             "[/]ros2_control_blue_reach_5[/]dynamic_obstacle_sim_node",
             "[/]ros2_control_blue_reach_5[/]sim_camera_renderer_node",
             "[/]ros2_control_blue_reach_5[/]gstreamer_camera_node",

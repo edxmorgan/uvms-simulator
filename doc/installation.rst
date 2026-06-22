@@ -90,6 +90,13 @@ Ruckig, and simulated camera rendering:
    python3 -m pip install pyPS4Controller pynput scipy casadi ruckig \
        python-fcl trimesh pycollada pyvista open3d
 
+Install the optional RSL-RL training dependency when you want to train through
+the ``uvms_rl`` RSL-RL adapter:
+
+.. code-block:: shell
+
+   python3 -m pip install rsl-rl-lib
+
 OMPL Python Bindings
 --------------------
 
@@ -120,6 +127,43 @@ For focused development:
    colcon build --packages-select ros2_control_blue_reach_5 simlab
    source install/setup.bash
 
+Optional GPU Dynamics Build
+---------------------------
+
+``ros2_control_blue_reach_5`` can build the batched UVMS GPU dynamics backend
+when a CUDA toolkit is available. The default mode is ``AUTO``: CPU dynamics are
+always built, and CUDA dynamics are added when ``nvcc`` and a reliable CUDA
+architecture setting are available.
+
+On modern CMake versions the package uses ``CMAKE_CUDA_ARCHITECTURES=native``.
+If you need to set the architecture manually, use a real/native target rather
+than PTX-only output. For example, RTX 5090 is compute capability ``12.0``, so
+use ``120``:
+
+.. code-block:: shell
+
+   CUDACXX=/usr/local/cuda/bin/nvcc colcon build \
+       --packages-select ros2_control_blue_reach_5 simlab \
+       --cmake-args \
+       -DUVMS_ENABLE_CUDA_DYNAMICS=ON \
+       -DUVMS_CUDA_ARCHITECTURES=120
+
+Avoid PTX-only settings such as ``90-virtual`` for the UVMS RL backend; they can
+build successfully and still fail at runtime on newer GPUs if the driver/toolkit
+pair cannot load that PTX. If you change CUDA toolkit or architecture settings,
+delete the package build cache before rebuilding:
+
+.. code-block:: shell
+
+   rm -rf build/ros2_control_blue_reach_5 install/ros2_control_blue_reach_5
+
+To force a CPU-only build:
+
+.. code-block:: shell
+
+   colcon build --packages-select ros2_control_blue_reach_5 simlab \
+       --cmake-args -DUVMS_ENABLE_CUDA_DYNAMICS=OFF
+
 Documentation Build
 -------------------
 
@@ -141,6 +185,17 @@ Open:
 .. code-block:: text
 
    doc/_build/html/index.html
+
+The HTML docs are built by default during local ``colcon`` builds. To disable
+that for a faster code-only build:
+
+.. code-block:: shell
+
+   colcon build --packages-select ros2_control_blue_reach_5 \
+       --cmake-args -DUVMS_BUILD_DOCS=OFF
+
+When docs are enabled, the generated HTML is written to
+``src/uvms-simulator/doc/_build/html``.
 
 GitHub Pages Deployment
 -----------------------
