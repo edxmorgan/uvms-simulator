@@ -18,7 +18,7 @@
       <visual>
         <geometry>
           <mesh
-            filename="file://$(find ros2_control_blue_reach_5)/blue/meshes/bluerov2_heavy_reach/BruceAssembly.dae"
+            filename="file://$(find ros2_control_blue_reach_5)/blue/meshes/bluerov2_heavy_reach/BruceAssembly_colored.dae"
             scale="0.025 0.025 0.025"
           />
         </geometry>
