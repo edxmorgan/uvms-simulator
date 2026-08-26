@@ -105,6 +105,15 @@ foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
 endforeach()
 
+# CasADi releases before the namespaced CMake export use the plain target name.
+if(TARGET casadi::casadi)
+  set(UVMS_CASADI_TARGET casadi::casadi)
+elseif(TARGET casadi)
+  set(UVMS_CASADI_TARGET casadi)
+else()
+  message(FATAL_ERROR "CasADi was found, but it did not export a supported CMake target")
+endif()
+
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DynamicObstacle.msg"
   "msg/DynamicObstacleArray.msg"
@@ -182,7 +191,7 @@ add_library(
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 target_link_libraries(${PROJECT_LIB} PUBLIC "${cpp_typesupport_target}")
 
-target_link_libraries(${PROJECT_LIB} PUBLIC casadi ${BATCH_UVMS_CORE_LIB})
+target_link_libraries(${PROJECT_LIB} PUBLIC ${UVMS_CASADI_TARGET} ${BATCH_UVMS_CORE_LIB})
 
 target_compile_features(${PROJECT_LIB} PUBLIC cxx_std_17)
 target_compile_options(${PROJECT_LIB} PRIVATE
