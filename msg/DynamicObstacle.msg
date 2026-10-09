@@ -17,9 +17,13 @@ geometry_msgs/Twist twist
 #   sphere:   [radius]
 #   box:      [x, y, z]
 #   cylinder: [radius, height]
-#   mesh:     optional; collision falls back to a bounding sphere/box if provided.
+#   mesh:     unused; provide collision_mesh_resource and collision_mesh_scale.
 uint8 collision_type
 float64[] collision_dimensions
+# Mesh vertices are in obstacle-local coordinates, transformed by pose.
+# No implicit fallback to visual geometry or a bounding proxy.
+string collision_mesh_resource
+float64[] collision_mesh_scale
 
 # Visual geometry used by RViz and simulated camera renderers.
 # If visual_type is GEOMETRY_MESH, visual_mesh_resource should be a package:// or file:// URI.

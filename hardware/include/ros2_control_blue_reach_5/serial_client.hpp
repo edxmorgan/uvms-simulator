@@ -24,6 +24,7 @@
 
 #include <atomic>
 #include <functional>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -109,6 +110,7 @@ private:
 
   // Serial port poller
   int handle_;
+  mutable std::mutex tx_mutex_;
   std::atomic<bool> running_{false};
   PortState port_status_ = PortState::kClosed;
   std::thread rx_worker_;

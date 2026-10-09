@@ -140,20 +140,22 @@ Useful launch switches:
 Dynamic Obstacles and Replanning
 --------------------------------
 
-Dynamic obstacles are simulator-owned and can run without RViz. SimLab exposes
-the higher-level ``/backend/world_command`` service so RViz menus, scripts, and
-frontend clients use one world-control path. World profiles live in
-``uvms-simlab/resource/world_profiles`` and can be loaded with
-``set_world_profile``. Tests and benchmark scenarios can also place an obstacle
-on a robot's active path with ``spawn_path_obstacle``.
+Dynamic obstacles are owned by the selected SimLab behavior source and can run
+without RViz. Frontends author pose, size, and geometry through
+``/dynamic_obstacle_sim_node/edit_dynamic_obstacles``; no active path is required.
+World profiles live in ``uvms-simlab/resource/world_profiles`` and are applied
+through the same edit service using ``replace``. Replanning selection is separate
+from obstacle behavior selection.
 
 Dynamic replanning is configured through the same world service, not launch
-arguments. When enabled, each robot monitors its own active path against the
-shared dynamic-obstacle world. If the remaining path violates the configured
-clearance margin, the selected planner is asked for a replacement trajectory
-while the current trajectory keeps running. If no safe replacement can be found
-and the conflict becomes imminent, the mission is stopped and the robot holds
-its current state.
+arguments. When enabled, each robot monitors timed trajectory previews against
+the shared dynamic-obstacle world. Replanning runs while motion continues only
+when braking and predicted clearance checks allow it. Unsafe execution is held
+with feedback, preserving the goal and waypoint progress. In simulation, the
+supervisor retries the retained goal once the vehicle has settled and clearance
+is restored. Hardware does not resume automatically. There is no automatic
+retreat from inside the clearance margin; checks are sampled, not continuous.
+
 
 Command Replay
 --------------

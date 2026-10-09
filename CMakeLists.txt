@@ -124,7 +124,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/BatchObservation.msg"
   "srv/ResetBatchSim.srv"
   "srv/ResetSimUvms.srv"
-  "srv/SetDynamicObstacles.srv"
   "srv/SetSimCameraDynamics.srv"
   "srv/SetSimDynamics.srv"
   DEPENDENCIES geometry_msgs std_msgs visualization_msgs
@@ -315,11 +314,6 @@ install(PROGRAMS
   RENAME sim_camera_renderer_node
 )
 
-install(PROGRAMS
-  bringup/dynamic_obstacle_sim.py
-  DESTINATION lib/${PROJECT_NAME}
-  RENAME dynamic_obstacle_sim_node
-)
 
 if(UVMS_BUILD_DOCS)
   find_program(UVMS_SPHINX_BUILD_EXECUTABLE NAMES sphinx-build)
@@ -342,7 +336,19 @@ else()
 endif()
 
 if(BUILD_TESTING)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_rviz_pointcloud_qos test/test_rviz_pointcloud_qos.py)
+  ament_add_pytest_test(test_bruce_visual_alignment test/test_bruce_visual_alignment.py)
+  ament_add_pytest_test(test_camera_clipping test/test_camera_clipping.py)
+  ament_add_pytest_test(test_camera_destination test/test_camera_destination.py)
+  ament_add_pytest_test(test_obstacle_description test/test_obstacle_description.py)
+  ament_add_pytest_test(test_description_shutdown test/test_description_shutdown.py)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_serial_budget test/test_serial_budget.cpp
+    hardware/packet.cpp hardware/cobs.cpp hardware/crc.cpp)
+  target_include_directories(test_serial_budget PRIVATE hardware/include)
+  ament_add_gtest(test_command_safety test/test_command_safety.cpp)
+  target_include_directories(test_command_safety PRIVATE hardware/include)
 endif()
 
 ## EXPORTS

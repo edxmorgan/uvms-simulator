@@ -7,6 +7,7 @@ import os
 import xml.etree.ElementTree as ET
 
 import numpy as np
+from bringup.obstacle_description import visual_geometry
 import open3d as o3d
 import pyvista as pv
 import rclpy
@@ -106,16 +107,30 @@ def resolve_mesh_uri(uri):
     return path
 
 
-def read_triangle_mesh(path, max_triangles):
+def read_triangle_mesh(path, max_triangles, preserve_materials=False):
     loaded = trimesh.load(path, force="scene")
+    if preserve_materials and isinstance(loaded, trimesh.Scene):
+        parts = list(loaded.dump())
+        for part in parts:
+            if part.visual.kind == 'texture':
+                if part.visual.uv is None:
+                    part.visual = trimesh.visual.ColorVisuals(
+                        mesh=part, vertex_colors=np.tile(part.visual.material.main_color,
+                                                       (len(part.vertices), 1)))
+                else:
+                    part.visual = part.visual.to_color()
+        loaded = trimesh.util.concatenate(parts)
     if isinstance(loaded, trimesh.Scene):
-        loaded = loaded.dump(concatenate=True)
+        loaded = loaded.to_geometry()
     if loaded.is_empty:
         return o3d.geometry.TriangleMesh()
 
     mesh = o3d.geometry.TriangleMesh()
     mesh.vertices = o3d.utility.Vector3dVector(np.asarray(loaded.vertices, dtype=float))
     mesh.triangles = o3d.utility.Vector3iVector(np.asarray(loaded.faces, dtype=np.int32))
+    if preserve_materials and loaded.visual.defined:
+        mesh.vertex_colors = o3d.utility.Vector3dVector(
+            np.asarray(loaded.visual.vertex_colors[:, :3], dtype=float) / 255.)
     if getattr(loaded, "vertex_normals", None) is not None and len(loaded.vertex_normals) == len(loaded.vertices):
         mesh.vertex_normals = o3d.utility.Vector3dVector(np.array(loaded.vertex_normals, dtype=float, copy=True))
     else:
@@ -136,7 +151,10 @@ def open3d_to_polydata(mesh):
     if faces.size == 0:
         return pv.PolyData(vertices)
     vtk_faces = np.column_stack([np.full((faces.shape[0], 1), 3, dtype=np.int64), faces]).reshape(-1)
-    return pv.PolyData(vertices, vtk_faces)
+    poly = pv.PolyData(vertices, vtk_faces)
+    if mesh.has_vertex_colors():
+        poly.point_data['asset_rgb'] = np.asarray(mesh.vertex_colors)
+    return poly
 
 
 class SimCameraRendererNode(Node):
@@ -521,13 +539,12 @@ class SimCameraRendererNode(Node):
                 self._remove_dynamic_obstacle(name, self.dynamic_obstacle_entries.pop(name))
 
     def _dynamic_obstacle_signature(self, obstacle):
-        visual_type = int(obstacle.visual_type or obstacle.collision_type)
-        dimensions = tuple(float(v) for v in (obstacle.visual_dimensions or obstacle.collision_dimensions))
+        visual_type, dimensions, resource = visual_geometry(obstacle)
         color = obstacle.color
         return (
             visual_type,
             dimensions,
-            str(obstacle.visual_mesh_resource),
+            resource,
             round(float(color.r), 4),
             round(float(color.g), 4),
             round(float(color.b), 4),
@@ -571,11 +588,12 @@ class SimCameraRendererNode(Node):
         if mesh is None:
             return None
         r, g, b, a = self._dynamic_obstacle_color(obstacle)
+        appearance = ({'scalars': 'asset_rgb', 'rgb': True, 'opacity': 1.}
+                      if 'asset_rgb' in mesh.point_data else {'color': (r, g, b), 'opacity': a})
         return self.pyvista_plotter.add_mesh(
             mesh,
-            color=(r, g, b),
-            opacity=a,
-            smooth_shading=True,
+            **appearance,
+            smooth_shading='asset_rgb' not in mesh.point_data,
             ambient=0.35,
             diffuse=0.65,
             specular=0.12,
@@ -596,8 +614,12 @@ class SimCameraRendererNode(Node):
                 height=max(0.001, dimensions[1]),
                 resolution=32,
             )
-        if visual_type == DynamicObstacle.GEOMETRY_MESH and obstacle.visual_mesh_resource:
-            return open3d_to_polydata(read_triangle_mesh(resolve_mesh_uri(obstacle.visual_mesh_resource), self.max_mesh_triangles))
+        if visual_type == DynamicObstacle.GEOMETRY_MESH:
+            mesh = open3d_to_polydata(read_triangle_mesh(
+                resolve_mesh_uri(visual_geometry(obstacle)[2]), self.max_mesh_triangles,
+                preserve_materials=True))
+            mesh.points = np.asarray(mesh.points) * np.asarray(dimensions)
+            return mesh
         return None
 
     def _open3d_dynamic_obstacle_mesh_and_material(self, obstacle):
@@ -606,6 +628,8 @@ class SimCameraRendererNode(Node):
             return None, None
         mesh.compute_vertex_normals()
         r, g, b, a = self._dynamic_obstacle_color(obstacle)
+        if mesh.has_vertex_colors():
+            r, g, b, a = 1., 1., 1., 1.
         material = o3d.visualization.rendering.MaterialRecord()
         material.shader = "defaultLitTransparency" if a < 1.0 else "defaultLit"
         material.base_color = [r, g, b, a]
@@ -626,14 +650,17 @@ class SimCameraRendererNode(Node):
                 depth=max(0.001, dimensions[1]),
                 resolution=32,
             )
-        if visual_type == DynamicObstacle.GEOMETRY_MESH and obstacle.visual_mesh_resource:
-            return read_triangle_mesh(resolve_mesh_uri(obstacle.visual_mesh_resource), self.max_mesh_triangles)
+        if visual_type == DynamicObstacle.GEOMETRY_MESH:
+            mesh = read_triangle_mesh(
+                resolve_mesh_uri(visual_geometry(obstacle)[2]), self.max_mesh_triangles,
+                preserve_materials=True)
+            mesh.vertices = o3d.utility.Vector3dVector(np.asarray(mesh.vertices) * np.asarray(dimensions))
+            return mesh
         return None
 
     @staticmethod
     def _dynamic_obstacle_type_and_dimensions(obstacle):
-        visual_type = int(obstacle.visual_type or obstacle.collision_type)
-        dimensions = tuple(float(v) for v in (obstacle.visual_dimensions or obstacle.collision_dimensions))
+        visual_type, dimensions, _ = visual_geometry(obstacle)
         return visual_type, dimensions
 
     def _lookup_matrix(self, frame):
@@ -749,7 +776,10 @@ class SimCameraRendererNode(Node):
             self.pyvista_plotter.render()
             rgb = np.asarray(self.pyvista_plotter.screenshot(return_img=True))[:, :, :3]
         else:
-            self.open3d_renderer.setup_camera(self.horizontal_fov_deg, eye + forward, eye, up)
+            # Open3D's 10 cm default near plane cuts through close onboard arm views.
+            self.open3d_renderer.setup_camera(
+                self.horizontal_fov_deg, eye + forward, eye, up, near_clip=0.01
+            )
             rgb = np.asarray(self.open3d_renderer.render_to_image())[:, :, :3]
         rgb = self._apply_underwater_effect(rgb, eye[2])
         msg = Image()

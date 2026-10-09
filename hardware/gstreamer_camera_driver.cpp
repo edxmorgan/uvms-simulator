@@ -68,17 +68,20 @@ void GStreamerCameraDriver::configure(
   set_frame_id(frame_id);
   pipeline_ = pipeline;
 
+  // Live video should retain only the newest frame. Keep reliable delivery for
+  // RViz's default subscription, without transient history of large old images.
+  const auto camera_qos = rclcpp::QoS(rclcpp::KeepLast(1)).reliable().durability_volatile();
   image_pub_ = node_->create_publisher<sensor_msgs::msg::Image>(
-    image_topic_, rclcpp::SystemDefaultsQoS());
+    image_topic_, camera_qos);
   camera_info_pub_ = node_->create_publisher<sensor_msgs::msg::CameraInfo>(
-    camera_info_topic_, rclcpp::SystemDefaultsQoS());
+    camera_info_topic_, camera_qos);
   if (!mirror_image_topic_.empty()) {
     mirror_image_pub_ = node_->create_publisher<sensor_msgs::msg::Image>(
-      mirror_image_topic_, rclcpp::SystemDefaultsQoS());
+      mirror_image_topic_, camera_qos);
   }
   if (!mirror_camera_info_topic_.empty()) {
     mirror_camera_info_pub_ = node_->create_publisher<sensor_msgs::msg::CameraInfo>(
-      mirror_camera_info_topic_, rclcpp::SystemDefaultsQoS());
+      mirror_camera_info_topic_, camera_qos);
   }
   realtime_image_pub_ =
     std::make_shared<realtime_tools::RealtimePublisher<sensor_msgs::msg::Image>>(image_pub_);
@@ -161,10 +164,11 @@ void GStreamerCameraDriver::set_frame_id(const std::string & frame_id)
 std::string GStreamerCameraDriver::default_pipeline()
 {
   return
-    "udpsrc port=5600 ! application/x-rtp, payload=96 "
-    "! rtpjitterbuffer latency=0 drop-on-latency=true faststart-min-packets=1 "
+    "udpsrc port=5600 ! application/x-rtp,media=video,encoding-name=H264,clock-rate=90000,payload=96 "
+    "! rtpjitterbuffer latency=50 drop-on-latency=true "
     "! rtph264depay "
-    "! queue max-size-buffers=1 max-size-time=0 max-size-bytes=0 leaky=downstream "
+    // H264 frames depend on preceding frames. Drop only decoded images at the
+    // appsink, otherwise a short scheduling delay can corrupt an entire GOP.
     "! avdec_h264 max-threads=2 "
     "! videoconvert ! video/x-raw,format=(string)BGR "
     "! appsink name=camera_sink emit-signals=true sync=false async=false max-buffers=1 drop=true";

@@ -40,6 +40,8 @@
 #include "ros2_control_blue_reach_5/visibility_control.h"
 
 #include "ros2_control_blue_reach_5/driver.hpp"
+#include "ros2_control_blue_reach_5/serial_budget.hpp"
+#include "ros2_control_blue_reach_5/command_safety.hpp"
 #include "ros2_control_blue_reach_5/packet.hpp"
 #include "ros2_control_blue_reach_5/joint.hpp"
 #include "ros2_control_blue_reach_5/state.hpp"
@@ -91,10 +93,10 @@ namespace ros2_control_blue_reach_5
         const std::vector<std::string> &start_interfaces,
         const std::vector<std::string> &stop_interfaces) override;
 
-    // ROS2_CONTROL_BLUE_REACH_5_PUBLIC
-    // hardware_interface::return_type perform_command_mode_switch(
-    //     const std::vector<std::string> &start_interfaces,
-    //     const std::vector<std::string> &stop_interfaces) override;
+    ROS2_CONTROL_BLUE_REACH_5_PUBLIC
+    hardware_interface::return_type perform_command_mode_switch(
+        const std::vector<std::string> &start_interfaces,
+        const std::vector<std::string> &stop_interfaces) override;
 
     ROS2_CONTROL_BLUE_REACH_5_PUBLIC
     std::vector<hardware_interface::StateInterface> export_state_interfaces() override;
@@ -121,6 +123,12 @@ namespace ros2_control_blue_reach_5
   private:
     // ReachComms comms_;
     Config cfg_;
+    SerialBudget serial_budget_;
+    std::vector<std::string> joint_names_;
+    std::vector<std::string> claimed_modes_;
+    std::vector<JointFeedbackClock> feedback_clocks_;
+    JointFeedbackClock::Clock::time_point activated_at_{};
+    bool feedback_fault_{false};
 
     enum class mode_level_t
     {
@@ -146,8 +154,6 @@ namespace ros2_control_blue_reach_5
 
     std::string system_name;
 
-    std::vector<DM> C2T_arg;
-    std::vector<DM> T2C_arg;
 
     double delta_seconds;
     double time_seconds;

@@ -27,11 +27,12 @@ from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit, OnProcessStart
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, TextSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 import launch.logging
 from bringup.utils.rviz_utils import rviz_file_configure
-from bringup.utils.controller_config import modify_controller_config, parse_controller_list, controller_spawner_nodes
+from bringup.utils.controller_config import modify_controller_config, controller_spawner_nodes
 
 # Create a logger for the launch file
 logger = launch.logging.get_logger('robot_system_multi_interface_launch')
@@ -173,6 +174,19 @@ def _camera_topic_base(robot_prefix: str) -> str:
 def generate_launch_description():
     # Declare arguments
     declared_arguments = []
+    declared_arguments.extend([
+        DeclareLaunchArgument('dynamic_obstacle_source', default_value='scripted_motion'),
+        DeclareLaunchArgument('obstacle_source_config', default_value='{}'),
+        DeclareLaunchArgument('obstacle_seed', default_value='0'),
+    ])
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "robot_name",
+            default_value="dory",
+            choices=["dory", "bruce"],
+            description="Vehicle visual description; dynamics parameters are configured separately.",
+        )
+    )
     declared_arguments.append(
         DeclareLaunchArgument(
             "prefix",
@@ -258,6 +272,20 @@ def generate_launch_description():
             description="Optional custom GStreamer pipeline. Must end with appsink name=camera_sink.",
         )
     )
+    declared_arguments.extend([
+        DeclareLaunchArgument(
+            "camera_auto_destination", default_value="true",
+            description="Register this computer's IP with BlueOS for the default real camera pipeline.",
+        ),
+        DeclareLaunchArgument(
+            "camera_blueos_url", default_value="http://192.168.2.2:6020",
+            description="BlueOS MAVLink Camera Manager API URL.",
+        ),
+        DeclareLaunchArgument(
+            "camera_stream_name", default_value="",
+            description="BlueOS camera stream name; empty selects the single local H264 stream.",
+        ),
+    ])
     declared_arguments.append(
         DeclareLaunchArgument(
             "sim_camera_width",
@@ -464,6 +492,7 @@ def launch_setup(context, *args, **kwargs):
 
     # Resolve LaunchConfigurations
     prefix = LaunchConfiguration("prefix").perform(context)
+    robot_name = LaunchConfiguration("robot_name").perform(context)
     use_manipulator_hardware = LaunchConfiguration("use_manipulator_hardware").perform(context)
     use_vehicle_hardware = LaunchConfiguration("use_vehicle_hardware").perform(context)
     use_dvl = LaunchConfiguration("use_dvl").perform(context)
@@ -473,6 +502,11 @@ def launch_setup(context, *args, **kwargs):
     camera_source = LaunchConfiguration("camera_source").perform(context)
     world_frame = LaunchConfiguration("world_frame").perform(context)
     camera_pipeline = LaunchConfiguration("camera_pipeline").perform(context)
+    camera_auto_destination = _parse_bool_arg(
+        "camera_auto_destination", LaunchConfiguration("camera_auto_destination").perform(context))
+    camera_blueos_url = LaunchConfiguration("camera_blueos_url").perform(context)
+    camera_stream_name = LaunchConfiguration("camera_stream_name").perform(context)
+    custom_camera_pipeline = bool(camera_pipeline.strip())
     sim_camera_width = LaunchConfiguration("sim_camera_width").perform(context)
     sim_camera_height = LaunchConfiguration("sim_camera_height").perform(context)
     sim_camera_rate = LaunchConfiguration("sim_camera_rate").perform(context)
@@ -581,6 +615,9 @@ def launch_setup(context, *args, **kwargs):
             " ",
             "dvl_port:=",
             dvl_port,
+            " ",
+            "robot_name:=",
+            robot_name,
         ]
     )
 
@@ -654,8 +691,6 @@ def launch_setup(context, *args, **kwargs):
 
     if not camera_pipeline and selected_camera_is_sim:
         camera_pipeline = _simulated_camera_pipeline()
-
-    is_hardware_uvms = use_manipulator_hardware_bool and use_vehicle_hardware_bool
 
     if launch_camera_bool and selected_camera_is_sim and not has_simulated_camera_source:
         raise RuntimeError("camera_source:=sim requires at least one simulated vehicle camera source.")
@@ -740,6 +775,9 @@ def launch_setup(context, *args, **kwargs):
                         " ",
                         "prefix:=",
                         robot_prefix,
+                        " ",
+                        "robot_name:=",
+                        robot_name,
                     ]
                 )
             }],
@@ -955,13 +993,16 @@ def launch_setup(context, *args, **kwargs):
     )
 
     dynamic_obstacle_sim_node = Node(
-        package="ros2_control_blue_reach_5",
+        package="simlab",
         executable="dynamic_obstacle_sim_node",
         name="dynamic_obstacle_sim_node",
         output="screen",
         parameters=[{
             "world_frame": world_frame,
             "robot_base_frames": robot_base_links,
+            "dynamic_obstacle_source": LaunchConfiguration("dynamic_obstacle_source"),
+            "source_config": ParameterValue(LaunchConfiguration("obstacle_source_config"), value_type=str),
+            "experiment_seed": ParameterValue(LaunchConfiguration("obstacle_seed"), value_type=int),
         }],
     )
 
@@ -1008,6 +1049,7 @@ def launch_setup(context, *args, **kwargs):
         output="screen",
         parameters=[{
             "robot_description": robot_description_content,
+            "world_frame": world_frame,
         }],
         condition=IfCondition(launch_voxelviz),
     )
@@ -1078,6 +1120,15 @@ def launch_setup(context, *args, **kwargs):
     if launch_camera_bool:
         if selected_camera_node is not None:
             simulator_actions.append(selected_camera_node)
+            if camera_auto_destination and not custom_camera_pipeline:
+                simulator_actions.append(ExecuteProcess(
+                    cmd=[FindExecutable(name="python3"), "-m", "bringup.camera_destination",
+                         "--api-url", camera_blueos_url,
+                         "--stream-name", camera_stream_name,
+                         "--image-topic", selected_camera_params["image_topic"]],
+                    name="camera_destination_discovery",
+                    output="screen",
+                ))
         if has_simulated_camera_source:
             simulator_actions.append(sim_camera_renderer_node)
 
@@ -1102,6 +1153,7 @@ def launch_setup(context, *args, **kwargs):
     cleanup_stale_nodes_bool = _parse_bool_arg("cleanup_stale_nodes", cleanup_stale_nodes)
     if cleanup_stale_nodes_bool:
         stale_process_patterns = [
+            "[p]ython3 -m bringup.camera_destination",
             "[p]ython3 -m bringup.sim_reset_coordinator",
             "[/]ros2_control_blue_reach_5[/]robot_description_publisher.py",
             "[/]robot_state_publisher[/]robot_state_publisher",
@@ -1110,7 +1162,7 @@ def launch_setup(context, *args, **kwargs):
             "[/]simlab[/]planner_action_server_node",
             "[/]simlab[/]collision_contact_node",
             "[/]simlab[/]voxelviz_node",
-            "[/]ros2_control_blue_reach_5[/]dynamic_obstacle_sim_node",
+            "[/]simlab[/]dynamic_obstacle_sim_node",
             "[/]ros2_control_blue_reach_5[/]sim_camera_renderer_node",
             "[/]ros2_control_blue_reach_5[/]gstreamer_camera_node",
             "[/]string_to_overlay_text",

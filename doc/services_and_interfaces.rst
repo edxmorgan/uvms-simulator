@@ -196,18 +196,15 @@ camera-only and combined robot/camera profile updates.
 Dynamic Obstacle Services
 -------------------------
 
-Dynamic obstacles are owned by the simulator. The low-level simulator service
-sets the exact live obstacle snapshot:
+Dynamic obstacles are owned by the SimLab source runtime. All edits use:
 
-- ``/dynamic_obstacle_sim_node/set_dynamic_obstacles``
-  (``ros2_control_blue_reach_5/srv/SetDynamicObstacles``)
+- ``/dynamic_obstacle_sim_node/edit_dynamic_obstacles``
+  (``simlab/srv/EditDynamicObstacles``)
 
-The request carries ``DynamicObstacleArray``:
-
-.. code-block:: text
-
-   std_msgs/Header header          # frame_id must match the simulator world frame
-   DynamicObstacle[] obstacles
+The request selects ``get``, ``add``, ``update``, ``remove``, ``clear``,
+``replace``, or ``reset``, carries ``DynamicObstacleArray`` or IDs, and optionally
+checks the expected scene revision. Responses contain the completed result and
+authoritative scene. Creating an obstacle does not require a vehicle path.
 
 Each ``DynamicObstacle`` contains:
 
@@ -221,6 +218,9 @@ Each ``DynamicObstacle`` contains:
    uint8 visual_type
    float64[] visual_dimensions
    string visual_mesh_resource
+   string collision_mesh_resource
+   float64[3] collision_mesh_scale
+   float64[3] visual_mesh_scale
    std_msgs/ColorRGBA color
 
 Supported geometry types are ``sphere``, ``box``, ``cylinder``, and ``mesh``
@@ -229,8 +229,8 @@ through the message constants. Dimension conventions are:
 - Sphere: ``[radius]``.
 - Box: ``[x, y, z]``.
 - Cylinder: ``[radius, height]``.
-- Mesh: use ``visual_mesh_resource`` for rendering and collision dimensions as
-  a simple proxy.
+- Mesh: collision_mesh_resource and collision_mesh_scale define collision geometry;
+  visual_mesh_resource and visual_mesh_scale define rendering.
 
 Obstacle IDs must be unique within each update. Empty IDs are normalized to
 ``obstacle_N`` by index. Duplicate effective IDs are rejected before the
@@ -281,7 +281,6 @@ Request fields:
 
    string command
    string name
-   int32 robot_index          # zero-based robot index; used by path-aware helpers
 
    bool enabled              # used by set_dynamic_replanning
    float64 rate              # Hz; <= 0 keeps current value
@@ -290,24 +289,18 @@ Request fields:
    float64 safety_margin     # meters; <= 0 keeps current value
    float64 replan_hysteresis # meters; <= 0 keeps current value
 
-   float64 distance_ahead    # meters; used by spawn_path_obstacle
-   float64 radius            # meters; used by spawn_path_obstacle
 
 Supported ``BackendWorldCommand.command`` values:
 
 - ``set_world_profile``: load the world profile named by ``name`` from
   ``simlab/resource/world_profiles`` and forward it to
-  ``/dynamic_obstacle_sim_node/set_dynamic_obstacles``.
+  ``/dynamic_obstacle_sim_node/edit_dynamic_obstacles`` using ``replace``.
 - ``clear_dynamic_obstacles``: clear all simulator dynamic obstacles.
-- ``spawn_path_obstacle``: create one spherical obstacle on the active planned
-  path for ``robot_index``. ``distance_ahead`` places it along the remaining
-  path and ``radius`` sets the sphere radius. This is mainly for deterministic
-  replanning tests and frontend-created benchmark scenarios.
 - ``enable_dynamic_replanning``: enable the per-robot dynamic replanning
   supervisor. Optional numeric fields tune the monitor rate, cooldown,
   lookahead time, clearance margin, and hysteresis.
-- ``disable_dynamic_replanning``: disable dynamic replanning and release its
-  dynamic-obstacle subscription and timer.
+- ``disable_dynamic_replanning``: disable the replanning supervisor timer;
+  collision checking retains its dynamic-obstacle subscription.
 - ``set_dynamic_replanning``: set ``enabled`` and optionally tune numeric
   dynamic replanning parameters in one request.
 - ``dynamic_replanning_status``: return the current dynamic replanning state
@@ -456,17 +449,16 @@ scripts, or frontend clients.
      "{command: set_dynamic_replanning, enabled: true, rate: 5.0, cooldown: 0.5, lookahead_time: 8.0, safety_margin: 0.6, replan_hysteresis: 0.05}"
 
    ros2 service call /backend/world_command simlab/srv/BackendWorldCommand \
-     "{command: spawn_path_obstacle, name: blocker_1, robot_index: 0, distance_ahead: 4.0, radius: 0.75}"
-
-   ros2 service call /backend/world_command simlab/srv/BackendWorldCommand \
      "{command: dynamic_replanning_status}"
 
-Expected behavior is that the obstacle appears in RViz, the active path is
-checked against the updated obstacle set, the selected planner searches for a
-replacement path, and the selected trajectory generator starts a replacement
-trajectory if planning succeeds. A failed replacement plan leaves the current
-trajectory intact until the conflict becomes imminent, at which point the
-mission is stopped and the robot holds state.
+Accepted obstacles appear in RViz and enter the shared collision world.
+The selected planner searches for a replacement path, and the trajectory
+generator's timed output is validated before execution. Urgent braking checks
+take priority over replanning cooldown and suppression. A safety hold retains
+the goal and waypoint progress. Simulation retries after clearance returns and
+the vehicle settles; hardware requires operator control. Automatic retreat from
+inside the clearance margin is not implemented.
+
 
 Planner Action
 --------------

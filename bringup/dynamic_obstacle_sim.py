@@ -5,104 +5,23 @@ import json
 import math
 from pathlib import Path
 
-import rclpy
-from geometry_msgs.msg import Pose
 from rclpy.duration import Duration
-from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from rclpy.time import Time
 from ros2_control_blue_reach_5.msg import DynamicObstacle, DynamicObstacleArray
-from ros2_control_blue_reach_5.srv import SetDynamicObstacles
 import tf2_ros
 from visualization_msgs.msg import Marker, MarkerArray
+from bringup.collision_geometry import geometry_from_obstacle
 
 
-def geometry_type(value) -> int:
-    if isinstance(value, int):
-        return int(value)
-    mapping = {
-        "none": DynamicObstacle.GEOMETRY_NONE,
-        "sphere": DynamicObstacle.GEOMETRY_SPHERE,
-        "box": DynamicObstacle.GEOMETRY_BOX,
-        "cylinder": DynamicObstacle.GEOMETRY_CYLINDER,
-        "mesh": DynamicObstacle.GEOMETRY_MESH,
-    }
-    key = str(value).strip().lower()
-    if key not in mapping:
-        raise ValueError(f"unknown obstacle geometry type '{value}'")
-    return mapping[key]
+from bringup.obstacle_description import (
+    obstacle_array_from_profile, visual_geometry,
+)
 
 
-def vector(config: dict, key: str, size: int, default: list[float]) -> list[float]:
-    values = [float(v) for v in list(config.get(key, default))]
-    if len(values) != size:
-        raise ValueError(f"obstacle '{key}' must contain exactly {size} values")
-    return values
-
-
-def obstacle_from_config(config: dict, index: int) -> DynamicObstacle:
-    if not isinstance(config, dict):
-        raise ValueError(f"obstacles[{index}] must be an object")
-    obstacle = DynamicObstacle()
-    obstacle.id = str(config.get("id", f"obstacle_{index}"))
-    obstacle.collision_type = geometry_type(config.get("type", config.get("collision_type", "sphere")))
-    obstacle.collision_dimensions = [float(v) for v in list(config.get("dimensions", config.get("collision_dimensions", [])))]
-    if not obstacle.collision_dimensions:
-        raise ValueError(f"obstacle '{obstacle.id}' is missing dimensions")
-    obstacle.visual_type = geometry_type(config.get("visual_type", obstacle.collision_type))
-    obstacle.visual_dimensions = [float(v) for v in list(config.get("visual_dimensions", obstacle.collision_dimensions))]
-    obstacle.visual_mesh_resource = str(config.get("visual_mesh_resource", ""))
-
-    position = vector(config, "position", 3, [0.0, 0.0, 0.0])
-    orientation = vector(config, "orientation", 4, [0.0, 0.0, 0.0, 1.0])
-    obstacle.pose.position.x, obstacle.pose.position.y, obstacle.pose.position.z = position
-    obstacle.pose.orientation.x, obstacle.pose.orientation.y, obstacle.pose.orientation.z, obstacle.pose.orientation.w = orientation
-
-    linear = vector(config, "linear_velocity", 3, [0.0, 0.0, 0.0])
-    angular = vector(config, "angular_velocity", 3, [0.0, 0.0, 0.0])
-    obstacle.twist.linear.x, obstacle.twist.linear.y, obstacle.twist.linear.z = linear
-    obstacle.twist.angular.x, obstacle.twist.angular.y, obstacle.twist.angular.z = angular
-
-    color = vector(config, "color", 4, [0.95, 0.42, 0.12, 0.75])
-    obstacle.color.r, obstacle.color.g, obstacle.color.b, obstacle.color.a = color
-    return obstacle
-
-
-def obstacle_array_from_profile(profile: dict, default_frame_id: str) -> DynamicObstacleArray:
-    obstacles_config = profile.get("obstacles", profile)
-    frame_id = default_frame_id
-    items = obstacles_config
-    if isinstance(obstacles_config, dict):
-        frame_id = str(obstacles_config.get("frame_id", default_frame_id) or default_frame_id)
-        items = obstacles_config.get("items", [])
-    if not isinstance(items, list):
-        raise ValueError("obstacles must be a list or an object with an items list")
-
-    msg = DynamicObstacleArray()
-    msg.header.frame_id = frame_id
-    msg.obstacles = [obstacle_from_config(item, index) for index, item in enumerate(items)]
-    validate_unique_obstacle_ids(msg.obstacles)
-    return msg
-
-
-def effective_obstacle_ids(obstacles) -> list[str]:
-    return [(obstacle.id.strip() or f"obstacle_{index}") for index, obstacle in enumerate(obstacles)]
-
-
-def validate_unique_obstacle_ids(obstacles) -> None:
-    seen = set()
-    duplicates = set()
-    for obstacle_id in effective_obstacle_ids(obstacles):
-        if obstacle_id in seen:
-            duplicates.add(obstacle_id)
-        seen.add(obstacle_id)
-    if duplicates:
-        duplicate_list = ", ".join(sorted(duplicates))
-        raise ValueError(f"duplicate dynamic obstacle id(s): {duplicate_list}")
-
-
-class DynamicObstacleSimNode(Node):
+class DynamicObstacleTransport(Node):
+    """Shared ROS transport and markers; motion is owned by the simlab source host."""
     def __init__(self) -> None:
         super().__init__("dynamic_obstacle_sim_node")
         self.declare_parameter("world_frame", "world")
@@ -133,16 +52,10 @@ class DynamicObstacleSimNode(Node):
         )
         self.publisher = self.create_publisher(DynamicObstacleArray, "/dynamic_obstacles", qos)
         self.marker_publisher = self.create_publisher(MarkerArray, "/dynamic_obstacle_markers", qos)
-        self.service = self.create_service(
-            SetDynamicObstacles,
-            "~/set_dynamic_obstacles",
-            self._handle_set_dynamic_obstacles,
-        )
         self.obstacles = DynamicObstacleArray()
         self.obstacles.header.frame_id = self.world_frame
         self._last_time = self.get_clock().now()
         self._last_marker_count = 0
-        self._needs_publish = True
 
         profile_file = str(self.get_parameter("profile_file").value).strip()
         if profile_file:
@@ -166,36 +79,6 @@ class DynamicObstacleSimNode(Node):
         path = Path(profile_file).expanduser()
         loaded = json.loads(path.read_text())
         self.obstacles = obstacle_array_from_profile(loaded, self.world_frame)
-
-    def _handle_set_dynamic_obstacles(self, request, response):
-        frame_id = request.obstacles.header.frame_id or self.world_frame
-        if frame_id != self.world_frame:
-            response.success = False
-            response.message = f"expected frame_id '{self.world_frame}', got '{frame_id}'"
-            self.get_logger().warn(f"rejected dynamic obstacle update: {response.message}")
-            return response
-
-        try:
-            validate_unique_obstacle_ids(request.obstacles.obstacles)
-            if request.obstacles.obstacles:
-                self._validate_obstacles_do_not_overlap_robots(request.obstacles.obstacles)
-        except ValueError as exc:
-            response.success = False
-            response.message = str(exc)
-            self.get_logger().warn(f"rejected dynamic obstacle update: {response.message}")
-            return response
-
-        self.obstacles = DynamicObstacleArray()
-        self.obstacles.header.frame_id = self.world_frame
-        self.obstacles.obstacles = list(request.obstacles.obstacles)
-        self._last_time = self.get_clock().now()
-        self._needs_publish = True
-        self._publish_snapshot()
-        ids = effective_obstacle_ids(self.obstacles.obstacles)
-        response.success = True
-        response.message = f"configured {len(self.obstacles.obstacles)} dynamic obstacles"
-        self.get_logger().info(f"received dynamic obstacle update: count={len(ids)}, ids={ids}")
-        return response
 
     def _validate_obstacles_do_not_overlap_robots(self, obstacles) -> None:
         if not self.reject_robot_overlaps:
@@ -260,85 +143,20 @@ class DynamicObstacleSimNode(Node):
         if geometry == DynamicObstacle.GEOMETRY_CYLINDER and len(dimensions) >= 2:
             return math.sqrt(dimensions[0] ** 2 + (0.5 * dimensions[1]) ** 2)
         if geometry == DynamicObstacle.GEOMETRY_MESH:
-            if len(dimensions) == 1:
-                return dimensions[0]
-            if len(dimensions) >= 3:
-                return 0.5 * math.sqrt(dimensions[0] ** 2 + dimensions[1] ** 2 + dimensions[2] ** 2)
+            return geometry_from_obstacle(obstacle)[1]
         return 0.0
 
     @staticmethod
     def _distance(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
         return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
 
-    def _publish_callback(self) -> None:
-        if not self._needs_publish and not self._obstacles_have_motion():
-            return
-
-        now = self.get_clock().now()
-        dt = max(0.0, (now - self._last_time).nanoseconds * 1.0e-9)
-        self._last_time = now
-        if dt > 0.0:
-            self._integrate_obstacles(dt)
-        self._publish_snapshot()
-
-    def _obstacles_have_motion(self) -> bool:
-        for obstacle in self.obstacles.obstacles:
-            twist = obstacle.twist
-            if (
-                abs(twist.linear.x) > 1.0e-9
-                or abs(twist.linear.y) > 1.0e-9
-                or abs(twist.linear.z) > 1.0e-9
-                or abs(twist.angular.x) > 1.0e-9
-                or abs(twist.angular.y) > 1.0e-9
-                or abs(twist.angular.z) > 1.0e-9
-            ):
-                return True
-        return False
-
-    def _integrate_obstacles(self, dt: float) -> None:
-        for obstacle in self.obstacles.obstacles:
-            obstacle.pose.position.x += obstacle.twist.linear.x * dt
-            obstacle.pose.position.y += obstacle.twist.linear.y * dt
-            obstacle.pose.position.z += obstacle.twist.linear.z * dt
-            angular = obstacle.twist.angular
-            angular_velocity = (float(angular.x), float(angular.y), float(angular.z))
-            if any(abs(value) > 1.0e-9 for value in angular_velocity):
-                self._integrate_angular_velocity(obstacle.pose, angular_velocity, dt)
-
-    @staticmethod
-    def _integrate_angular_velocity(pose: Pose, angular_velocity: tuple[float, float, float], dt: float) -> None:
-        wx, wy, wz = angular_velocity
-        speed = math.sqrt(wx * wx + wy * wy + wz * wz)
-        if speed < 1.0e-9:
-            return
-        half_angle = 0.5 * speed * dt
-        scale = math.sin(half_angle) / speed
-        dx = wx * scale
-        dy = wy * scale
-        dz = wz * scale
-        dw = math.cos(half_angle)
-        q = pose.orientation
-        x = dw * q.x + dx * q.w + dy * q.z - dz * q.y
-        y = dw * q.y - dx * q.z + dy * q.w + dz * q.x
-        z = dw * q.z + dx * q.y - dy * q.x + dz * q.w
-        w = dw * q.w - dx * q.x - dy * q.y - dz * q.z
-        norm = math.sqrt(x * x + y * y + z * z + w * w)
-        if norm < 1.0e-9:
-            pose.orientation.x = 0.0
-            pose.orientation.y = 0.0
-            pose.orientation.z = 0.0
-            pose.orientation.w = 1.0
-            return
-        pose.orientation.x = x / norm
-        pose.orientation.y = y / norm
-        pose.orientation.z = z / norm
-        pose.orientation.w = w / norm
+    def _publish_callback(self):
+        raise NotImplementedError('The selected behavior source owns motion')
 
     def _publish_snapshot(self) -> None:
         self.obstacles.header.stamp = self.get_clock().now().to_msg()
         self.publisher.publish(self.obstacles)
         self._publish_markers()
-        self._needs_publish = False
 
     def _publish_markers(self) -> None:
         marker_array = MarkerArray()
@@ -358,8 +176,11 @@ class DynamicObstacleSimNode(Node):
                 marker.color.b = 0.12
                 marker.color.a = 0.75
             if marker.type == Marker.MESH_RESOURCE:
-                marker.mesh_resource = obstacle.visual_mesh_resource
-                marker.mesh_use_embedded_materials = False
+                marker.mesh_resource = self._marker_mesh_resource(obstacle)
+                marker.mesh_use_embedded_materials = not marker.mesh_resource.lower().endswith('.stl')
+                if marker.mesh_use_embedded_materials:
+                    # Zero RGBA tells RViz to use the asset materials without tint.
+                    marker.color.r = marker.color.g = marker.color.b = marker.color.a = 0.
             marker_array.markers.append(marker)
 
         current_count = len(self.obstacles.obstacles)
@@ -375,20 +196,26 @@ class DynamicObstacleSimNode(Node):
         self.marker_publisher.publish(marker_array)
 
     @staticmethod
+    def _marker_mesh_resource(obstacle):
+        resource = visual_geometry(obstacle)[2]
+        return Path(resource).as_uri() if resource.startswith('/') else resource
+
+    @staticmethod
     def _marker_type(obstacle: DynamicObstacle) -> int:
-        geometry = int(obstacle.visual_type or obstacle.collision_type)
+        geometry, _, resource = visual_geometry(obstacle)
         if geometry == DynamicObstacle.GEOMETRY_BOX:
             return Marker.CUBE
         if geometry == DynamicObstacle.GEOMETRY_CYLINDER:
             return Marker.CYLINDER
-        if geometry == DynamicObstacle.GEOMETRY_MESH and obstacle.visual_mesh_resource:
+        if geometry == DynamicObstacle.GEOMETRY_MESH and resource:
             return Marker.MESH_RESOURCE
+        if geometry == DynamicObstacle.GEOMETRY_MESH:
+            raise ValueError('mesh visualization requires a mesh resource')
         return Marker.SPHERE
 
     @staticmethod
     def _set_marker_scale(marker: Marker, obstacle: DynamicObstacle) -> None:
-        geometry = int(obstacle.visual_type or obstacle.collision_type)
-        dimensions = list(obstacle.visual_dimensions or obstacle.collision_dimensions)
+        geometry, dimensions, _ = visual_geometry(obstacle)
         marker.scale.x = 1.0
         marker.scale.y = 1.0
         marker.scale.z = 1.0
@@ -408,20 +235,3 @@ class DynamicObstacleSimNode(Node):
             marker.scale.x = max(0.001, float(dimensions[0]))
             marker.scale.y = max(0.001, float(dimensions[1]))
             marker.scale.z = max(0.001, float(dimensions[2]))
-
-
-def main():
-    rclpy.init()
-    node = DynamicObstacleSimNode()
-    try:
-        rclpy.spin(node)
-    except (KeyboardInterrupt, ExternalShutdownException):
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
-
-
-if __name__ == "__main__":
-    main()

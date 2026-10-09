@@ -121,12 +121,19 @@ void SerialClient::disconnect()
 bool SerialClient::send(const Packet & packet) const
 {
   std::vector<unsigned char> encoded_data = packet.encode();
-
-  if (write(handle_, encoded_data.data(), encoded_data.size()) < 0) {
-    RCLCPP_WARN(  // NOLINT
-      rclcpp::get_logger("SerialClient"), "Failed to write the encoded packet to the serial port.");
-
-    return false;
+  // Polling, command, and heartbeat threads share this port. Complete each
+  // packet under one lock so partial writes cannot interleave packet bytes.
+  const std::lock_guard<std::mutex> lock(tx_mutex_);
+  std::size_t sent = 0;
+  while (sent < encoded_data.size()) {
+    const auto count = write(handle_, encoded_data.data() + sent, encoded_data.size() - sent);
+    if (count < 0 && errno == EINTR) continue;
+    if (count <= 0) {
+      RCLCPP_WARN(rclcpp::get_logger("SerialClient"),
+        "Failed to complete packet write to the serial port.");
+      return false;
+    }
+    sent += static_cast<std::size_t>(count);
   }
 
   return true;

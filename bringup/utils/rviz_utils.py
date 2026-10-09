@@ -104,11 +104,12 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
             "Position Transformer": "XYZ",
             "Selectable": True,
             "Size (Pixels)": 3,
-            "Size (m)": 0.009999999776482582,
+            "Size (m)": 0.01,
             "Style": "Flat Squares",
+            # Match the reliable publisher for this multi-megabyte static cloud.
             "Topic": {
-                "Depth": 5,
-                "Durability Policy": "Volatile",
+                "Depth": 1,
+                "Durability Policy": "Transient Local",
                 "History Policy": "Keep Last",
                 "Reliability Policy": "Reliable",
                 "Value": "/env_voxels_cloud",
@@ -119,6 +120,15 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         }
     )
     
+    rviz_point_cloud2(
+        'dynamic_collision_voxels', '/dynamic_voxels_cloud', new_rviz_config,
+        True, '255; 140; 30', custom_properties={
+            'Decay Time': 0.0, 'Style': 'Flat Squares', 'Size (m)': 0.01,
+            'Topic': {'Depth': 1, 'Durability Policy': 'Transient Local',
+                      'History Policy': 'Keep Last', 'Reliability Policy': 'Reliable',
+                      'Value': '/dynamic_voxels_cloud'},
+        })
+
     # visualize /contact_markers from collision node
     rviz_contact_markers_display(
         new_rviz_config,
@@ -132,7 +142,8 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         new_rviz_config,
         topic="/planned_waypoints_marker",
         name="planned waypoints",
-        enabled=True
+        enabled=True,
+        depth=100,
     )
     rviz_marker_array_display(
         new_rviz_config,
@@ -396,7 +407,8 @@ def imu_display(name, topic,rviz_config, enabled):
 def rviz_contact_markers_display(rviz_config,
                                  topic,
                                  name,
-                                 enabled=True):
+                                 enabled=True,
+                                 depth=5):
     marker_cfg = {
         "Class": "rviz_default_plugins/Marker",
         "Enabled": enabled,
@@ -404,7 +416,7 @@ def rviz_contact_markers_display(rviz_config,
         "Namespaces": {},
         "Queue Size": 100,
         "Topic": {
-            "Depth": 5,
+            "Depth": depth,
             "Durability Policy": "Volatile",
             "History Policy": "Keep Last",
             "Reliability Policy": "Reliable",

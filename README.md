@@ -98,7 +98,76 @@ ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
     use_vehicle_hardware:=false
 ```
 
-Other modes:
+### Static and dynamic collision visualization
+
+Add `launch_collision_contact:=true` to the launch command. RViz's **Collision
+Contacts** display (`/contact_markers`) shows robot contacts against both
+bathymetry and dynamic obstacles: red contact points, a blue robot closest point,
+a green obstacle closest point, a connecting line, and a distance/pair label.
+Dynamic object names are prefixed with `dynamic/`. Missing TF, invalid assets, or
+an unavailable initial obstacle snapshot are reported as unavailable, not clear.
+This is a geometric diagnostic, not a physical-contact sensor.
+
+Add `launch_voxelviz:=true` to display collision surfaces as 0.1 m voxels:
+`/env_voxels_cloud` for bathymetry and `/dynamic_voxels_cloud` for moving
+obstacles (orange in the default RViz configuration). Voxel centers are drawn
+as lightweight 1 cm flat squares, not solid voxel-sized boxes; the underlying
+sampling resolution remains 0.1 m. Both use reliable,
+transient-local delivery so late subscribers receive the current cloud.
+Voxelviz shares the environment mesh selection, mesh loader, scale/origin
+handling, and validated dynamic obstacle snapshots used by collision checks.
+It visualizes collision geometry, not optional visual-only mesh overrides.
+Local surface voxels are built in background and cached by geometry and
+resolution under `${ROS_HOME:-~/.ros}/collision_voxels`; moving objects only
+transform those cached points, and removed objects disappear. Static and
+dynamic clouds are separate so moving obstacles do not retransmit bathymetry.
+The first build can take time; missing geometry/TF clears the affected cloud
+and reports a warning rather than leaving stale geometry visible.
+
+Voxels are a surface visualization, not the collision engine or a filled
+occupancy map. Curved primitives are tessellated for display while collision
+queries retain their primitive geometry. Dynamic visualization samples the
+latest received poses at up to 10 Hz; it does not show predicted future poses.
+
+Dynamic collision types are `sphere` (`dimensions: [radius]`), `box`
+(`[x, y, z]`), `cylinder` (`[radius, height]`, local Z axis), and `mesh`.
+Meshes require an explicit collision asset and positive XYZ scale; there is no
+implicit bounding-sphere/box fallback. For example, an obstacle profile entry is:
+
+```json
+{
+  "id": "moving_mesh",
+  "type": "mesh",
+  "collision_mesh_resource": "file:///absolute/path/to/obstacle.stl",
+  "collision_mesh_scale": [1.0, 1.0, 1.0],
+  "position": [4.0, 0.0, -3.0],
+  "orientation": [0.0, 0.0, 0.0, 1.0],
+  "linear_velocity": [0.1, 0.0, 0.0]
+}
+```
+
+`package://package_name/path/to/mesh.stl` is also supported. Mesh-local vertices
+are scaled, then transformed by the obstacle pose. Visual mesh/scale default to
+the collision mesh/scale in profiles, with explicit visual overrides supported.
+Collision geometry is cached; restart nodes after editing an asset in place.
+Mesh assets must be available on every machine performing collision queries.
+
+Planning retains its robot-sphere approximation and motion prediction. Primitive
+clearances use exact analytic signed-distance formulas; mesh queries use FCL,
+without changing current-pose collision objects. Mesh collision follows triangle
+**surface** semantics, as with bathymetry: a body completely enclosed without
+intersecting triangles is not necessarily detected. For solid obstacles, prefer
+primitive collision shapes when appropriate. Mesh intersections produce a
+collision flag, not a calibrated penetration depth. Spawn-overlap rejection uses
+a conservative enclosing radius, not exact mesh contact.
+
+The new `collision_mesh_resource` and `collision_mesh_scale` message fields
+require rebuilding both packages and restarting all obstacle publishers,
+consumers, and ROS tools. Old mesh-proxy configurations should explicitly select
+`sphere`/`box` collision types while retaining `visual_type: "mesh"`, or provide
+the real collision mesh. Recorded JSON includes the new collision fields.
+
+### Other launch modes
 
 ```bash
 ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=manual
@@ -162,6 +231,15 @@ Camera launch arguments:
 - `camera_source:=sim`: forces the simulated renderer to publish `/alpha/image_raw`.
 - `camera_source:=real`: forces the GStreamer camera node to publish `/alpha/image_raw`.
 - `camera_pipeline:=""`: optional custom GStreamer pipeline. If set, it overrides the default pipeline. The pipeline must end with `appsink name=camera_sink`.
+- `camera_auto_destination:=true`: automatically registers this computer's vehicle-facing IPv4 address with BlueOS for the default real-camera pipeline. Rechecks every 10 seconds after address changes or disconnections. Custom pipelines and simulated cameras are excluded.
+- `camera_blueos_url:=http://192.168.2.2:6020`: camera-manager API address.
+- `camera_stream_name:=""`: automatically selects the single local H264 stream. Set its BlueOS name explicitly when multiple cameras are configured.
+
+Destination registration preserves existing viewers and camera settings. Updating destinations briefly restarts the selected BlueOS stream. Previous settings and the locally managed destination are saved under `~/.ros/camera_destination_backups/`; failed updates attempt to restore the original stream. When this computer's address changes, its previous managed destination is replaced. Other destinations are retained; remove obsolete manually configured addresses in BlueOS if they cause UDP output stalls. The helper logs when ROS image frames arrive and warns if the destination is registered but frames remain absent. Disable registration with `camera_auto_destination:=false` when managing destinations separately.
+
+The default real-camera receiver uses a 50 ms RTP jitter buffer and drops stale images only after H264 decoding. ROS camera publishers use reliable, volatile delivery with a one-frame history to stay compatible with RViz without retaining old video frames.
+
+Additional simulated-camera settings:
 - `sim_camera_renderer_backend:=pyvista`: default simulated renderer backend. Use `open3d` for comparison or fallback.
 - `sim_camera_render_all_cameras:=true`: renders every simulated robot camera. Set `false` to render only the selected feed for lower load.
 - `sim_camera_underwater_effect:=true`: applies the underwater tint/haze only when the simulated camera is below the water surface. Set `false` for raw geometry/debug views.

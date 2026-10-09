@@ -42,36 +42,37 @@
     <!-- Import T200 macro -->
     <xacro:include filename="$(find ros2_control_blue_reach_5)/blue/xacro/t200/urdf.xacro" />
 
+    <!-- Centers measured from the Bruce CAD housing rings after the visual transform. -->
     <xacro:t200_urdf parent="${prefix}base_link" prefix="${prefix}" ccw="true" id="1">
-      <origin rpy="-1.571 1.571 -0.7330" xyz="0.103 -0.091 0.0065" />
+      <origin rpy="-1.571 1.571 -0.7330" xyz="0.110214 -0.082413 0.006471" />
     </xacro:t200_urdf>
 
     <xacro:t200_urdf parent="${prefix}base_link" prefix="${prefix}" ccw="true" id="2">
-      <origin rpy="-1.571 1.571 -2.4086" xyz="0.103 0.091 0.0065" />
+      <origin rpy="-1.571 1.571 -2.4086" xyz="0.110180 0.082133 0.006471" />
     </xacro:t200_urdf>
 
     <xacro:t200_urdf parent="${prefix}base_link" prefix="${prefix}" ccw="false" id="3"> 
-      <origin rpy="-1.571 1.571 0.7330" xyz="-0.103 -0.091 0.0065" /> 
+      <origin rpy="-1.571 1.571 0.7330" xyz="-0.135145 -0.080993 0.006521" />
     </xacro:t200_urdf>
 
     <xacro:t200_urdf parent="${prefix}base_link" prefix="${prefix}" ccw="false" id="4"> 
-      <origin rpy="-1.571 1.571 2.4086" xyz="-0.103 0.091 0.0065" /> 
+      <origin rpy="-1.571 1.571 2.4086" xyz="-0.135177 0.080612 0.006521" />
     </xacro:t200_urdf>
 
     <xacro:t200_urdf parent="${prefix}base_link" prefix="${prefix}" ccw="true" id="5">
-      <origin rpy="0 0 0" xyz="0.118 -0.215 0.064" />
+      <origin rpy="0 0 0" xyz="0.095818 -0.184487 0.063998" />
     </xacro:t200_urdf>
 
     <xacro:t200_urdf parent="${prefix}base_link" prefix="${prefix}" ccw="false" id="6">
-      <origin rpy="0 0 0" xyz="0.118 0.215 0.064" />
+      <origin rpy="0 0 0" xyz="0.095729 0.184200 0.063998" />
     </xacro:t200_urdf>
 
     <xacro:t200_urdf parent="${prefix}base_link" prefix="${prefix}" ccw="false" id="7">
-      <origin rpy="0 0 0" xyz="-0.118 -0.215 0.064" />
+      <origin rpy="0 0 0" xyz="-0.107101 -0.184529 0.064040" />
     </xacro:t200_urdf>
 
     <xacro:t200_urdf parent="${prefix}base_link" prefix="${prefix}" ccw="true" id="8">
-      <origin rpy="0 0 0" xyz="-0.118 0.215 0.064" />
+      <origin rpy="0 0 0" xyz="-0.107189 0.184159 0.064040" />
     </xacro:t200_urdf>
 
   </xacro:macro>
