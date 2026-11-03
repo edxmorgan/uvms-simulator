@@ -100,6 +100,7 @@ find_package(ament_cmake REQUIRED)
 find_package(ament_cmake_python REQUIRED)
 find_package(pybind11 REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 
 foreach(Dependency IN ITEMS ${THIS_PACKAGE_INCLUDE_DEPENDS})
   find_package(${Dependency} REQUIRED)
@@ -126,7 +127,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ResetSimUvms.srv"
   "srv/SetSimCameraDynamics.srv"
   "srv/SetSimDynamics.srv"
-  DEPENDENCIES geometry_msgs std_msgs visualization_msgs
+  "srv/GetSimDynamics.srv"
+  DEPENDENCIES geometry_msgs std_msgs visualization_msgs builtin_interfaces
 )
 
 # --- Begin GStreamer additions ---
@@ -258,7 +260,7 @@ message(STATUS "UVMS build: GStreamer camera node enabled (target=gstreamer_came
 pluginlib_export_plugin_description_file(hardware_interface ros2_control_blue_reach_5.xml)
 
 # Collect all files within the casadi_lib directory and store them in a variable
-file(GLOB CASADI_LIB_FILES "${CMAKE_CURRENT_SOURCE_DIR}/casadi_lib/*")
+file(GLOB CASADI_LIB_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/casadi_lib/*")
 
 # INSTALL
 
@@ -337,6 +339,8 @@ endif()
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_mavros_telemetry test/test_mavros_telemetry.py)
+  ament_add_pytest_test(test_vehicle_interface_contract test/test_vehicle_interface_contract.py)
   ament_add_pytest_test(test_rviz_pointcloud_qos test/test_rviz_pointcloud_qos.py)
   ament_add_pytest_test(test_bruce_visual_alignment test/test_bruce_visual_alignment.py)
   ament_add_pytest_test(test_camera_clipping test/test_camera_clipping.py)
@@ -344,11 +348,25 @@ if(BUILD_TESTING)
   ament_add_pytest_test(test_obstacle_description test/test_obstacle_description.py)
   ament_add_pytest_test(test_description_shutdown test/test_description_shutdown.py)
   find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_vehicle_partial_feedback test/test_vehicle_partial_feedback.cpp)
+  target_link_libraries(test_vehicle_partial_feedback ${PROJECT_LIB})
+  target_compile_definitions(test_vehicle_partial_feedback PRIVATE TEST_CASADI_DIR="${PROJECT_SOURCE_DIR}/casadi_lib")
+  ament_add_gtest(test_arm_disturbance_ekf test/test_arm_disturbance_ekf.cpp)
+  target_link_libraries(test_arm_disturbance_ekf ${PROJECT_LIB})
+  target_compile_definitions(test_arm_disturbance_ekf PRIVATE TEST_CASADI_DIR="${PROJECT_SOURCE_DIR}/casadi_lib")
+  ament_add_gtest(test_hardware_arm_observer test/test_hardware_arm_observer.cpp)
+  target_link_libraries(test_hardware_arm_observer ${PROJECT_LIB})
+  target_compile_definitions(test_hardware_arm_observer PRIVATE TEST_CASADI_DIR="${PROJECT_SOURCE_DIR}/casadi_lib")
   ament_add_gtest(test_serial_budget test/test_serial_budget.cpp
     hardware/packet.cpp hardware/cobs.cpp hardware/crc.cpp)
   target_include_directories(test_serial_budget PRIVATE hardware/include)
   ament_add_gtest(test_command_safety test/test_command_safety.cpp)
   target_include_directories(test_command_safety PRIVATE hardware/include)
+  ament_add_gtest(test_arm_actuator_model test/test_arm_actuator_model.cpp)
+  target_include_directories(test_arm_actuator_model PRIVATE hardware/include)
+  ament_add_gtest(test_batch_arm_actuation test/test_batch_arm_actuation.cpp)
+  target_include_directories(test_batch_arm_actuation PRIVATE hardware/include)
+  target_link_libraries(test_batch_arm_actuation ${BATCH_UVMS_CORE_LIB})
 endif()
 
 ## EXPORTS

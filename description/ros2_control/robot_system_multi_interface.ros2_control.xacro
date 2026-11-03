@@ -1,8 +1,15 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
+  <xacro:macro name="arm_ekf_parameter_interfaces" params="index count">
+    <xacro:if value="${index &lt; count}">
+      <state_interface name="estimator_nominal_parameter.${index}"/>
+      <xacro:arm_ekf_parameter_interfaces index="${index + 1}" count="${count}"/>
+    </xacro:if>
+  </xacro:macro>
+
   <xacro:macro name="robot_system_multi_interface" 
-  params="name prefix serial_port state_update_frequency use_hardware">
+  params="name prefix serial_port state_update_frequency use_hardware arm_joint_locks:=true">
 
     <ros2_control name="${name}" type="system">
 
@@ -16,6 +23,7 @@
 
         <xacro:unless value="${use_hardware}">
           <plugin>ros2_control_blue_reach_5/SimReachSystemMultiInterfaceHardware</plugin>
+          <param name="arm_joint_locks">${arm_joint_locks}</param>
           <param name="state_update_frequency">${state_update_frequency}</param>
           <param name="prefix">${prefix}</param>
         </xacro:unless>
@@ -379,6 +387,31 @@
         <state_interface name="gravity"/>
         <state_interface name="control_power_abs"/>
         <state_interface name="control_energy_abs"/>
+          <state_interface name="sim_step"/>
+          <state_interface name="sim_generation"/>
+          <state_interface name="estimator_step"/>
+          <state_interface name="estimator_valid"/>
+          <state_interface name="estimated_disturbance.torque.e"/>
+          <state_interface name="estimated_disturbance.torque.d"/>
+          <state_interface name="estimated_disturbance.torque.c"/>
+          <state_interface name="estimated_disturbance.torque.b"/>
+          <state_interface name="estimated_disturbance.variance.torque.e"/>
+          <state_interface name="estimated_disturbance.variance.torque.d"/>
+          <state_interface name="estimated_disturbance.variance.torque.c"/>
+          <state_interface name="estimated_disturbance.variance.torque.b"/>
+          <state_interface name="estimator_joint_locked.e"/>
+          <state_interface name="estimator_joint_locked.d"/>
+          <state_interface name="estimator_joint_locked.c"/>
+          <state_interface name="estimator_joint_locked.b"/>
+          <state_interface name="estimator_joint_at_limit.e"/>
+          <state_interface name="estimator_joint_at_limit.d"/>
+          <state_interface name="estimator_joint_at_limit.c"/>
+          <state_interface name="estimator_joint_at_limit.b"/>
+          <state_interface name="estimator_disturbance_observable.e"/>
+          <state_interface name="estimator_disturbance_observable.d"/>
+          <state_interface name="estimator_disturbance_observable.c"/>
+          <state_interface name="estimator_disturbance_observable.b"/>
+          <xacro:arm_ekf_parameter_interfaces index="${0}" count="${81}"/>
       </gpio>
 
     </ros2_control>
