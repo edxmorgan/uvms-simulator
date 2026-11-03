@@ -208,6 +208,9 @@ def generate_launch_description():
             description="The frequency (Hz) at which the driver updates the state of the robot.",
         )
     )
+    declared_arguments.append(DeclareLaunchArgument(
+        "arm_joint_locks", default_value="true", choices=["true", "false"],
+        description="Enable artificial joint locks on simulated arms; false for unlocked disturbance tests."))
     declared_arguments.append(
         DeclareLaunchArgument(
             "use_manipulator_hardware",
@@ -586,6 +589,9 @@ def launch_setup(context, *args, **kwargs):
             "use_manipulator_hardware:=",
             use_manipulator_hardware,
             " ",
+            "arm_joint_locks:=",
+            LaunchConfiguration("arm_joint_locks").perform(context),
+            " ",
             "use_vehicle_hardware:=",
             use_vehicle_hardware,
             " ",
@@ -609,6 +615,9 @@ def launch_setup(context, *args, **kwargs):
             " ",
             "use_dvl:=",
             use_dvl,
+            " ",
+            "manual_control:=",
+            str(task in {'manual', 'direct_thrusters'}).lower(),
             " ",
             "dvl_host:=",
             dvl_host,
