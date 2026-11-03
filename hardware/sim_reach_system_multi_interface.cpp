@@ -423,6 +423,7 @@ namespace ros2_control_blue_reach_5
         reset_service_.reset();
         release_service_.reset();
         dynamics_service_.reset();
+        dynamics_readback_service_.reset();
         external_torque_sub_.reset();
         executor_.reset();
         node_frames_interface_.reset();
@@ -680,6 +681,46 @@ namespace ros2_control_blue_reach_5
                     robot_prefix.c_str());
                 response->success = true;
                 response->message = "released simulated manipulator commands";
+            });
+
+        dynamics_readback_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::GetSimDynamics>(
+            "/" + robot_prefix + "get_sim_manipulator_dynamics",
+            [this](
+                const std::shared_ptr<ros2_control_blue_reach_5::srv::GetSimDynamics::Request>,
+                std::shared_ptr<ros2_control_blue_reach_5::srv::GetSimDynamics::Response> response)
+            {
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                auto &value = response->manipulator;
+
+                std::size_t index = 0;
+                auto read = [&](auto &range) {
+                    for (auto &entry : range)
+                        entry = static_cast<double>(manipulator_parameters_.at(index++).scalar());
+                };
+                read(value.link_masses);
+                read(value.link_first_moments);
+                read(value.link_inertias);
+                read(value.viscous_friction);
+                read(value.coulomb_friction);
+                read(value.static_friction);
+                read(value.stribeck_velocity);
+                read(value.gravity_vector);
+                read(value.payload_com);
+                value.payload_mass = static_cast<double>(manipulator_parameters_.at(index++).scalar());
+                read(value.base_pose);
+                read(value.world_pose);
+                read(value.tip_offset_pose);
+                value.payload_inertia = {payload_Ixx, payload_Iyy, payload_Izz};
+                value.joint_lock_on_deadband = joint_lock_on_deadband_;
+                value.joint_lock_off_deadband = joint_lock_off_deadband_;
+                value.baumgarte_alpha = baumgarte_alpha_;
+                value.endeffector_mass = endeffector_mass_;
+                value.endeffector_damping = endeffector_damping_;
+                value.endeffector_stiffness = endeffector_stiffness_;
+                response->manipulator_use_coupled_dynamics = use_coupled_dynamics_;
+                response->manipulator_valid = true;
+                response->success = true;
+                response->message = "active manipulator dynamics snapshot";
             });
 
         dynamics_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::SetSimDynamics>(

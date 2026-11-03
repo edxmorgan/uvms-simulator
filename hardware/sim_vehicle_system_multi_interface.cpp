@@ -431,6 +431,7 @@ namespace ros2_control_blue_reach_5
         reset_service_.reset();
         release_service_.reset();
         dynamics_service_.reset();
+        dynamics_readback_service_.reset();
         static_tf_broadcaster_.reset();
         executor_.reset();
         node_topics_interface_.reset();
@@ -764,6 +765,50 @@ namespace ros2_control_blue_reach_5
                     hw_vehicle_struct.robot_prefix.c_str());
                 response->success = true;
                 response->message = "released simulated vehicle commands";
+            });
+
+        dynamics_readback_service_ = node_topics_interface_->create_service<ros2_control_blue_reach_5::srv::GetSimDynamics>(
+            "/" + hw_vehicle_struct.robot_prefix + "get_sim_vehicle_dynamics",
+            [this](
+                const std::shared_ptr<ros2_control_blue_reach_5::srv::GetSimDynamics::Request>,
+                std::shared_ptr<ros2_control_blue_reach_5::srv::GetSimDynamics::Response> response)
+            {
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                auto &value = response->vehicle;
+                value.m_x_du = static_cast<double>(vehicle_parameters_new.at(0).scalar());
+                value.m_y_dv = static_cast<double>(vehicle_parameters_new.at(1).scalar());
+                value.m_z_dw = static_cast<double>(vehicle_parameters_new.at(2).scalar());
+                value.mz_g_x_dq = static_cast<double>(vehicle_parameters_new.at(3).scalar());
+                value.mz_g_y_dp = static_cast<double>(vehicle_parameters_new.at(4).scalar());
+                value.mz_g_k_dv = static_cast<double>(vehicle_parameters_new.at(5).scalar());
+                value.mz_g_m_du = static_cast<double>(vehicle_parameters_new.at(6).scalar());
+                value.i_x_k_dp = static_cast<double>(vehicle_parameters_new.at(7).scalar());
+                value.i_y_m_dq = static_cast<double>(vehicle_parameters_new.at(8).scalar());
+                value.i_z_n_dr = static_cast<double>(vehicle_parameters_new.at(9).scalar());
+                value.weight = static_cast<double>(vehicle_parameters_new.at(10).scalar());
+                value.buoyancy = static_cast<double>(vehicle_parameters_new.at(11).scalar());
+                value.x_g_weight_minus_x_b_buoyancy = static_cast<double>(vehicle_parameters_new.at(12).scalar());
+                value.y_g_weight_minus_y_b_buoyancy = static_cast<double>(vehicle_parameters_new.at(13).scalar());
+                value.z_g_weight_minus_z_b_buoyancy = static_cast<double>(vehicle_parameters_new.at(14).scalar());
+                value.x_u = static_cast<double>(vehicle_parameters_new.at(15).scalar());
+                value.y_v = static_cast<double>(vehicle_parameters_new.at(16).scalar());
+                value.z_w = static_cast<double>(vehicle_parameters_new.at(17).scalar());
+                value.k_p = static_cast<double>(vehicle_parameters_new.at(18).scalar());
+                value.m_q = static_cast<double>(vehicle_parameters_new.at(19).scalar());
+                value.n_r = static_cast<double>(vehicle_parameters_new.at(20).scalar());
+                value.x_uu = static_cast<double>(vehicle_parameters_new.at(21).scalar());
+                value.y_vv = static_cast<double>(vehicle_parameters_new.at(22).scalar());
+                value.z_ww = static_cast<double>(vehicle_parameters_new.at(23).scalar());
+                value.k_pp = static_cast<double>(vehicle_parameters_new.at(24).scalar());
+                value.m_qq = static_cast<double>(vehicle_parameters_new.at(25).scalar());
+                value.n_rr = static_cast<double>(vehicle_parameters_new.at(26).scalar());
+                for (std::size_t i = 0; i < value.current_velocity.size(); ++i)
+                    value.current_velocity[i] = static_cast<double>(vehicle_parameters_new.at(27 + i).scalar());
+                value.thrust_configuration_matrix = thrust_configuration_matrix_;
+                response->vehicle_use_coupled_dynamics = use_coupled_dynamics_;
+                response->vehicle_valid = true;
+                response->success = true;
+                response->message = "active vehicle dynamics snapshot";
             });
 
         dynamics_service_ = node_topics_interface_->create_service<ros2_control_blue_reach_5::srv::SetSimDynamics>(
