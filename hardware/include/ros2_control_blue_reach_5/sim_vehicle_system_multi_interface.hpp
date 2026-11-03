@@ -40,6 +40,7 @@
 #include "ros2_control_blue_reach_5/visibility_control.h"
 #include "ros2_control_blue_reach_5/srv/reset_sim_uvms.hpp"
 #include "ros2_control_blue_reach_5/srv/set_sim_dynamics.hpp"
+#include "ros2_control_blue_reach_5/srv/get_sim_dynamics.hpp"
 
 #include "ros2_control_blue_reach_5/state.hpp"
 #include "ros2_control_blue_reach_5/custom_hardware_interface_type_values.hpp"
@@ -170,6 +171,7 @@ namespace ros2_control_blue_reach_5
         rclcpp::Service<ros2_control_blue_reach_5::srv::ResetSimUvms>::SharedPtr reset_service_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
+        rclcpp::Service<ros2_control_blue_reach_5::srv::GetSimDynamics>::SharedPtr dynamics_readback_service_;
         bool commands_held_{false};
         bool use_coupled_dynamics_{false};
 
