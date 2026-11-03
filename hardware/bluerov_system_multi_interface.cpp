@@ -309,8 +309,8 @@ namespace ros2_control_blue_reach_5
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Light2_channel: %d", hw_vehicle_struct.light2channel);
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "CameraMountPitch_channel: %d", hw_vehicle_struct.cameraMountPitch_channel);
 
-            // Navigation/diagnostics and disturbance observer interfaces.
-            constexpr std::size_t expected_gpio_state_interfaces = 130;
+            // Navigation/diagnostics, disturbance observer and 21 identification fields.
+            constexpr std::size_t expected_gpio_state_interfaces = 151;
             if (gpio.state_interfaces.size() != expected_gpio_state_interfaces)
             {
                 RCLCPP_FATAL(
@@ -341,6 +341,7 @@ namespace ros2_control_blue_reach_5
             std::scoped_lock lock(imu_mutex_, mavlink_mutex_, dvl_data_mutex_);
             imu_new_msg_ = pressure_new_ = estimator_dvl_new_ = false;
             imu_received_ = pressure_received_ = dvl_received_ = {};
+            identification_received_ = {};
             last_imu_stamp_ = -1;
             last_pressure_stamp_ = 0;
             last_dvl_stamp_ = -1.0;
@@ -872,6 +873,22 @@ namespace ros2_control_blue_reach_5
         }
         state_interfaces.emplace_back(get_hardware_info().gpios[0].name, "estimator_valid", &estimator_valid_);
         state_interfaces.emplace_back(get_hardware_info().gpios[0].name, "estimator_step", &estimator_step_);
+        auto identification_interface = [&](const std::string &name,double &value) {
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "identification."+name,&value);
+        };
+        identification_interface("valid",identification_sample_.valid);
+        identification_interface("generation",identification_sample_.generation);
+        identification_interface("step",identification_sample_.step);
+        identification_interface("time",identification_sample_.time);
+        identification_interface("period",identification_sample_.period);
+        identification_interface("depth",identification_sample_.depth);
+        for(int i=0;i<3;++i)
+            identification_interface("attitude."+std::to_string(i),identification_sample_.attitude[i]);
+        for(int i=0;i<6;++i) {
+            identification_interface("velocity."+std::to_string(i),identification_sample_.velocity[i]);
+            identification_interface("wrench."+std::to_string(i),identification_sample_.wrench[i]);
+        }
         return state_interfaces;
     }
 
@@ -974,6 +991,7 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_activate(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        identification_sample_.reset();
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Activating... please wait...");
 
@@ -988,6 +1006,7 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_deactivate(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        identification_sample_.reset();
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Deactivating... please wait...");
 
@@ -1010,6 +1029,8 @@ namespace ros2_control_blue_reach_5
         std::unique_lock<std::mutex> dvl_lock(dvl_data_mutex_, std::defer_lock);
         std::lock(imu_lock, pressure_lock, dvl_lock);
         const auto now = std::chrono::steady_clock::now();
+        const auto oldest = std::min({imu_received_, pressure_received_, dvl_received_});
+        const auto newest = std::max({imu_received_, pressure_received_, dvl_received_});
         const auto fresh = [&](const auto &stamp, double timeout) {
             return stamp != std::chrono::steady_clock::time_point{} &&
                 std::chrono::duration<double>(now - stamp).count() <= timeout;
@@ -1020,7 +1041,15 @@ namespace ros2_control_blue_reach_5
             fresh(dvl_received_, dvl_timeout_s_);
         navigation_sensors_valid_ = imu_fresh && pressure_fresh;
         const bool full_observation = navigation_sensors_valid_ && dvl_fresh;
+        // Identification keeps its coherent raw-sensor endpoint contract. EKF
+        // measurement consumption must not determine this independent cadence.
+        const bool identification_ready = full_observation &&
+            imu_received_ > identification_received_[0] &&
+            pressure_received_ > identification_received_[1] &&
+            dvl_received_ > identification_received_[2] &&
+            std::chrono::duration<double>(newest - oldest).count() <= 0.05;
         if (!navigation_sensors_valid_) {
+            identification_sample_.reset();
             estimator_valid_ = 0.0;
             RCLCPP_WARN_THROTTLE(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                 *node_topics_interface_->get_clock(), 5000,
@@ -1032,14 +1061,16 @@ namespace ros2_control_blue_reach_5
             if (!estimator_initialized_) return hardware_interface::return_type::OK;
         }
         if (!full_observation) {
+            identification_sample_.reset();
             estimator_valid_ = 0.0;
             RCLCPP_WARN_THROTTLE(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                 *node_topics_interface_->get_clock(), 5000,
-                "Full sensor set unavailable (IMU=%d pressure=%d DVL=%d): predicting with available updates; disturbance invalid",
+                "Full sensor set unavailable (IMU=%d pressure=%d DVL=%d): predicting with available updates; disturbance and identification invalid",
                 imu_fresh, pressure_fresh, dvl_fresh);
         }
         if (!std::isfinite(delta_seconds) || delta_seconds <= 0.0 || delta_seconds > 0.5) {
             navigation_sensors_valid_ = false;
+            identification_sample_.reset();
             estimator_valid_ = 0.0;
             return hardware_interface::return_type::ERROR;
         }
@@ -1145,10 +1176,24 @@ namespace ros2_control_blue_reach_5
             estimator_step_ += 1.0;
         } catch (const std::exception &error) {
             navigation_sensors_valid_ = false;
+            identification_sample_.reset();
             estimator_valid_ = 0.0;
             RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                          "Disturbance EKF failed: %s", error.what());
             return hardware_interface::return_type::ERROR;
+        }
+        // Integrate the held actuator input over all control cycles, but publish
+        // a new endpoint only when all three sensor streams have new data.
+        std::array<double,6> applied_wrench{};
+        for(int i=0;i<6;++i)applied_wrench[i]=double(estimator_applied_input_(i));
+        if(full_observation && identification_sample_.advance(delta_seconds,applied_wrench) && identification_ready) {
+            identification_sample_.observe(hw_vehicle_struct.depth_from_pressure2,
+                {hw_vehicle_struct.imu_state.roll_unwrap,
+                 -hw_vehicle_struct.imu_state.pitch_unwrap,-hw_vehicle_struct.imu_state.yaw_unwrap},
+                {hw_vehicle_struct.dvl_state.vx,hw_vehicle_struct.dvl_state.vy,hw_vehicle_struct.dvl_state.vz,
+                 hw_vehicle_struct.imu_state.angular_vel_x,-hw_vehicle_struct.imu_state.angular_vel_y,
+                 -hw_vehicle_struct.imu_state.angular_vel_z});
+            identification_received_ = {imu_received_, pressure_received_, dvl_received_};
         }
         imu_lock.unlock();
         pressure_lock.unlock();

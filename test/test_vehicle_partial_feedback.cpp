@@ -36,6 +36,7 @@ struct HardwareEstimatorTestAccess {
     EXPECT_TRUE(h.estimator_initialized_);
     EXPECT_TRUE(h.navigation_sensors_valid_);
     EXPECT_EQ(h.estimator_valid_,0.0);
+    EXPECT_EQ(h.identification_sample_.valid,0.0);
     EXPECT_NEAR(h.hw_vehicle_struct.estimate_state_.position_z,.1,1e-8);
     EXPECT_NEAR(h.hw_vehicle_struct.estimate_state_.roll,.2,1e-8);
     EXPECT_NEAR(h.hw_vehicle_struct.estimate_state_.pitch,-.1,1e-8);
@@ -53,6 +54,7 @@ struct HardwareEstimatorTestAccess {
     EXPECT_EQ(h.read(rclcpp::Time(3),rclcpp::Duration::from_seconds(.01)),hardware_interface::return_type::OK);
     EXPECT_EQ(h.estimator_valid_,0.0);
     EXPECT_TRUE(h.navigation_sensors_valid_);
+    EXPECT_EQ(h.identification_sample_.valid,0.0);
     EXPECT_NEAR(double(DM::norm_inf(h.x_est_(casadi::Slice(12,18))-disturbance)),0.,1e-12);
     // DVL recovery is sensor-driven in BOTH manual and non-manual launches.
     for (const bool manual : {false, true}) {
