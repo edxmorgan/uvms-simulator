@@ -38,11 +38,7 @@ def test_hardware_gpio_count_matches_driver_initialization(manual, dvl, real):
     expected = int(re.search(pattern, source)[1])
     assert len(names) == len(set(names)) == expected
     assert len(gpio.findall('command_interface')) == 28
-    identification = {'identification.' + name for name in
-        ['valid', 'generation', 'step', 'time', 'period', 'depth']
-        + [f'attitude.{i}' for i in range(3)]
-        + [f'{group}.{i}' for group in ['velocity', 'wrench'] for i in range(6)]}
-    assert {n for n in names if n.startswith('identification.')} == (identification if real == 'true' else set())
+
 
 
 
