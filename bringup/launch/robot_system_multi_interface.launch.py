@@ -1117,6 +1117,11 @@ def launch_setup(context, *args, **kwargs):
         bag_recorder_node,
     ]
 
+    if use_vehicle_hardware_bool:
+        simulator_actions.append(ExecuteProcess(
+            cmd=[FindExecutable(name="python3"), "-m", "bringup.mavros_telemetry"],
+            name="mavros_telemetry", output="screen"))
+
     if launch_camera_bool:
         if selected_camera_node is not None:
             simulator_actions.append(selected_camera_node)
