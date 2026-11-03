@@ -288,7 +288,6 @@ namespace ros2_control_blue_reach_5
         delta_seconds = 0.0;
         time_seconds = 0.0;
         commands_held_ = true;
-        dynamics_paused_ = false;
         reset_joint_estimators();
         for (std::size_t i = 0; i < hw_joint_struct_.size(); ++i)
         {
@@ -360,7 +359,6 @@ namespace ros2_control_blue_reach_5
             payload_Izz = dynamics.payload_inertia[2];
         }
         commands_held_ = request.hold_commands;
-        dynamics_paused_ = request.pause_dynamics;
 
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
@@ -425,7 +423,6 @@ namespace ros2_control_blue_reach_5
         reset_service_.reset();
         release_service_.reset();
         dynamics_service_.reset();
-        dynamics_readback_service_.reset();
         external_torque_sub_.reset();
         executor_.reset();
         node_frames_interface_.reset();
@@ -624,12 +621,6 @@ namespace ros2_control_blue_reach_5
                 const std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> request,
                 std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Response> response)
         {
-            if (request->pause_dynamics && !request->hold_commands)
-            {
-                response->success = false;
-                response->message = "pause_dynamics requires hold_commands";
-                return;
-            }
             if (request->set_manipulator_dynamics &&
                 (request->manipulator_dynamics.payload_mass < 0.0 ||
                  request->manipulator_dynamics.payload_inertia[0] < 0.0 ||
@@ -683,53 +674,12 @@ namespace ros2_control_blue_reach_5
             {
                 std::lock_guard<std::mutex> lock(simulation_state_mutex_);
                 commands_held_ = false;
-                dynamics_paused_ = false;
                 RCLCPP_INFO(
                     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
                     "[%s] released simulated manipulator commands",
                     robot_prefix.c_str());
                 response->success = true;
                 response->message = "released simulated manipulator commands";
-            });
-
-        dynamics_readback_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::GetSimDynamics>(
-            "/" + robot_prefix + "get_sim_manipulator_dynamics",
-            [this](
-                const std::shared_ptr<ros2_control_blue_reach_5::srv::GetSimDynamics::Request>,
-                std::shared_ptr<ros2_control_blue_reach_5::srv::GetSimDynamics::Response> response)
-            {
-                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
-                auto &value = response->manipulator;
-
-                std::size_t index = 0;
-                auto read = [&](auto &range) {
-                    for (auto &entry : range)
-                        entry = static_cast<double>(manipulator_parameters_.at(index++).scalar());
-                };
-                read(value.link_masses);
-                read(value.link_first_moments);
-                read(value.link_inertias);
-                read(value.viscous_friction);
-                read(value.coulomb_friction);
-                read(value.static_friction);
-                read(value.stribeck_velocity);
-                read(value.gravity_vector);
-                read(value.payload_com);
-                value.payload_mass = static_cast<double>(manipulator_parameters_.at(index++).scalar());
-                read(value.base_pose);
-                read(value.world_pose);
-                read(value.tip_offset_pose);
-                value.payload_inertia = {payload_Ixx, payload_Iyy, payload_Izz};
-                value.joint_lock_on_deadband = joint_lock_on_deadband_;
-                value.joint_lock_off_deadband = joint_lock_off_deadband_;
-                value.baumgarte_alpha = baumgarte_alpha_;
-                value.endeffector_mass = endeffector_mass_;
-                value.endeffector_damping = endeffector_damping_;
-                value.endeffector_stiffness = endeffector_stiffness_;
-                response->manipulator_use_coupled_dynamics = use_coupled_dynamics_;
-                response->manipulator_valid = true;
-                response->success = true;
-                response->message = "active manipulator dynamics snapshot";
             });
 
         dynamics_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::SetSimDynamics>(
@@ -966,7 +916,6 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         reset_joint_simulation_state();
         commands_held_ = false;
-        dynamics_paused_ = false;
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Activating... please wait...");
         for (std::size_t i = 0; i < hw_joint_struct_.size(); ++i)
@@ -1019,8 +968,7 @@ namespace ros2_control_blue_reach_5
 
         std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T, tipOffset};
         T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
-        // Keep reset estimator state unchanged throughout an explicit pause.
-        if (dynamics_paused_ || sim_step_ == estimator_step_)
+        if (sim_step_ == estimator_step_)
         {
             return hardware_interface::return_type::OK;
         }
@@ -1156,10 +1104,6 @@ namespace ros2_control_blue_reach_5
             control_power_ = 0.0;
         }
 
-        if (dynamics_paused_)
-        {
-            return hardware_interface::return_type::OK;
-        }
         arm_state.clear();
         arm_state.reserve(10);
 

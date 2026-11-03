@@ -127,7 +127,6 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "srv/ResetSimUvms.srv"
   "srv/SetSimCameraDynamics.srv"
   "srv/SetSimDynamics.srv"
-  "srv/GetSimDynamics.srv"
   DEPENDENCIES geometry_msgs std_msgs visualization_msgs builtin_interfaces
 )
 

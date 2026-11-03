@@ -40,7 +40,6 @@
 #include "std_msgs/msg/float64_multi_array.hpp"
 #include "ros2_control_blue_reach_5/srv/reset_sim_uvms.hpp"
 #include "ros2_control_blue_reach_5/srv/set_sim_dynamics.hpp"
-#include "ros2_control_blue_reach_5/srv/get_sim_dynamics.hpp"
 #include "ros2_control_blue_reach_5/visibility_control.h"
 
 #include "ros2_control_blue_reach_5/driver.hpp"
@@ -191,12 +190,10 @@ namespace ros2_control_blue_reach_5
         rclcpp::Service<ros2_control_blue_reach_5::srv::ResetSimUvms>::SharedPtr reset_service_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
-        rclcpp::Service<ros2_control_blue_reach_5::srv::GetSimDynamics>::SharedPtr dynamics_readback_service_;
 
         double delta_seconds{0.0};
         double time_seconds{0.0};
         bool commands_held_{false};
-        bool dynamics_paused_{false};
         bool use_coupled_dynamics_{false};
 
         std::vector<bool>   is_locked_;
