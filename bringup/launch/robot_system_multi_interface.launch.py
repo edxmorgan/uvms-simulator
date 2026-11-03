@@ -17,9 +17,11 @@ import glob
 import os
 import re
 import signal
+import shutil
 import subprocess
 import tempfile
 import time
+import yaml
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler, ExecuteProcess, OpaqueFunction, GroupAction
@@ -32,10 +34,37 @@ from launch_ros.substitutions import FindPackageShare
 
 import launch.logging
 from bringup.utils.rviz_utils import rviz_file_configure
+from bringup.camera_destination import CameraDestination
 from bringup.utils.controller_config import modify_controller_config, controller_spawner_nodes
 
 # Create a logger for the launch file
 logger = launch.logging.get_logger('robot_system_multi_interface_launch')
+
+
+def _plotjuggler_command(buffer_size: str) -> list[str]:
+    executable_v4 = shutil.which("plotjuggler4")
+    if executable_v4:
+        # PJ4 no longer accepts --buffer_size. Its streaming buffer is saved
+        # in the application/layout.
+        logger.info("Launching PlotJuggler 4; set the streaming buffer in its Sources panel or layout")
+        return [executable_v4]
+    executable = shutil.which("plotjuggler")
+    snap_launcher = "/snap/bin/plotjuggler"
+    if executable and os.path.realpath(executable) != os.path.realpath(snap_launcher):
+        return [executable, "--buffer_size", buffer_size]
+
+    # The Snap wrapper replaces AMENT_PREFIX_PATH with its bundled ROS prefix,
+    # hiding workspace message definitions. Run the binary with the inherited
+    # ROS environment and explicitly select its ROS plugins instead.
+    snap_root = "/snap/plotjuggler/current"
+    binary = os.path.join(snap_root, "usr/local/bin/plotjuggler")
+    if os.path.isfile(binary) and os.access(binary, os.X_OK):
+        return [binary, "--plugin_folders",
+                os.path.join(snap_root, "opt/ros/snap/lib/plotjuggler_ros"),
+                "--buffer_size", buffer_size]
+    # Resolve at process execution time, so a disabled optional GUI does not
+    # prevent launching on machines without PlotJuggler.
+    return [executable or "plotjuggler", "--buffer_size", buffer_size]
 
 
 def _runtime_file_path(file_name: str) -> str:
@@ -208,6 +237,9 @@ def generate_launch_description():
             description="The frequency (Hz) at which the driver updates the state of the robot.",
         )
     )
+    declared_arguments.append(DeclareLaunchArgument(
+        "sim_control_rate", default_value="",
+        description="Simulation-only control/physics rate override in Hz (1..500); blank preserves controller YAML."))
     declared_arguments.append(DeclareLaunchArgument(
         "arm_joint_locks", default_value="true", choices=["true", "false"],
         description="Enable artificial joint locks on simulated arms; false for unlocked disturbance tests."))
@@ -450,7 +482,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "plotjuggler_buffer_size",
             default_value="10",
-            description="PlotJuggler streaming buffer length in seconds. PlotJuggler enforces a minimum of 10.",
+            description="PlotJuggler 3 streaming buffer length in seconds (minimum 10). PlotJuggler 4 uses its Sources-panel setting instead.",
         )
     )
     declared_arguments.append(
@@ -841,10 +873,23 @@ def launch_setup(context, *args, **kwargs):
         condition=IfCondition(TextSubstitution(text=launch_overlay_text_text)),
     )
 
+    rate_override = LaunchConfiguration("sim_control_rate").perform(context).strip()
+    control_parameters = [robot_controllers_modified_file, robot_description]
+    if rate_override:
+        rate = int(rate_override)
+        if use_vehicle_hardware_bool or use_manipulator_hardware_bool or not 1 <= rate <= 500:
+            raise RuntimeError("sim_control_rate requires simulation-only hardware and an integer in [1, 500]")
+        # Keep the requested rate in the manager's own generated YAML scope.
+        # Runtime timing must still be verified from completed physics steps.
+        with open(robot_controllers_modified_file) as stream:
+            controller_config = yaml.safe_load(stream)
+        controller_config['controller_manager']['ros__parameters']['update_rate'] = rate
+        with open(robot_controllers_modified_file, 'w') as stream:
+            yaml.safe_dump(controller_config, stream)
     control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
-        parameters=[robot_controllers_modified_file, robot_description],
+        parameters=control_parameters,
         arguments=['--ros-args', '--log-level', 'controller_manager:=ERROR'],
         output="both",
     )
@@ -872,7 +917,7 @@ def launch_setup(context, *args, **kwargs):
 
     # Define other nodes if needed
     run_plotjuggler = ExecuteProcess(
-        cmd=['/snap/bin/plotjuggler', '--buffer_size', plotjuggler_buffer_size],
+        cmd=_plotjuggler_command(plotjuggler_buffer_size),
         output='screen',
         condition=IfCondition(TextSubstitution(text=launch_plotjuggler_text)),
     )
@@ -951,6 +996,15 @@ def launch_setup(context, *args, **kwargs):
             (prefix for prefix in robot_prefixes if prefix != "robot_real_"),
             robot_prefixes[0] if robot_prefixes else "",
         )
+    if launch_camera_bool and not selected_camera_is_sim and not custom_camera_pipeline:
+        try:
+            manager = CameraDestination(camera_blueos_url, camera_stream_name)
+            stream = manager.select(manager.request("/streams"))
+            camera_pipeline = manager.receiver_pipeline(stream)
+            logger.info("Camera receiver selected for BlueOS encoding: "
+                        + stream["video_and_stream"]["stream_information"]["configuration"]["encode"])
+        except Exception as exc:
+            logger.warning(f"Could not discover BlueOS camera encoding; using H264 receiver: {exc}")
     selected_camera_params = {
         "image_topic": f"{_camera_topic_base(camera_prefix)}/image_raw" if selected_camera_is_mixed else "/alpha/image_raw",
         "camera_info_topic": f"{_camera_topic_base(camera_prefix)}/camera_info" if selected_camera_is_mixed else "/alpha/camera_info",
@@ -1114,6 +1168,11 @@ def launch_setup(context, *args, **kwargs):
         control_node,
         mode,
         run_plotjuggler,
+        Node(package='simlab', executable='effort_visualization',
+             name='effort_visualization',
+             parameters=[{'robot_description': robot_description_content,
+                          'robot_prefixes': robot_prefixes}],
+             condition=IfCondition(TextSubstitution(text=launch_rviz_text))),
         world_state_pub_node,
         *robot_state_pub_nodes,
         all_spawners[0],
@@ -1149,7 +1208,6 @@ def launch_setup(context, *args, **kwargs):
 
     if planner_action_server_node is not None:
         simulator_actions.append(planner_action_server_node)
-
 
     # if is_hardware_uvms:
     #     simulator_actions.append(clp_after_switch)

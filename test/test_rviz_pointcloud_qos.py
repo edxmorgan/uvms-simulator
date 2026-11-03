@@ -13,6 +13,9 @@ def test_generated_pointcloud_displays_match_publishers(tmp_path):
         str(template), str(output), "interactive", world_frame="base_link",
     )
     config = yaml.safe_load(output.read_text())
+    marker_view = next(view for view in config['Visualization Manager']['Views']['Saved']
+                       if view['Name'] == 'marker view')
+    assert marker_view['Target Frame'] == 'selected_marker_view_frame'
     planned = next(d for d in config['Visualization Manager']['Displays']
                    if d.get('Name') == 'planned waypoints')
     assert planned['Topic']['Depth'] == 100
@@ -81,3 +84,32 @@ def test_planned_marker_burst_survives_rviz_subscription_queue():
         executor.shutdown()
         node.destroy_node()
         rclpy.shutdown(context=context)
+
+
+def test_effort_displays_use_native_wrench_and_no_legacy_duplicate():
+    from bringup.utils.rviz_utils import add_wrench_entries
+    config = {'Visualization Manager': {'Displays': []}}
+    add_wrench_entries([1, 'real'], config)
+    displays = config['Visualization Manager']['Displays']
+    for group in displays[:2]:
+        assert group['Class'] == 'rviz_common/Group'
+        assert len(group['Displays']) == 11
+        for display in group['Displays']:
+            if not display['Name'].startswith('vehicle'):
+                assert display['Class'] == 'rviz_default_plugins/MarkerArray'
+                assert display['Topic']['Value'].endswith('/markers')
+                continue
+            assert display['Class'] == 'rviz_default_plugins/Wrench'
+            assert display['Arrow Width'] == .3
+            assert display['Force Arrow Scale'] == .3
+            assert display['Torque Arrow Scale'] == .5
+            assert display['Alpha'] == 1.
+            assert display['Accept NaN Values']
+            assert display['History Length'] == 1
+            assert '/visualization/effort/' in display['Topic']['Value']
+            assert display['Force Color'] == display['Torque Color']
+    assert displays[-2]['Topic']['Value'] == '/effort_visualization/labels'
+    assert displays[-2]['Enabled'] is False
+    assert displays[-1]['Topic']['Value'] == '/effort_visualization/status'
+
+    assert displays[-1]['Topic']['Durability Policy'] == 'Volatile'

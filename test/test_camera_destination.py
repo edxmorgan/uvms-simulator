@@ -71,6 +71,25 @@ class CameraDestinationTests(unittest.TestCase):
         self.assertEqual(self.streams[0]["video_and_stream"]["stream_information"]["endpoints"],
                          ["udp://192.168.2.138:5600", "udp://192.168.2.42:5600"])
 
+    def test_jpeg_registration_preserves_encoding_and_resolution(self):
+        config = self.streams[0]["video_and_stream"]["stream_information"]["configuration"]
+        config.update(encode="MJPG", width=640, height=480)
+        expected = copy.deepcopy(config)
+        self.manager.ensure()
+        selected = self.manager.select(self.streams)
+        self.assertEqual(selected["video_and_stream"]["stream_information"]["configuration"], expected)
+        self.assertIn("rtpjpegdepay ! jpegdec", self.manager.receiver_pipeline(selected))
+        self.assertFalse(self.manager.ensure()[1])
+
+    def test_receiver_matches_codec(self):
+        self.assertIn("rtph264depay", self.manager.receiver_pipeline(stream()))
+        unsupported = stream()
+        unsupported["video_and_stream"]["stream_information"]["configuration"]["encode"] = "YUYV"
+        with self.assertRaises(ValueError):
+            self.manager.receiver_pipeline(unsupported)
+        with self.assertRaises(RuntimeError):
+            self.manager.select([unsupported])
+
     def test_failed_restart_restores_original(self):
         original = copy.deepcopy(self.streams)
         self.fail_post = True
