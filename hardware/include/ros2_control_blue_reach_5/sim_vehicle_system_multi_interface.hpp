@@ -171,6 +171,7 @@ namespace ros2_control_blue_reach_5
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
         bool commands_held_{false};
+        bool dynamics_paused_{false};
         bool use_coupled_dynamics_{false};
 
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
