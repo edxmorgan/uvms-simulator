@@ -609,7 +609,7 @@ namespace ros2_control_blue_reach_5
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
-                    "GPIO '%s'has %zu state interfaces. 135 expected.", gpio.name.c_str(),
+                    "GPIO '%s'has %zu state interfaces. 132 expected.", gpio.name.c_str(),
                     gpio.state_interfaces.size());
                 return hardware_interface::CallbackReturn::ERROR;
             }

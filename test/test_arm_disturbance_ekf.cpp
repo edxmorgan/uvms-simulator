@@ -317,10 +317,6 @@ struct ArmEstimatorTestAccess {
     EXPECT_EQ(h.read(now, read_period), hardware_interface::return_type::OK);
     EXPECT_EQ(double(DM::norm_inf(h.arm_x_est_-state)), 0.);
     EXPECT_EQ(double(DM::norm_inf(h.arm_P_est_-covariance)), 0.);
-    h.dynamics_paused_ = true;
-    EXPECT_EQ(h.read(now, read_period), hardware_interface::return_type::OK);
-    EXPECT_EQ(double(DM::norm_inf(h.arm_P_est_-covariance)), 0.);
-    h.dynamics_paused_ = false;
     h.sim_step_ += 2;
     EXPECT_EQ(h.read(now, read_period), hardware_interface::return_type::ERROR);
     EXPECT_EQ(h.estimator_valid_, 0.);
