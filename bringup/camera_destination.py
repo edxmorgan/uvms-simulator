@@ -62,31 +62,15 @@ class CameraDestination:
         else:
             candidates = [s for s in streams
                           if s["video_and_stream"]["stream_information"]
-                          .get("configuration", {}).get("encode") in ("H264", "MJPG")
+                          .get("configuration", {}).get("encode") == "H264"
                           and "Local" in s["video_and_stream"]["video_source"]]
         if len(candidates) != 1:
-            raise RuntimeError("Expected one H264 or MJPG camera stream; found "
+            raise RuntimeError("Expected one H264 camera stream; found "
                                f"{len(candidates)}. Set camera_stream_name to select one.")
         selected = candidates[0]
-        if selected["video_and_stream"]["stream_information"]["configuration"].get("encode") not in ("H264", "MJPG"):
-            raise RuntimeError("Selected stream must be H264 or MJPG")
+        if selected["video_and_stream"]["stream_information"]["configuration"].get("encode") != "H264":
+            raise RuntimeError("Selected stream is not H264, as required by the default receiver")
         return selected
-
-    @staticmethod
-    def receiver_pipeline(stream):
-        encoding = stream["video_and_stream"]["stream_information"]["configuration"]["encode"]
-        if encoding == "MJPG":
-            caps = "application/x-rtp,media=video,encoding-name=JPEG,clock-rate=90000"
-            decoder = "rtpjpegdepay ! jpegdec"
-        elif encoding == "H264":
-            caps = "application/x-rtp,media=video,encoding-name=H264,clock-rate=90000,payload=96"
-            decoder = "rtph264depay ! avdec_h264 max-threads=2"
-        else:
-            raise ValueError("Unsupported camera encoding: " + encoding)
-        return ("udpsrc port=5600 ! " + caps
-                + " ! rtpjitterbuffer latency=50 drop-on-latency=true ! " + decoder
-                + " ! videoconvert ! video/x-raw,format=(string)BGR"
-                + " ! appsink name=camera_sink emit-signals=true sync=false async=false max-buffers=1 drop=true")
 
     def backup(self, payload):
         directory = Path.home() / ".ros" / "camera_destination_backups"

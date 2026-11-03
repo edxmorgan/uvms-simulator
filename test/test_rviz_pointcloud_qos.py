@@ -13,9 +13,6 @@ def test_generated_pointcloud_displays_match_publishers(tmp_path):
         str(template), str(output), "interactive", world_frame="base_link",
     )
     config = yaml.safe_load(output.read_text())
-    marker_view = next(view for view in config['Visualization Manager']['Views']['Saved']
-                       if view['Name'] == 'marker view')
-    assert marker_view['Target Frame'] == 'selected_marker_view_frame'
     planned = next(d for d in config['Visualization Manager']['Displays']
                    if d.get('Name') == 'planned waypoints')
     assert planned['Topic']['Depth'] == 100

@@ -33,6 +33,11 @@ Main menu groups:
 - ``Waypoints``: add, delete, clear, or stop vehicle waypoint missions.
 - ``Path Planner``: select the active robot's planner backend, currently
   ``Bitstar``, ``RRTstar``, or ``RRTConnect``.
+- ``Dynamic Obstacles``: add a generated spherical obstacle ahead of the
+  selected robot's active path, clear dynamic obstacles, enable/disable dynamic
+  replanning, and print replanning status. ``Add Path Obstacle`` requires an
+  active planned path and enables dynamic replanning if it is not already
+  active. ``Clear Obstacles`` removes all dynamic obstacles from the simulator.
 - ``Cmd Replay``: select the active robot's replay profile, reset/play, and
   stop replay. See :doc:`replay_and_experiments` for profile format and
   experiment logging.
@@ -47,11 +52,6 @@ Main menu groups:
   Requests for hardware namespaces are rejected with a log message.
 - ``Robot Control``: select controller, control space, and IK settings for the
   active robot.
-
-Obstacle editing belongs to the separate source-owned obstacle menu, not the
-selected robot menu. Frontends supply pose, dimensions and geometry through
-``/dynamic_obstacle_sim_node/edit_dynamic_obstacles``. No active vehicle path is
-required. Obstacle behavior and dynamic replanning are separate selections.
 
 Feedback Control and Replay
 ---------------------------

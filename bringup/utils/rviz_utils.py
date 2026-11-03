@@ -542,7 +542,7 @@ def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task, add
     if task == 'interactive':
         new_view = original_view.copy()
         new_view['Name'] = f'marker view'
-        new_view['Target Frame'] = 'selected_marker_view_frame'
+        new_view['Target Frame'] = 'vehicle_marker_frame'
         rviz_config['Visualization Manager']['Views']['Saved'].append(new_view)
 
 
