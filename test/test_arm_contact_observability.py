@@ -3,9 +3,8 @@
 Synthetic limits below are test fixtures, not another runtime limit source.
 Runtime limits still come only from the existing Xacro hardware description.
 """
-import importlib.util
-import json
 import os
+import re
 from pathlib import Path
 
 import numpy as np
@@ -13,14 +12,17 @@ import pytest
 
 ca = pytest.importorskip('casadi')
 ROOT = Path(__file__).resolve().parents[1]
-SIMLAB = ROOT.parent / 'uvms-simlab'
-spec = importlib.util.spec_from_file_location('model_profile', SIMLAB / 'simlab/controllers/model_profile.py')
-module = importlib.util.module_from_spec(spec)
-import sys
-sys.modules[spec.name] = module
-spec.loader.exec_module(module)
-PARAMETERS = module.NominalModel.from_profile(json.loads(
-    (SIMLAB / 'resource/dynamics_profiles/dory_alpha.json').read_text())).arm_oges
+# Use the native nominal parameter source; no sibling Simlab checkout required.
+# This reader is test-only, and checks the exact generated model input size.
+header = (ROOT / 'hardware/include/ros2_control_blue_reach_5/nominal_arm_parameters.hpp').read_text()
+fields = ('link_masses', 'link_first_moments', 'link_inertias', 'viscous_friction',
+          'coulomb_friction', 'static_friction', 'stribeck_velocity', 'gravity_vector',
+          'payload_com', 'payload_mass', 'base_pose', 'world_pose', 'tip_offset_pose')
+PARAMETERS = []
+for field in fields:
+    value = re.search(r'msg\.' + field + r'\s*=\s*([^;]+);', header).group(1)
+    PARAMETERS.extend(float(v.strip()) for v in value.strip('{}').split(',') if v.strip())
+assert len(PARAMETERS) == 81
 LIB = os.environ.get('ARM_EKF_TEST_LIBRARY', str(ROOT / 'casadi_lib/libmDisturbanceEKF_next.so'))
 
 
