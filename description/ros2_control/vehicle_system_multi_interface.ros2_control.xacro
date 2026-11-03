@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id same_initial_conditions use_pwm use_dvl dvl_host dvl_port">
+  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id same_initial_conditions use_pwm use_dvl dvl_host dvl_port manual_control:=false">
 
     <ros2_control name="${name}" type="system">
 
@@ -15,6 +15,11 @@
           <param name="same_initial_conditions">${same_initial_conditions}</param>
           <param name="use_pwm">${use_pwm}</param>
           <param name="use_dvl">${use_dvl}</param>
+          <param name="manual_control">${manual_control}</param>
+          <!-- Dropout limits, not update periods. Pressure is normally 2 Hz. -->
+          <param name="imu_timeout_s">0.5</param>
+          <param name="pressure_timeout_s">1.5</param>
+          <param name="dvl_timeout_s">0.5</param>
           <param name="dvl_host">${dvl_host}</param>
           <param name="dvl_port">${dvl_port}</param>
         </xacro:if>
@@ -302,6 +307,57 @@
         <state_interface name="P_r_r"/>
         <state_interface name="control_power_abs"/>
         <state_interface name="control_energy_abs"/>
+        <xacro:unless value="${use_hardware}">
+          <state_interface name="sim_step"/>
+          <state_interface name="sim_generation"/>
+        </xacro:unless>
+          <state_interface name="estimated_disturbance.force.x"/>
+          <state_interface name="estimated_disturbance.variance.force.x"/>
+          <state_interface name="estimated_disturbance.force.y"/>
+          <state_interface name="estimated_disturbance.variance.force.y"/>
+          <state_interface name="estimated_disturbance.force.z"/>
+          <state_interface name="estimated_disturbance.variance.force.z"/>
+          <state_interface name="estimated_disturbance.torque.x"/>
+          <state_interface name="estimated_disturbance.variance.torque.x"/>
+          <state_interface name="estimated_disturbance.torque.y"/>
+          <state_interface name="estimated_disturbance.variance.torque.y"/>
+          <state_interface name="estimated_disturbance.torque.z"/>
+          <state_interface name="estimated_disturbance.variance.torque.z"/>
+          <state_interface name="estimator_step"/>
+          <state_interface name="estimator_valid"/>
+          <state_interface name="estimator_nominal_parameter.0"/>
+          <state_interface name="estimator_nominal_parameter.1"/>
+          <state_interface name="estimator_nominal_parameter.2"/>
+          <state_interface name="estimator_nominal_parameter.3"/>
+          <state_interface name="estimator_nominal_parameter.4"/>
+          <state_interface name="estimator_nominal_parameter.5"/>
+          <state_interface name="estimator_nominal_parameter.6"/>
+          <state_interface name="estimator_nominal_parameter.7"/>
+          <state_interface name="estimator_nominal_parameter.8"/>
+          <state_interface name="estimator_nominal_parameter.9"/>
+          <state_interface name="estimator_nominal_parameter.10"/>
+          <state_interface name="estimator_nominal_parameter.11"/>
+          <state_interface name="estimator_nominal_parameter.12"/>
+          <state_interface name="estimator_nominal_parameter.13"/>
+          <state_interface name="estimator_nominal_parameter.14"/>
+          <state_interface name="estimator_nominal_parameter.15"/>
+          <state_interface name="estimator_nominal_parameter.16"/>
+          <state_interface name="estimator_nominal_parameter.17"/>
+          <state_interface name="estimator_nominal_parameter.18"/>
+          <state_interface name="estimator_nominal_parameter.19"/>
+          <state_interface name="estimator_nominal_parameter.20"/>
+          <state_interface name="estimator_nominal_parameter.21"/>
+          <state_interface name="estimator_nominal_parameter.22"/>
+          <state_interface name="estimator_nominal_parameter.23"/>
+          <state_interface name="estimator_nominal_parameter.24"/>
+          <state_interface name="estimator_nominal_parameter.25"/>
+          <state_interface name="estimator_nominal_parameter.26"/>
+          <state_interface name="estimator_nominal_parameter.27"/>
+          <state_interface name="estimator_nominal_parameter.28"/>
+          <state_interface name="estimator_nominal_parameter.29"/>
+          <state_interface name="estimator_nominal_parameter.30"/>
+          <state_interface name="estimator_nominal_parameter.31"/>
+          <state_interface name="estimator_nominal_parameter.32"/>
 
       </gpio>
 

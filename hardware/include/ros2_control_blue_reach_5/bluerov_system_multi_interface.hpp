@@ -125,6 +125,7 @@ namespace ros2_control_blue_reach_5
             const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
     private:
+        friend struct HardwareEstimatorTestAccess;
         void stop_background_work() noexcept;
         void light_callback(const std_msgs::msg::Float32::SharedPtr msg);
         void cameraMountPitch_callback(const std_msgs::msg::Float32::SharedPtr msg);
@@ -184,8 +185,8 @@ namespace ros2_control_blue_reach_5
         double time_seconds;
 
         // --- Kalman Filter state variables ---
-        casadi::DM x_est_; // State vector: e.g. [px, py, pz, roll, pitch, yaw, u, v, w, p, q, r]
-        casadi::DM P_est_; // Covariance: either 12x1 diag or 12x12, depending on your ekf_step function
+        casadi::DM x_est_; // [pose(6), body velocity(6), body disturbance wrench(6)]
+        casadi::DM P_est_; // 18x18 covariance
         casadi::DM Q_;     // Process noise
         casadi::DM R_;     // Measurement noise
         double P_diag_[18];
@@ -193,6 +194,8 @@ namespace ros2_control_blue_reach_5
         // DVL driver instance
         a50dvl::driver::DVLDriver dvl_driver_;
         bool use_dvl_ = false;
+        bool manual_control_ = false;
+        bool navigation_sensors_valid_ = false;
         std::string dvl_host_ = "192.168.2.95";
         int dvl_port_ = 16171;
 
@@ -248,7 +251,20 @@ namespace ros2_control_blue_reach_5
         casadi::DM last_wrapped_yaw;
         casadi::DM unwrap_yaw_rt;
         bool first_imu_read = true;
-        std::vector<casadi::DM> vehicle_parameters;
+        casadi::Function estimator_predict_;
+        casadi::Function estimator_correct_;
+        casadi::DM estimator_nominal_parameters_;
+        std::array<double, 33> estimator_model_readback_{};
+        casadi::DM estimator_applied_input_ = casadi::DM::zeros(6, 1);
+        std::array<double, 6> estimated_disturbance_{};
+        double estimator_valid_ = 0.0, estimator_step_ = 0.0;
+        bool estimator_initialized_ = false;
+        bool pressure_new_ = false, estimator_dvl_new_ = false;
+        double imu_timeout_s_ = 0.5, pressure_timeout_s_ = 1.5, dvl_timeout_s_ = 0.5;
+        std::chrono::steady_clock::time_point imu_received_{}, pressure_received_{}, dvl_received_{};
+        int64_t last_imu_stamp_ = -1;
+        uint32_t last_pressure_stamp_ = 0;
+        double last_dvl_stamp_ = -1.0;
         
         double control_energy_{0.0};
         double control_power_{0.0};

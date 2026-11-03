@@ -16,6 +16,7 @@
 #ifndef ROS2_CONTROL_BLUE_REACH_5__SIM_REACH_SYSTEM_MULTI_INTERFACE_HPP_
 #define ROS2_CONTROL_BLUE_REACH_5__SIM_REACH_SYSTEM_MULTI_INTERFACE_HPP_
 
+#include <array>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -36,6 +37,7 @@
 #include "rclcpp_lifecycle/node_interfaces/lifecycle_node_interface.hpp"
 #include "rclcpp_lifecycle/state.hpp"
 #include "std_srvs/srv/trigger.hpp"
+#include "std_msgs/msg/float64_multi_array.hpp"
 #include "ros2_control_blue_reach_5/srv/reset_sim_uvms.hpp"
 #include "ros2_control_blue_reach_5/srv/set_sim_dynamics.hpp"
 #include "ros2_control_blue_reach_5/visibility_control.h"
@@ -110,6 +112,7 @@ namespace ros2_control_blue_reach_5
             const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
     private:
+        friend struct ArmEstimatorTestAccess;
         void reset_joint_simulation_state();
         void reset_joint_simulation_state(
             const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request);
@@ -145,10 +148,35 @@ namespace ros2_control_blue_reach_5
         std::vector<casadi::DM> R_list_;                 // each is 2x2
         std::vector<std::array<double, 3>> P_diag_list_; // cached diagonals for quick inspection
 
+        // Four dynamic joints, ordered e/d/c/b: [q(4), dq(4), torque disturbance(4)].
+        // The independent gripper retains its existing acceleration filter.
+        casadi::DM arm_x_est_, arm_P_est_, arm_Q_, arm_R_;
+        casadi::DM estimator_applied_input_, estimator_nominal_parameters_;
+        casadi::DM estimator_completed_lock_mask_;
+        casadi::DM estimator_lower_limits_, estimator_upper_limits_, estimator_completed_contact_;
+        std::array<double, 4> estimator_joint_at_limit_{};
+        std::array<double, 4> estimator_disturbance_observable_{};
+        double estimator_completed_lock_alpha_{200.0};
+        std::array<double, 4> estimator_joint_locked_{};
+        std::array<double, 4> estimated_disturbance_{};
+        std::array<double, 4> disturbance_variance_{};
+        std::array<double, 81> estimator_model_readback_{};
+        double estimator_step_{0.0};
+        double estimator_valid_{0.0};
+        double estimator_completed_dt_{0.0};
+
         std::shared_ptr<rclcpp::Node> node_frames_interface_;
         std::shared_ptr<rclcpp::executors::SingleThreadedExecutor> executor_;
         std::thread spin_thread_;
         std::mutex simulation_state_mutex_;
+        rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr external_torque_sub_;
+        std::array<double, 4> external_torque_{};
+        std::chrono::steady_clock::time_point external_torque_received_{};
+        void receive_external_torque(const std_msgs::msg::Float64MultiArray &msg);
+        casadi::DM plant_torque_with_disturbance(const casadi::DM &actuator) const;
+        // Completed integration-step identity; reset changes generation.
+        double sim_step_ = 0.0;
+        double sim_generation_ = 0.0;
         std::mutex reset_request_mutex_;
         std::condition_variable reset_applied_cv_;
         std::optional<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> pending_reset_request_;
@@ -169,6 +197,9 @@ namespace ros2_control_blue_reach_5
         bool use_coupled_dynamics_{false};
 
         std::vector<bool>   is_locked_;
+        bool arm_joint_locks_enabled_{true};
+        void update_joint_locks();
+        void apply_motor_lock();
         std::vector<double> on_db_;
         std::vector<double> off_db_;
         std::vector<double>  s_lock_current;

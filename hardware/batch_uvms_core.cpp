@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "ros2_control_blue_reach_5/cpu_dynamics/uvms_cpu_dynamics.h"
+#include "ros2_control_blue_reach_5/arm_actuator_model.hpp"
 
 namespace ros2_control_blue_reach_5
 {
@@ -85,26 +86,6 @@ void tile_into(const std::vector<float> & row, std::size_t count, std::vector<fl
   }
 }
 
-float torque_to_current(float kt, float static_current, float torque)
-{
-  if (std::abs(torque) <= kTorqueCurrentZeroEpsilon) {
-    return 0.0F;
-  }
-
-  float current = kt * torque;
-  if (std::abs(torque) >= static_current / kt) {
-    current += std::copysign(static_current, torque);
-  }
-  return current;
-}
-
-float current_to_torque(float kt, float static_current, float current)
-{
-  if (std::abs(current) <= static_current) {
-    return 0.0F;
-  }
-  return (current - std::copysign(static_current, current)) / kt;
-}
 }  // namespace
 
 void BatchUvmsCore::configure(std::size_t robot_count)
@@ -368,7 +349,8 @@ void BatchUvmsCore::apply_arm_actuator_model()
       const float tau_cmd = arm_torque_[torque_offset + joint];
       const float static_current =
         tau_cmd >= 0.0F ? kArmForwardStaticCurrent[joint] : kArmBackwardStaticCurrent[joint];
-      const float i_cmd = torque_to_current(kArmMotorKt[joint], static_current, tau_cmd);
+      const float i_cmd = arm_actuator_model::torque_to_current(
+        kArmMotorKt[joint], static_current, tau_cmd);
 
       float min_current = -kArmCurrentMax[joint];
       float max_current = kArmCurrentMax[joint];
@@ -387,7 +369,7 @@ void BatchUvmsCore::apply_arm_actuator_model()
       const float safe_static_current =
         i_safe >= 0.0F ? kArmForwardStaticCurrent[joint] : kArmBackwardStaticCurrent[joint];
       arm_torque_[torque_offset + joint] =
-        current_to_torque(kArmMotorKt[joint], safe_static_current, i_safe);
+        arm_actuator_model::current_to_torque(kArmMotorKt[joint], safe_static_current, i_safe);
     }
   }
 }

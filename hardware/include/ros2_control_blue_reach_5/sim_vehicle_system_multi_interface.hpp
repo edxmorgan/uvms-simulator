@@ -118,6 +118,7 @@ namespace ros2_control_blue_reach_5
             const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
     private:
+        void restore_nominal_estimator_model();
         void reset_vehicle_simulation_state();
         void reset_vehicle_simulation_state(
             const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request);
@@ -156,6 +157,9 @@ namespace ros2_control_blue_reach_5
         std::thread spin_thread_;
         std::shared_ptr<rclcpp::Node> node_topics_interface_;
         std::mutex simulation_state_mutex_;
+        // Completed integration-step identity; reset changes generation.
+        double sim_step_ = 0.0;
+        double sim_generation_ = 0.0;
         std::mutex reset_request_mutex_;
         std::condition_variable reset_applied_cv_;
         std::optional<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> pending_reset_request_;
@@ -172,11 +176,17 @@ namespace ros2_control_blue_reach_5
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
 
        // --- Kalman Filter state variables ---
-        casadi::DM x_est_; // State vector: e.g. [px, py, pz, roll, pitch, yaw, u, v, w, p, q, r]
-        casadi::DM P_est_; // Covariance: either 12x1 diag or 12x12, depending on your ekf_step function
-        casadi::DM Q_;     // Process noise
+        casadi::DM x_est_; // [pose NED(6), body velocity(6), body disturbance wrench(6)]
+        casadi::DM P_est_; // 18x18 covariance
+        casadi::DM Q_;     // Continuous random-walk intensities; Q_d = Q_ * completed dt
         casadi::DM R_;     // Measurement noise
         double P_diag_[18];
+        casadi::DM estimator_nominal_parameters_; // Active EKF model, never plant-profile readback
+        std::array<double, 33> estimator_model_readback_{};
+        casadi::DM estimator_applied_input_ = casadi::DM::zeros(6, 1);
+        double estimator_step_ = 0.0;
+        double estimator_valid_ = 0.0;
+        std::array<double, 6> estimated_disturbance_{};
         
         std::vector<casadi::DM> uv_state;
         std::vector<casadi::DM> uv_input;

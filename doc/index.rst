@@ -31,6 +31,7 @@ streams, and extension work.
    rl_training
    sensors_and_perception
    developer_guide
+   arm_ekf
    license
 
 .. toctree::
