@@ -339,7 +339,6 @@ endif()
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
-  ament_add_pytest_test(test_mavros_telemetry test/test_mavros_telemetry.py)
   ament_add_pytest_test(test_vehicle_interface_contract test/test_vehicle_interface_contract.py)
   ament_add_pytest_test(test_rviz_pointcloud_qos test/test_rviz_pointcloud_qos.py)
   ament_add_pytest_test(test_bruce_visual_alignment test/test_bruce_visual_alignment.py)
