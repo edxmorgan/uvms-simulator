@@ -194,6 +194,7 @@ namespace ros2_control_blue_reach_5
         double delta_seconds{0.0};
         double time_seconds{0.0};
         bool commands_held_{false};
+        bool dynamics_paused_{false};
         bool use_coupled_dynamics_{false};
 
         std::vector<bool>   is_locked_;
