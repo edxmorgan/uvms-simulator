@@ -17,6 +17,7 @@
 #define ROS2_CONTROL_BLUE_REACH_5__BLUEROV_SYSTEM_MULTI_INTERFACE_HPP_
 
 #include <chrono>
+#include "ros2_control_blue_reach_5/identification_sample.hpp"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -251,6 +252,7 @@ namespace ros2_control_blue_reach_5
         casadi::DM last_wrapped_yaw;
         casadi::DM unwrap_yaw_rt;
         bool first_imu_read = true;
+        uvms::identification::HardwareSample identification_sample_;
         casadi::Function estimator_predict_;
         casadi::Function estimator_correct_;
         casadi::DM estimator_nominal_parameters_;
@@ -262,6 +264,7 @@ namespace ros2_control_blue_reach_5
         bool pressure_new_ = false, estimator_dvl_new_ = false;
         double imu_timeout_s_ = 0.5, pressure_timeout_s_ = 1.5, dvl_timeout_s_ = 0.5;
         std::chrono::steady_clock::time_point imu_received_{}, pressure_received_{}, dvl_received_{};
+        std::array<std::chrono::steady_clock::time_point, 3> identification_received_{};
         int64_t last_imu_stamp_ = -1;
         uint32_t last_pressure_stamp_ = 0;
         double last_dvl_stamp_ = -1.0;
