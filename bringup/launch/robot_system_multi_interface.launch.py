@@ -17,6 +17,7 @@ import glob
 import os
 import re
 import signal
+import shutil
 import subprocess
 import tempfile
 import time
@@ -36,6 +37,32 @@ from bringup.utils.controller_config import modify_controller_config, controller
 
 # Create a logger for the launch file
 logger = launch.logging.get_logger('robot_system_multi_interface_launch')
+
+
+def _plotjuggler_command(buffer_size: str) -> list[str]:
+    executable_v4 = shutil.which("plotjuggler4")
+    if executable_v4:
+        # PJ4 no longer accepts --buffer_size. Its streaming buffer is saved
+        # in the application/layout.
+        logger.info("Launching PlotJuggler 4; set the streaming buffer in its Sources panel or layout")
+        return [executable_v4]
+    executable = shutil.which("plotjuggler")
+    snap_launcher = "/snap/bin/plotjuggler"
+    if executable and os.path.realpath(executable) != os.path.realpath(snap_launcher):
+        return [executable, "--buffer_size", buffer_size]
+
+    # The Snap wrapper replaces AMENT_PREFIX_PATH with its bundled ROS prefix,
+    # hiding workspace message definitions. Run the binary with the inherited
+    # ROS environment and explicitly select its ROS plugins instead.
+    snap_root = "/snap/plotjuggler/current"
+    binary = os.path.join(snap_root, "usr/local/bin/plotjuggler")
+    if os.path.isfile(binary) and os.access(binary, os.X_OK):
+        return [binary, "--plugin_folders",
+                os.path.join(snap_root, "opt/ros/snap/lib/plotjuggler_ros"),
+                "--buffer_size", buffer_size]
+    # Resolve at process execution time, so a disabled optional GUI does not
+    # prevent launching on machines without PlotJuggler.
+    return [executable or "plotjuggler", "--buffer_size", buffer_size]
 
 
 def _runtime_file_path(file_name: str) -> str:
@@ -447,7 +474,7 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "plotjuggler_buffer_size",
             default_value="10",
-            description="PlotJuggler streaming buffer length in seconds. PlotJuggler enforces a minimum of 10.",
+            description="PlotJuggler 3 streaming buffer length in seconds (minimum 10). PlotJuggler 4 uses its Sources-panel setting instead.",
         )
     )
     declared_arguments.append(
@@ -863,7 +890,7 @@ def launch_setup(context, *args, **kwargs):
 
     # Define other nodes if needed
     run_plotjuggler = ExecuteProcess(
-        cmd=['/snap/bin/plotjuggler', '--buffer_size', plotjuggler_buffer_size],
+        cmd=_plotjuggler_command(plotjuggler_buffer_size),
         output='screen',
         condition=IfCondition(TextSubstitution(text=launch_plotjuggler_text)),
     )
