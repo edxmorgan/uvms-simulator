@@ -219,6 +219,12 @@ For finite repeated playback, the sequence is:
 Use ``repeats`` for identification experiments where each pass should begin
 from the configured initial state.
 
+Before each reference-tracking pass, the selected feedback controller's
+``reset_controller_state()`` hook clears controller memory and the performance
+accumulator is reset. An unavailable feedback controller rejects execution;
+replay does not substitute PID. Command-only replay does not require a feedback
+controller. Resetting controller memory does not change gains or model parameters.
+
 Replay CSV Logging
 ------------------
 
