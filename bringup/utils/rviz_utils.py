@@ -546,36 +546,66 @@ def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task, add
         rviz_config['Visualization Manager']['Views']['Saved'].append(new_view)
 
 
-def add_wrench_entries(ix, rviz_config, enabled= True):
-    # The existing wrench configuration you want to replicate
-    original_wrench = {
-        'Accept NaN Values': False,
-        'Alpha': 1,
-        'Arrow Width': 0.3,
-        'Class': 'rviz_default_plugins/Wrench',
-        'Enabled': enabled,
-        'Force Arrow Scale': 0.1,
-        'Force Color': '204; 51; 51',
-        'History Length': 1,
-        'Name': 'Wrench',
-        'Torque Arrow Scale': 0.2,
-        'Torque Color': '204; 204; 51',
-        'Value': True
-    }
+def add_wrench_entries(ix, rviz_config, enabled=True):
+    """Native vehicle wrenches and linearly scaled arm markers in URDF frames.
 
-    # Add new Wrench entries with the incremented index in the 'Value' field
+    NaN means unavailable, rendered without geometry; companion labels explain
+    locks, missing estimates and stale data. No invented zero estimates.
+    """
+    displays = rviz_config['Visualization Manager']['Displays']
     for i in ix:
-        new_wrench = original_wrench.copy()
-        new_wrench['Name'] = f'robot_Wrench_{i}'
-        new_wrench['Topic'] = {
-            'Depth': 5,
-            'Durability Policy': 'Volatile',
-            'Filter size': 10,
-            'History Policy': 'Keep Last',
-            'Reliability Policy': 'Reliable',
-            'Value': f'/fts_broadcaster_{i}/wrench'
-        }
-        rviz_config['Visualization Manager']['Displays'].append(new_wrench)
+        prefix = f'robot_{i}_'
+        children = []
+        for part in ('vehicle', 'e', 'd', 'c', 'b', 'a'):
+            for source, color in (('command', '230; 140; 30'),
+                                  ('estimated_disturbance', '40; 160; 255')):
+                if part == 'a' and source == 'estimated_disturbance':
+                    continue  # No gripper disturbance estimator exists.
+                if part != 'vehicle':
+                    children.append({
+                        'Class': 'rviz_default_plugins/MarkerArray',
+                        'Name': f'{part} {"actuator effort" if source == "command" and part != "vehicle" else source.replace("_", " ")}',
+                        'Enabled': enabled, 'Value': enabled,
+                        'Namespaces': {},
+                        'Topic': {'Depth': 1, 'Durability Policy': 'Volatile',
+                                  'History Policy': 'Keep Last', 'Reliability Policy': 'Reliable',
+                                  'Value': f'/{prefix}/visualization/effort/{part}/{source}/markers'},
+                    })
+                    continue
+                children.append({
+                    'Class': 'rviz_default_plugins/Wrench',
+                    'Name': f'{part} {"actuator effort" if source == "command" and part != "vehicle" else source.replace("_", " ")}',
+                    'Enabled': enabled, 'Value': enabled,
+                    'Accept NaN Values': True,
+                    'Alpha': 1.0,
+                    'Arrow Width': 0.3 if part == 'vehicle' else 0.06,
+                    # Wrenches originate at the vehicle center. Increase the
+                    # linear scale so moderate loads extend beyond its hull.
+                    'Force Arrow Scale': 0.3,
+                    'Torque Arrow Scale': 0.5 if part == 'vehicle' else 5.0,
+                    'Force Color': color, 'Torque Color': color,
+                    'History Length': 1,
+                    'Topic': {'Depth': 1, 'Durability Policy': 'Volatile',
+                              'Filter size': 10, 'History Policy': 'Keep Last',
+                              'Reliability Policy': 'Reliable',
+                              'Value': f'/{prefix}/visualization/effort/{part}/{source}'},
+                })
+        displays.append({'Class': 'rviz_common/Group', 'Name': f'Robot {i} efforts',
+                         'Enabled': enabled, 'Displays': children})
+    rviz_marker_array_display(rviz_config, topic='/effort_visualization/labels',
+                              name='Joint effort labels (3D)', enabled=False)
+    displays[-1]['Topic']['Durability Policy'] = 'Volatile'
+    displays[-1]['Topic']['Depth'] = 1
+    displays.append({
+        'Class': 'rviz_2d_overlay_plugins/TextOverlay',
+        'Name': 'Effort values and status', 'Enabled': enabled, 'Value': enabled,
+        'Overtake Position Properties': False,
+        'Overtake FG Color Properties': False, 'Overtake BG Color Properties': False,
+        'Topic': {'Depth': 1, 'Durability Policy': 'Volatile',
+                  'History Policy': 'Keep Last', 'Reliability Policy': 'Reliable',
+                  'Value': '/effort_visualization/status'},
+    })
+
 
 def rviz_add_mocap_pose_and_path(rviz_config,
                                  pose_topic="/mocap_pose",
