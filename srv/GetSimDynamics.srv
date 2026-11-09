@@ -1,0 +1,10 @@
+# Read-only snapshot. Component endpoints populate only their own valid field.
+---
+bool success
+string message
+bool vehicle_valid
+bool manipulator_valid
+bool vehicle_use_coupled_dynamics
+bool manipulator_use_coupled_dynamics
+SimVehicleDynamics vehicle
+SimManipulatorDynamics manipulator

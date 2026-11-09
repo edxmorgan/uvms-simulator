@@ -43,8 +43,8 @@ const KernelEntry& find_kernel(const std::string& function_name) {
 std::size_t estimate_required_stack_bytes(const KernelEntry& entry) {
     const std::size_t ptr_size = sizeof(void*);
     const std::size_t casadi_int_size = sizeof(long long int);
-    // Generated units in this repo use casadi_real=float.
-    const std::size_t casadi_real_size = sizeof(float);
+    // Generated units in this repo use casadi_real=double.
+    const std::size_t casadi_real_size = sizeof(double);
 
     const std::size_t arg_slots =
         static_cast<std::size_t>(std::max(1, std::max(entry.sz_arg, entry.n_in)));

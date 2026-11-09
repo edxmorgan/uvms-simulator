@@ -70,6 +70,14 @@ To add a controller:
 - Create a controller file, for example ``simlab/controllers/my_controller.py``.
 - Inherit from ``ControllerTemplate``.
 - Implement ``vehicle_controller(...)`` and ``arm_controller(...)``.
+- Override ``reset_controller_state()`` if the controller retains integrators,
+  previous commands, filters or learned residuals. Independent replay passes
+  call this hook before execution; it must preserve configuration and gains.
+- For runtime estimated-model configuration, implement ``set_model_profile``
+  and declare ``configuration_fields`` or override ``configuration_snapshot``.
+  Report effective values, not only a profile label. Unknown plugins reject
+  model configuration by default. Do not modify shared parameter classes or
+  another robot's model when applying an instance-specific profile.
 - Add the class to ``DEFAULT_CONTROLLER_CLASSES`` in
   ``simlab/controllers/__init__.py``.
 

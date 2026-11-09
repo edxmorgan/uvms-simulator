@@ -20,22 +20,22 @@ namespace {
 constexpr int kArmJointCount = 5;
 constexpr int kArmStateDim = 10;
 constexpr int kLockMaskDim = 4;
-constexpr float kJointLockOnDeadband = 0.05F;
-constexpr float kJointLockOffDeadband = 0.10F;
-constexpr float kTorqueCurrentZeroEpsilon = 1.0e-9F;
+constexpr double kJointLockOnDeadband = 0.05;
+constexpr double kJointLockOffDeadband = 0.10;
+constexpr double kTorqueCurrentZeroEpsilon = 1.0e-9;
 
-__constant__ float kArmPositionMin[kArmJointCount] = {
-    1.0F, 0.01F, 0.01F, 0.01F, 0.0004F};
-__constant__ float kArmPositionMax[kArmJointCount] = {
-    5.5F, 3.4F, 3.4F, 5.7F, 0.0137F};
-__constant__ float kArmCurrentMax[kArmJointCount] = {
-    600.0F, 400.0F, 400.0F, 400.0F, 400.0F};
-__constant__ float kArmMotorKt[kArmJointCount] = {
-    90.6F, 90.6F, 90.6F, 50.0F, 50.0F};
-__constant__ float kArmForwardStaticCurrent[kArmJointCount] = {
-    43.0F, 43.0F, 43.0F, 10.0F, 43.0F};
-__constant__ float kArmBackwardStaticCurrent[kArmJointCount] = {
-    43.0F, 43.0F, 43.0F, 20.0F, 43.0F};
+__constant__ double kArmPositionMin[kArmJointCount] = {
+    1.0, 0.01, 0.01, 0.01, 0.0004};
+__constant__ double kArmPositionMax[kArmJointCount] = {
+    5.5, 3.4, 3.4, 5.7, 0.0137};
+__constant__ double kArmCurrentMax[kArmJointCount] = {
+    600.0, 400.0, 400.0, 400.0, 400.0};
+__constant__ double kArmMotorKt[kArmJointCount] = {
+    90.6, 90.6, 90.6, 50.0, 50.0};
+__constant__ double kArmForwardStaticCurrent[kArmJointCount] = {
+    43.0, 43.0, 43.0, 10.0, 43.0};
+__constant__ double kArmBackwardStaticCurrent[kArmJointCount] = {
+    43.0, 43.0, 43.0, 20.0, 43.0};
 
 cudaStream_t stream_from_uintptr(std::uintptr_t stream_ptr) {
     return reinterpret_cast<cudaStream_t>(stream_ptr);
@@ -47,28 +47,26 @@ void check_cuda(cudaError_t status, const char* operation) {
     }
 }
 
-__device__ float torque_to_current(float kt, float static_current, float torque) {
-    if (fabsf(torque) <= kTorqueCurrentZeroEpsilon) {
-        return 0.0F;
+__device__ double torque_to_current(double kt, double static_current, double torque) {
+    if (fabs(torque) <= kTorqueCurrentZeroEpsilon) {
+        return 0.0;
     }
 
-    float current = kt * torque;
-    if (fabsf(torque) >= static_current / kt) {
-        current += copysignf(static_current, torque);
-    }
-    return current;
+    // Match arm_actuator_model::torque_to_current: every nonzero request
+    // includes the static-current offset, so the inverse preserves small torque.
+    return kt * torque + copysign(static_current, torque);
 }
 
-__device__ float current_to_torque(float kt, float static_current, float current) {
-    if (fabsf(current) <= static_current) {
-        return 0.0F;
+__device__ double current_to_torque(double kt, double static_current, double current) {
+    if (fabs(current) <= static_current) {
+        return 0.0;
     }
-    return (current - copysignf(static_current, current)) / kt;
+    return (current - copysign(static_current, current)) / kt;
 }
 
-__global__ void prepare_arm_step_kernel(const float* x_arm,
-                                        float* arm_torque,
-                                        float* lock_mask,
+__global__ void prepare_arm_step_kernel(const double* x_arm,
+                                        double* arm_torque,
+                                        double* lock_mask,
                                         int batch_size) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int total = batch_size * kArmJointCount;
@@ -79,25 +77,25 @@ __global__ void prepare_arm_step_kernel(const float* x_arm,
     const int robot = idx / kArmJointCount;
     const int joint = idx - robot * kArmJointCount;
     const int torque_index = robot * kArmJointCount + joint;
-    const float tau_cmd = arm_torque[torque_index];
-    const float static_current = tau_cmd >= 0.0F
+    const double tau_cmd = arm_torque[torque_index];
+    const double static_current = tau_cmd >= 0.0
                                      ? kArmForwardStaticCurrent[joint]
                                      : kArmBackwardStaticCurrent[joint];
-    const float i_cmd = torque_to_current(kArmMotorKt[joint], static_current, tau_cmd);
+    const double i_cmd = torque_to_current(kArmMotorKt[joint], static_current, tau_cmd);
 
-    float min_current = -kArmCurrentMax[joint];
-    float max_current = kArmCurrentMax[joint];
-    const float q = x_arm[robot * kArmStateDim + joint];
+    double min_current = -kArmCurrentMax[joint];
+    double max_current = kArmCurrentMax[joint];
+    const double q = x_arm[robot * kArmStateDim + joint];
     if (q < kArmPositionMin[joint]) {
-        min_current = 0.0F;
+        min_current = 0.0;
     } else if (q > kArmPositionMax[joint]) {
-        max_current = 0.0F;
+        max_current = 0.0;
     }
 
-    const float i_safe = fminf(fmaxf(i_cmd, min_current), max_current);
-    float tau_safe = 0.0F;
-    if (fabsf(i_safe) > kTorqueCurrentZeroEpsilon) {
-        const float safe_static_current = i_safe >= 0.0F
+    const double i_safe = fmin(fmax(i_cmd, min_current), max_current);
+    double tau_safe = 0.0;
+    if (fabs(i_safe) > kTorqueCurrentZeroEpsilon) {
+        const double safe_static_current = i_safe >= 0.0
                                               ? kArmForwardStaticCurrent[joint]
                                               : kArmBackwardStaticCurrent[joint];
         tau_safe = current_to_torque(kArmMotorKt[joint], safe_static_current, i_safe);
@@ -106,18 +104,18 @@ __global__ void prepare_arm_step_kernel(const float* x_arm,
 
     if (joint < kLockMaskDim) {
         const int mask_index = robot * kLockMaskDim + joint;
-        const float effort = fabsf(tau_safe);
-        const bool locked = lock_mask[mask_index] != 0.0F;
+        const double effort = fabs(tau_safe);
+        const bool locked = lock_mask[mask_index] != 0.0;
 
         if (!locked && effort < kJointLockOnDeadband) {
-            lock_mask[mask_index] = 1.0F;
+            lock_mask[mask_index] = 1.0;
         } else if (locked && effort > kJointLockOffDeadband) {
-            lock_mask[mask_index] = 0.0F;
+            lock_mask[mask_index] = 0.0;
         }
     }
 }
 
-__global__ void clamp_arm_state_kernel(float* x_arm, int batch_size) {
+__global__ void clamp_arm_state_kernel(double* x_arm, int batch_size) {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     const int total = batch_size * kArmJointCount;
     if (idx >= total) {
@@ -129,17 +127,17 @@ __global__ void clamp_arm_state_kernel(float* x_arm, int batch_size) {
     const int q_index = robot * kArmStateDim + joint;
     const int qd_index = robot * kArmStateDim + kArmJointCount + joint;
 
-    float q = x_arm[q_index];
-    float qd = x_arm[qd_index];
+    double q = x_arm[q_index];
+    double qd = x_arm[qd_index];
     if (q < kArmPositionMin[joint]) {
         q = kArmPositionMin[joint];
-        if (qd < 0.0F) {
-            qd = 0.0F;
+        if (qd < 0.0) {
+            qd = 0.0;
         }
     } else if (q > kArmPositionMax[joint]) {
         q = kArmPositionMax[joint];
-        if (qd > 0.0F) {
-            qd = 0.0F;
+        if (qd > 0.0) {
+            qd = 0.0;
         }
     }
 
@@ -149,9 +147,9 @@ __global__ void clamp_arm_state_kernel(float* x_arm, int batch_size) {
 
 }  // namespace
 
-void launch_prepare_arm_step(const float* x_arm,
-                             float* arm_torque,
-                             float* lock_mask,
+void launch_prepare_arm_step(const double* x_arm,
+                             double* arm_torque,
+                             double* lock_mask,
                              int batch_size,
                              int threads_per_block,
                              std::uintptr_t stream_ptr,
@@ -173,7 +171,7 @@ void launch_prepare_arm_step(const float* x_arm,
     }
 }
 
-void launch_clamp_arm_state(float* x_arm,
+void launch_clamp_arm_state(double* x_arm,
                             int batch_size,
                             int threads_per_block,
                             std::uintptr_t stream_ptr,

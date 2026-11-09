@@ -15,16 +15,16 @@ uint32 arm_action_dim
 # Flattened row-major [robot_count, observation_dim].
 # The UVMS dynamics backend observation is:
 # [vehicle_state(12), arm_position(arm_joint_count), arm_velocity(arm_joint_count)].
-float32[] observations
+float64[] observations
 
 # RL-oriented fields. BatchUvmsCore fills rewards with 0 and dones with 0
 # unless a C++ task is attached.
-float32[] rewards
+float64[] rewards
 uint8[] dones
 
 # Selected robot state is repeated here for low-cost debug consumers.
 uint32 selected_robot_index
-float32[] selected_state
+float64[] selected_state
 
 # Batch simulator timing diagnostics in milliseconds.
 float32 gpu_step_ms

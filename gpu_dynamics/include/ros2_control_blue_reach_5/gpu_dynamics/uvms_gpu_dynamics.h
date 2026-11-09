@@ -7,25 +7,25 @@
 namespace uvms_gpu {
 
 struct VehicleStepDevicePointers {
-    const float* x_vehicle;
-    const float* vehicle_wrench;
-    const float* vehicle_params;
-    const float* dt;
-    const float* external_wrench;
-    float* x_vehicle_next;
+    const double* x_vehicle;
+    const double* vehicle_wrench;
+    const double* vehicle_params;
+    const double* dt;
+    const double* external_wrench;
+    double* x_vehicle_next;
 };
 
 struct ArmStepDevicePointers {
-    const float* x_arm;
-    const float* arm_torque;
-    const float* dt;
-    const float* arm_params;
-    const float* ee_mass;
-    const float* ee_damping;
-    const float* ee_stiffness;
-    const float* lock_mask;
-    const float* baumgarte_alpha;
-    float* x_arm_next;
+    const double* x_arm;
+    const double* arm_torque;
+    const double* dt;
+    const double* arm_params;
+    const double* ee_mass;
+    const double* ee_damping;
+    const double* ee_stiffness;
+    const double* lock_mask;
+    const double* baumgarte_alpha;
+    double* x_arm_next;
 };
 
 // Full UVMS dynamics is exposed as separate vehicle and arm batch kernels.
@@ -41,15 +41,15 @@ void launch_arm_step(const ArmStepDevicePointers& ptrs,
                      std::uintptr_t stream_ptr = 0,
                      bool sync = false);
 
-void launch_prepare_arm_step(const float* x_arm,
-                             float* arm_torque,
-                             float* lock_mask,
+void launch_prepare_arm_step(const double* x_arm,
+                             double* arm_torque,
+                             double* lock_mask,
                              int batch_size,
                              int threads_per_block = 256,
                              std::uintptr_t stream_ptr = 0,
                              bool sync = false);
 
-void launch_clamp_arm_state(float* x_arm,
+void launch_clamp_arm_state(double* x_arm,
                             int batch_size,
                             int threads_per_block = 256,
                             std::uintptr_t stream_ptr = 0,

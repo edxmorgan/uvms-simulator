@@ -3,6 +3,7 @@
 
   <!-- Enable setting arguments from the launch file -->
   <xacro:arg name="use_manipulator_hardware" default="false"/>
+  <xacro:arg name="arm_joint_locks" default="true"/>
   <xacro:arg name="use_vehicle_hardware" default="false"/>
   <xacro:arg name="use_pwm" default="true"/>
   <xacro:arg name="sim_robot_count" default="1"/>
@@ -13,6 +14,7 @@
   <xacro:arg name="use_optitrack" default="false"/>
   <xacro:arg name="world_frame" default="world"/>
   <xacro:arg name="use_dvl" default="false"/>
+  <xacro:arg name="manual_control" default="false"/>
   <xacro:arg name="dvl_host" default="192.168.2.95"/>
   <xacro:arg name="dvl_port" default="16171"/>
   <!-- <xacro:arg name="robot_name" default="bruce"/> -->
@@ -79,7 +81,8 @@
       prefix="${prefix}"
       serial_port="${serial_port}"
       state_update_frequency="${state_update_frequency}"
-      use_hardware="false"/>
+      use_hardware="false"
+      arm_joint_locks="$(arg arm_joint_locks)"/>
 
     <xacro:vehicle_system_multi_interface
       name="${prefix}BlueSystemMultiInterface"
@@ -122,7 +125,8 @@
       prefix="${prefix}"
       serial_port="${serial_port}"
       state_update_frequency="${state_update_frequency}"
-      use_hardware="${use_manipulator_hardware}"/>
+      use_hardware="${use_manipulator_hardware}"
+      arm_joint_locks="$(arg arm_joint_locks)"/>
 
     <xacro:vehicle_system_multi_interface
       name="real_BlueSystemMultiInterface"
@@ -130,6 +134,7 @@
       serial_port="${serial_port}"
       state_update_frequency="${state_update_frequency}"
       use_hardware="${use_vehicle_hardware}"
+      manual_control="$(arg manual_control)"
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"

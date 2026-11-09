@@ -6,7 +6,7 @@ set(UVMS_GPU_DYNAMICS_LIB ${PROJECT_NAME}_uvms_gpu_dynamics)
 add_library(${UVMS_GPU_DYNAMICS_RUNTIME} OBJECT
   runtime/casadi_on_gpu_kernels.cpp
   runtime/casadi_on_gpu_kernel_registry.cu
-  runtime/mnext_reg_fe1x5.cu
+  runtime/mnext_reg_fe1x30.cu
   generated/Vnext_reg_gpu.cu
 )
 
@@ -24,7 +24,7 @@ if(UVMS_CUDA_FAST_COMPILE AND CMAKE_CUDA_COMPILER_VERSION VERSION_GREATER_EQUAL 
 endif()
 set_source_files_properties(
   generated/Vnext_reg_gpu.cu
-  runtime/mnext_reg_fe1x5.cu
+  runtime/mnext_reg_fe1x30.cu
   PROPERTIES COMPILE_OPTIONS "${UVMS_GENERATED_CUDA_COMPILE_OPTIONS}"
 )
 
@@ -118,3 +118,6 @@ install(
   FILES generated/kernels_manifest.json
   DESTINATION share/${PROJECT_NAME}/gpu_dynamics
 )
+
+# Shared interval policy; also installed by the hardware headers install rule.
+target_include_directories(${UVMS_GPU_DYNAMICS_RUNTIME} PRIVATE ${PROJECT_SOURCE_DIR}/hardware/include)

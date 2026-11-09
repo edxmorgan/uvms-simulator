@@ -21,18 +21,18 @@ namespace ros2_control_blue_reach_5
 {
 namespace
 {
-std::vector<float> flatten_float_array(const py::array_t<float, py::array::c_style | py::array::forcecast> & array)
+std::vector<double> flatten_double_array(const py::array_t<double, py::array::c_style | py::array::forcecast> & array)
 {
   const py::buffer_info info = array.request();
-  const auto * data = static_cast<const float *>(info.ptr);
-  return std::vector<float>(data, data + info.size);
+  const auto * data = static_cast<const double *>(info.ptr);
+  return std::vector<double>(data, data + info.size);
 }
 
-py::array_t<float> make_float_array(const std::vector<float> & values, const std::vector<py::ssize_t> & shape)
+py::array_t<double> make_double_array(const std::vector<double> & values, const std::vector<py::ssize_t> & shape)
 {
-  py::array_t<float> array(shape);
+  py::array_t<double> array(shape);
   py::buffer_info info = array.request();
-  auto * data = static_cast<float *>(info.ptr);
+  auto * data = static_cast<double *>(info.ptr);
   std::copy(values.begin(), values.end(), data);
   return array;
 }
@@ -63,53 +63,53 @@ public:
       return;
     }
 
-    const auto array = py::array_t<float, py::array::c_style | py::array::forcecast>::ensure(observations);
+    const auto array = py::array_t<double, py::array::c_style | py::array::forcecast>::ensure(observations);
     if (!array) {
-      throw std::invalid_argument("observations must be convertible to a float32 array");
+      throw std::invalid_argument("observations must be convertible to a float64 array");
     }
-    const std::vector<float> flat = flatten_float_array(array);
+    const std::vector<double> flat = flatten_double_array(array);
     if (!core_.reset(hold_commands, flat)) {
       throw std::invalid_argument("observations must have shape [robot_count, observation_dim] or flat matching size");
     }
   }
 
-  void set_actions(py::array_t<float, py::array::c_style | py::array::forcecast> actions, std::uint64_t tick_id)
+  void set_actions(py::array_t<double, py::array::c_style | py::array::forcecast> actions, std::uint64_t tick_id)
   {
-    const std::vector<float> flat = flatten_float_array(actions);
+    const std::vector<double> flat = flatten_double_array(actions);
     if (!core_.set_actions(flat, tick_id)) {
       throw std::invalid_argument("actions must have shape [robot_count, action_dim] or flat matching size");
     }
   }
 
-  void set_observations(py::array_t<float, py::array::c_style | py::array::forcecast> observations)
+  void set_observations(py::array_t<double, py::array::c_style | py::array::forcecast> observations)
   {
-    const std::vector<float> flat = flatten_float_array(observations);
+    const std::vector<double> flat = flatten_double_array(observations);
     if (!core_.set_observations(flat)) {
       throw std::invalid_argument("observations must have shape [robot_count, observation_dim] or flat matching size");
     }
   }
 
-  void set_vehicle_params(py::array_t<float, py::array::c_style | py::array::forcecast> params)
+  void set_vehicle_params(py::array_t<double, py::array::c_style | py::array::forcecast> params)
   {
-    const std::vector<float> flat = flatten_float_array(params);
+    const std::vector<double> flat = flatten_double_array(params);
     if (!core_.set_vehicle_params(flat)) {
       throw std::invalid_argument("vehicle params must have shape [33]");
     }
   }
 
-  void set_arm_params(py::array_t<float, py::array::c_style | py::array::forcecast> params)
+  void set_arm_params(py::array_t<double, py::array::c_style | py::array::forcecast> params)
   {
-    const std::vector<float> flat = flatten_float_array(params);
+    const std::vector<double> flat = flatten_double_array(params);
     if (!core_.set_arm_params(flat)) {
       throw std::invalid_argument("arm params must have shape [81]");
     }
   }
 
   void set_arm_environment(
-    float endeffector_mass,
-    float endeffector_damping,
-    float endeffector_stiffness,
-    float baumgarte_alpha)
+    double endeffector_mass,
+    double endeffector_damping,
+    double endeffector_stiffness,
+    double baumgarte_alpha)
   {
     core_.set_arm_environment(
       endeffector_mass, endeffector_damping, endeffector_stiffness, baumgarte_alpha);
@@ -120,23 +120,23 @@ public:
     core_.step(dt);
   }
 
-  py::array_t<float> observations() const
+  py::array_t<double> observations() const
   {
-    return make_float_array(
+    return make_double_array(
       core_.observations(),
       {static_cast<py::ssize_t>(core_.robot_count()), static_cast<py::ssize_t>(BatchUvmsCore::kObservationDim)});
   }
 
-  py::array_t<float> actions() const
+  py::array_t<double> actions() const
   {
-    return make_float_array(
+    return make_double_array(
       core_.actions(),
       {static_cast<py::ssize_t>(core_.robot_count()), static_cast<py::ssize_t>(BatchUvmsCore::kActionDim)});
   }
 
-  py::array_t<float> rewards() const
+  py::array_t<double> rewards() const
   {
-    return make_float_array(core_.rewards(), {static_cast<py::ssize_t>(core_.robot_count())});
+    return make_double_array(core_.rewards(), {static_cast<py::ssize_t>(core_.robot_count())});
   }
 
   py::array_t<std::uint8_t> dones() const
@@ -144,9 +144,9 @@ public:
     return make_uint8_array(core_.dones(), {static_cast<py::ssize_t>(core_.robot_count())});
   }
 
-  py::array_t<float> selected_state() const
+  py::array_t<double> selected_state() const
   {
-    return make_float_array(core_.selected_state(), {static_cast<py::ssize_t>(BatchUvmsCore::kObservationDim)});
+    return make_double_array(core_.selected_state(), {static_cast<py::ssize_t>(BatchUvmsCore::kObservationDim)});
   }
 
   std::size_t robot_count() const { return core_.robot_count(); }

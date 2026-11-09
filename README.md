@@ -51,7 +51,7 @@ sudo apt install git-lfs \
 Python dependencies used by SimLab and the simulated camera renderer:
 
 ```bash
-python3 -m pip install pyPS4Controller pynput scipy casadi ruckig \
+python3 -m pip install pyPS4Controller pynput scipy casadi==3.7.2 ruckig \
     python-fcl trimesh pycollada pyvista open3d
 ```
 

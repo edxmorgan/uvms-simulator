@@ -42,6 +42,7 @@
 #include "ros2_control_blue_reach_5/driver.hpp"
 #include "ros2_control_blue_reach_5/serial_budget.hpp"
 #include "ros2_control_blue_reach_5/command_safety.hpp"
+#include "ros2_control_blue_reach_5/hardware_arm_observer.hpp"
 #include "ros2_control_blue_reach_5/packet.hpp"
 #include "ros2_control_blue_reach_5/joint.hpp"
 #include "ros2_control_blue_reach_5/state.hpp"
@@ -129,6 +130,7 @@ namespace ros2_control_blue_reach_5
     std::vector<JointFeedbackClock> feedback_clocks_;
     JointFeedbackClock::Clock::time_point activated_at_{};
     bool feedback_fault_{false};
+    HardwareArmObserver arm_observer_;
 
     enum class mode_level_t
     {

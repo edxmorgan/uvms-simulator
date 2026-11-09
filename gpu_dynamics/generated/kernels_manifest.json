@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "casadi_real": "float",
+  "casadi_real": "double",
   "kernels": [
     {
       "function_name": "Vnext_reg",
@@ -77,18 +77,18 @@
         "sz_arg": 5,
         "sz_res": 1,
         "sz_iw": 0,
-        "sz_w": 830,
-        "n_nodes": 35530,
-        "n_instructions": 35542
+        "sz_w": 823,
+        "n_nodes": 33427,
+        "n_instructions": 33439
       },
-      "implementation": "GPU-private Vnext_reg_gpu codegen wrapper"
+      "implementation": "Fully submerged vehicle; same 30 RK4 substeps as canonical diff_uv plant/EKF export"
     },
     {
       "function_name": "Mnext_reg",
-      "kernel_name": "Mnext_reg_fe1x5_gpu_kernel",
+      "kernel_name": "Mnext_reg_fe1x30_gpu_kernel",
       "device_name": "Mnext_reg_fe1_cse",
       "header": "Mnext_reg_fe1_cse.cuh",
-      "source": "../runtime/mnext_reg_fe1x5.cu",
+      "source": "../runtime/mnext_reg_fe1x30.cu",
       "batch_inputs": [
         0,
         1,
@@ -198,11 +198,16 @@
         "sz_arg": 9,
         "sz_res": 1,
         "sz_iw": 0,
-        "sz_w": 1028,
-        "n_nodes": 275515,
-        "n_instructions": 275565
+        "sz_w": 939,
+        "n_nodes": 51359,
+        "n_instructions": 51369
       },
-      "implementation": "five GPU-private Mnext_reg_fe1_cse substeps with dt/5; preserves all Mnext_reg inputs and always evaluates the full lock-mask-aware expression"
+      "implementation": "shared arm interval policy, thirty GPU-private one-element RK4 steps per interval; final limit projection outside kernel",
+      "regeneration": {
+        "casadi_version": "3.8.0+",
+        "source_commit": "16b8510",
+        "integration": "thirty sequential one-element RK4 steps per shared bounded interval"
+      }
     }
   ]
 }

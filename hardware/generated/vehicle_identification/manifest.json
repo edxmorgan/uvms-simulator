@@ -1,0 +1,18 @@
+{
+  "casadi_version": "3.8.0+",
+  "frame": "NED/FRD",
+  "assumptions": "zero current; uncoupled vehicle",
+  "output": "dense column-major 6x27",
+  "source_sha256": {
+    "diffUV/identification_data.py": "2052260c0cf76279aac37d34cc18628c266698994eb51156c78e761b043986dc",
+    "diffUV/base.py": "442489ea6326701ffb59a10b7cde1b318435133e39005f0a6235c35c791d0722",
+    "diffUV/utils/operators.py": "0ea4d87214dff84b0fb221dfed483122b2e246b45168694f4161c502b3d157bb",
+    "diffUV/utils/euler_ops.py": "02273f62fef7f6837ae602b9933332fb8267d169fec80e46051c39d51ee09a79",
+    "diffUV/utils/symbols.py": "0ddc225bff8df37a6deebd872e91a34296cb1ce1bfe79e671987d982c77defd3",
+    "usage/export_vehicle_identification.py": "b11bcdd0d1687752db26f32b10f58520ffacf44d826c0e4cec5bea48c04a6b7d"
+  },
+  "artifact_sha256": {
+    "vehicle_regressor.c": "2eb100f0e5420a5186d1ec4045087cb579b2082ab597fefd53db81193a455d94",
+    "vehicle_regressor.h": "d543a2f914a17a0510065a137c6fe2c1a0c133e76d2f92608ec7a415a27b25d5"
+  }
+}

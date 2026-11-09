@@ -263,6 +263,25 @@ The task API is independent of the dynamics backend. CPU dynamics are the
 portable baseline. GPU dynamics use the CUDA batch core for high-throughput
 rollouts under the same task, reward, reset, and trainer code.
 
+Both backends use float64 for dynamics inputs, parameters, intermediate states
+and outputs. The arm uses 30 RK4 substeps and the vehicle 25, matching the
+currently deployed main simulator integrators. Arm updates use the shared
+``arm_integration_policy`` to split the elapsed period into intervals of at
+most 10 ms (or ``30 / alpha`` when smaller), with 30 RK4 elements per interval.
+Joint-limit projection remains at the end of the full update. Host batch APIs
+reject invalid timing before advancing state; raw device-only arm launches
+return nonfinite output for invalid timing. CPU and GPU floating-point
+operation ordering can still differ; bit-identical results are not guaranteed.
+The RSL adapter converts policy observations to float32 separately from the
+simulator state. Float32 action arrays are accepted and converted at the boundary.
+
+The native batch pointer API now requires double buffers, including
+``set_actions_from_device`` and zero-copy CUDA state views. Rebuild dependent
+C++ extensions after this ABI change. ``BatchCommand`` actions,
+``BatchObservation`` state/reward arrays and ``ResetBatchSim`` states are float64;
+ROS clients must use the rebuilt message definitions. Older recorded batch
+messages retain their original float32 schema.
+
 Experiment configs should name the backend explicitly:
 
 .. code-block:: yaml

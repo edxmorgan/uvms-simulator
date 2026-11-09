@@ -1,6 +1,9 @@
 bool reset_manipulator
 bool reset_vehicle
 bool hold_commands
+# Opt-in simulation-only state/estimator pause until release; requires hold_commands.
+# False preserves ordinary reset behavior. Timestamps continue to be published.
+bool pause_dynamics
 
 bool use_manipulator_state
 float64[5] manipulator_position

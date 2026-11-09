@@ -24,17 +24,17 @@ public:
   virtual void reset(
     std::size_t robot_count,
     std::size_t observation_dim,
-    std::vector<float> & observations,
-    std::vector<float> & rewards,
+    std::vector<double> & observations,
+    std::vector<double> & rewards,
     std::vector<std::uint8_t> & dones) = 0;
 
   virtual void compute(
     std::size_t robot_count,
     std::size_t observation_dim,
     std::size_t action_dim,
-    const std::vector<float> & observations,
-    const std::vector<float> & actions,
-    std::vector<float> & rewards,
+    const std::vector<double> & observations,
+    const std::vector<double> & actions,
+    std::vector<double> & rewards,
     std::vector<std::uint8_t> & dones) = 0;
 };
 
@@ -44,8 +44,8 @@ public:
   void reset(
     std::size_t,
     std::size_t,
-    std::vector<float> &,
-    std::vector<float> & rewards,
+    std::vector<double> &,
+    std::vector<double> & rewards,
     std::vector<std::uint8_t> & dones) override
   {
     std::fill(rewards.begin(), rewards.end(), 0.0F);
@@ -56,9 +56,9 @@ public:
     std::size_t,
     std::size_t,
     std::size_t,
-    const std::vector<float> &,
-    const std::vector<float> &,
-    std::vector<float> & rewards,
+    const std::vector<double> &,
+    const std::vector<double> &,
+    std::vector<double> & rewards,
     std::vector<std::uint8_t> & dones) override
   {
     std::fill(rewards.begin(), rewards.end(), 0.0F);

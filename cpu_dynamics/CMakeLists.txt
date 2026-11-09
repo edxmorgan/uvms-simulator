@@ -42,3 +42,6 @@ install(
   DIRECTORY include/
   DESTINATION include
 )
+
+# Shared interval policy; also installed by the hardware headers install rule.
+target_include_directories(${UVMS_CPU_DYNAMICS_LIB} PRIVATE ${PROJECT_SOURCE_DIR}/hardware/include)

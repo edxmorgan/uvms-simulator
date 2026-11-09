@@ -1,0 +1,26 @@
+# Hardware observation only; no automatic controller/model updates or motion.
+# Set the confirmation below to true only after checking the PWM-to-thrust
+# calibration, body-NED conventions, negligible current/external wrench and
+# negligible arm coupling for the identification experiment.
+# Sensor snapshots use new IMU/depth/DVL data with <=50 ms receipt-time skew.
+# This is not source-clock synchronization; account for sensor transport latency.
+/**:
+  ros__parameters:
+    hardware_measurements: true
+    confirm_hardware_thrust_calibration_zero_current_uncoupled: false
+    auto_start: true
+    weight_bounds: [105.0, 150.0]
+    # Number of fresh sensor snapshots, NOT control-loop ticks. At 5 Hz: ~60 s.
+    horizon: 300
+    fit_period: 1.0
+    budget_seconds: 0.5
+    max_gap: 0.5
+    # Engineering thresholds, not calibrated hardware measurement covariance.
+    # Set from the sensors/actuator calibration before interpreting acceptance.
+    retention_residual_scales: [0.1, 0.1, 0.1, 0.01, 0.01, 0.01]
+    retention_min_information: 0.0001
+    retention_validation_seconds: 5.0
+    retention_validation_gap: 0.1
+    retention_max_validation_error: 1.0
+    retention_change_error: 3.0
+    retention_change_blocks: 3
