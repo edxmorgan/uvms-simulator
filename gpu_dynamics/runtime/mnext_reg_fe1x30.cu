@@ -1,6 +1,7 @@
+#include "ros2_control_blue_reach_5/arm_integration_policy.hpp"
 // Author: edward morgan
 
-// Five one-step arm dynamics evaluations. This keeps the GPU build practical
+// Thirty one-step arm dynamics evaluations. This keeps the GPU build practical
 // while preserving the public Mnext_reg signature and lock-mask semantics.
 
 #define casadi_s0_h Mnext_reg_fe1_cse_s0_h
@@ -36,7 +37,7 @@ CUDA_DEV void copy10(const casadi_real* src, casadi_real* dst) {
 
 }  // namespace
 
-extern "C" CUDA_GLOBAL void Mnext_reg_fe1x5_gpu_kernel(
+extern "C" CUDA_GLOBAL void Mnext_reg_fe1x30_gpu_kernel(
     const casadi_real* i0_in,
     const casadi_real* i1_in,
     const casadi_real* i2_in,
@@ -63,12 +64,19 @@ extern "C" CUDA_GLOBAL void Mnext_reg_fe1x5_gpu_kernel(
   const casadi_real* baumgarte_alpha = i8_in + idx;
   casadi_real* x_out = o0_out + 10 * idx;
 
+  const int count = ros2_control_blue_reach_5::arm_integration_policy::count_or_error(i2_in[idx], *baumgarte_alpha);
+  if (count < 0) {
+    // Device-only API: invalid timing is signalled by nonfinite output.
+    // Host batch cores reject it before launching any dynamics.
+    for (int i = 0; i < 10; ++i) x_out[i] = NAN;
+    return;
+  }
   casadi_real x_a[10];
   casadi_real x_b[10];
-  casadi_real dt_sub[1] = {i2_in[idx] / 5.0F};
+  casadi_real dt_sub[1] = {(i2_in[idx] / count) / 30.0};
   copy10(x_in, x_a);
 
-  for (int step = 0; step < 5; ++step) {
+  for (int step = 0; step < 30 * count; ++step) {
     device_Mnext_reg_fe1_cse_eval(
         x_a, tau, dt_sub, arm_params, ee_mass, ee_damping, ee_stiffness,
         lock_mask, baumgarte_alpha, x_b);

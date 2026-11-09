@@ -51,16 +51,16 @@ public:
   void configure(std::size_t robot_count);
   void set_task(std::shared_ptr<BatchUvmsTask> task);
   void reset(bool hold_commands);
-  bool reset(bool hold_commands, const std::vector<float> & observations);
-  bool set_observations(const std::vector<float> & observations);
-  bool set_vehicle_params(const std::vector<float> & params);
-  bool set_arm_params(const std::vector<float> & params);
+  bool reset(bool hold_commands, const std::vector<double> & observations);
+  bool set_observations(const std::vector<double> & observations);
+  bool set_vehicle_params(const std::vector<double> & params);
+  bool set_arm_params(const std::vector<double> & params);
   void set_arm_environment(
-    float endeffector_mass,
-    float endeffector_damping,
-    float endeffector_stiffness,
-    float baumgarte_alpha);
-  bool set_actions(const std::vector<float> & actions, std::uint64_t tick_id);
+    double endeffector_mass,
+    double endeffector_damping,
+    double endeffector_stiffness,
+    double baumgarte_alpha);
+  bool set_actions(const std::vector<double> & actions, std::uint64_t tick_id);
   bool set_selected_action(
     std::size_t selected_robot_index,
     const double * vehicle_command6,
@@ -87,11 +87,11 @@ public:
   std::size_t arm_position_offset(std::size_t robot_index) const;
   std::size_t arm_velocity_offset(std::size_t robot_index) const;
 
-  const std::vector<float> & observations() const { return observations_; }
-  const std::vector<float> & actions() const { return actions_; }
-  const std::vector<float> & rewards() const { return rewards_; }
+  const std::vector<double> & observations() const { return observations_; }
+  const std::vector<double> & actions() const { return actions_; }
+  const std::vector<double> & rewards() const { return rewards_; }
   const std::vector<std::uint8_t> & dones() const { return dones_; }
-  std::vector<float> selected_state() const;
+  std::vector<double> selected_state() const;
 
   bool commands_held() const { return commands_held_; }
   std::uint64_t tick_id() const { return tick_id_; }
@@ -106,29 +106,29 @@ private:
   void pack_dynamics_actions();
   void apply_arm_actuator_model();
   void update_arm_lock_mask();
-  void clamp_arm_state(std::vector<float> & observations);
+  void clamp_arm_state(std::vector<double> & observations);
   void compute_task();
   void reset_task();
 
   std::shared_ptr<BatchUvmsTask> task_;
   std::size_t robot_count_{1};
   std::size_t selected_robot_index_{0};
-  std::vector<float> observations_;
-  std::vector<float> next_observations_;
-  std::vector<float> actions_;
-  std::vector<float> vehicle_wrench_;
-  std::vector<float> arm_torque_;
-  std::vector<float> vehicle_params_;
-  std::vector<float> arm_params_;
-  std::vector<float> dt_;
-  std::vector<float> external_wrench_;
-  std::vector<float> ee_mass_;
-  std::vector<float> ee_damping_;
-  std::vector<float> ee_stiffness_;
-  std::vector<float> lock_mask_;
+  std::vector<double> observations_;
+  std::vector<double> next_observations_;
+  std::vector<double> actions_;
+  std::vector<double> vehicle_wrench_;
+  std::vector<double> arm_torque_;
+  std::vector<double> vehicle_params_;
+  std::vector<double> arm_params_;
+  std::vector<double> dt_;
+  std::vector<double> external_wrench_;
+  std::vector<double> ee_mass_;
+  std::vector<double> ee_damping_;
+  std::vector<double> ee_stiffness_;
+  std::vector<double> lock_mask_;
   std::vector<std::uint8_t> arm_lock_state_;
-  std::vector<float> baumgarte_alpha_;
-  std::vector<float> rewards_;
+  std::vector<double> baumgarte_alpha_;
+  std::vector<double> rewards_;
   std::vector<std::uint8_t> dones_;
   bool commands_held_{true};
   std::uint64_t tick_id_{0};

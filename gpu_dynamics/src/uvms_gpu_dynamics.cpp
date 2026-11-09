@@ -9,11 +9,11 @@
 namespace uvms_gpu {
 namespace {
 
-std::uintptr_t as_uintptr(const float* ptr) {
+std::uintptr_t as_uintptr(const double* ptr) {
     return reinterpret_cast<std::uintptr_t>(ptr);
 }
 
-std::uintptr_t as_uintptr(float* ptr) {
+std::uintptr_t as_uintptr(double* ptr) {
     return reinterpret_cast<std::uintptr_t>(ptr);
 }
 

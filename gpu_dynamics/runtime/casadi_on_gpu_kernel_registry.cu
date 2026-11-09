@@ -4,7 +4,7 @@
 #include "Mnext_reg_fe1_cse.cuh"
 #include "Vnext_reg_gpu.cuh"
 
-extern "C" CUDA_GLOBAL void Mnext_reg_fe1x5_gpu_kernel(
+extern "C" CUDA_GLOBAL void Mnext_reg_fe1x30_gpu_kernel(
     const casadi_real* i0_in,
     const casadi_real* i1_in,
     const casadi_real* i2_in,
@@ -50,7 +50,7 @@ void launch_Mnext_reg(const std::uintptr_t* input_ptrs,
   auto* i7 = reinterpret_cast<const casadi_real*>(input_ptrs[7]);
   auto* i8 = reinterpret_cast<const casadi_real*>(input_ptrs[8]);
   auto* o0 = reinterpret_cast<casadi_real*>(output_ptrs[0]);
-  Mnext_reg_fe1x5_gpu_kernel<<<blocks, threads_per_block, 0, stream>>>(
+  Mnext_reg_fe1x30_gpu_kernel<<<blocks, threads_per_block, 0, stream>>>(
       i0, i1, i2, i3, i4, i5, i6, i7, i8, o0, n_candidates);
 }
 
@@ -62,19 +62,19 @@ const KernelEntry kRegistry[] = {
    5,
    1,
    0,
-   830,
+   823,
    {0, 1, 2, 3, 4},
    {12, 6, 33, 1, 6},
    {12},
    launch_Vnext_reg},
   {"Mnext_reg",
-   "Mnext_reg_fe1x5_gpu_kernel",
+   "Mnext_reg_fe1x30_gpu_kernel",
    9,
    1,
    9,
    1,
    0,
-   1028,
+   939,
    {0, 1, 2, 3, 4, 5, 6, 7, 8},
    {10, 5, 1, 81, 1, 1, 1, 4, 1},
    {10},

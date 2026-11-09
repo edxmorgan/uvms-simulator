@@ -1,3 +1,4 @@
+#include "ros2_control_blue_reach_5/arm_integration_policy.hpp"
 // Copyright (C) 2026 Edward Morgan
 //
 // This program is free software: you can redistribute it and/or modify
@@ -37,18 +38,18 @@ void check_cuda(cudaError_t status, const char * operation)
   }
 }
 
-std::vector<float> flatten_float_array(const py::array_t<float, py::array::c_style | py::array::forcecast> & array)
+std::vector<double> flatten_double_array(const py::array_t<double, py::array::c_style | py::array::forcecast> & array)
 {
   const py::buffer_info info = array.request();
-  const auto * data = static_cast<const float *>(info.ptr);
-  return std::vector<float>(data, data + info.size);
+  const auto * data = static_cast<const double *>(info.ptr);
+  return std::vector<double>(data, data + info.size);
 }
 
-py::array_t<float> make_float_array(const std::vector<float> & values, const std::vector<py::ssize_t> & shape)
+py::array_t<double> make_double_array(const std::vector<double> & values, const std::vector<py::ssize_t> & shape)
 {
-  py::array_t<float> array(shape);
+  py::array_t<double> array(shape);
   py::buffer_info info = array.request();
-  auto * data = static_cast<float *>(info.ptr);
+  auto * data = static_cast<double *>(info.ptr);
   std::copy(values.begin(), values.end(), data);
   return array;
 }
@@ -64,45 +65,45 @@ py::array_t<std::uint8_t> make_uint8_array(
   return array;
 }
 
-std::vector<float> default_vehicle_params()
+std::vector<double> default_vehicle_params()
 {
   return {
-    3.72028553e+01F, 2.21828075e+01F, 6.61734807e+01F, 3.38909801e+00F,
-    6.41362046e-01F, 6.41362034e-01F, 3.38909800e+00F, 1.39646394e+00F,
-    4.98032205e-01F, 2.53118738e+00F, 1.05000000e+02F, 9.78296453e+01F,
-    8.27479545e-01F, 1.36822559e-01F, 4.25841171e+00F, -7.36416666e+01F,
-    -3.36082112e+01F, -8.94055107e+01F, -2.98736214e+00F, -1.57921531e+00F,
-    -3.39766499e+00F, -1.47912104e-04F, -5.16373030e-04F, -9.85522538e+01F,
-    -3.05907788e-02F, -1.27877517e-01F, -1.63514832e+00F,
-    0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F};
+    3.72028553e+01, 2.21828075e+01, 6.61734807e+01, 3.389098005e+00,
+    6.41362040e-01, 6.41362040e-01, 3.389098005e+00, 1.39646394e+00,
+    4.98032205e-01, 2.53118738e+00, 1.05000000e+02, 9.78296453e+01,
+    8.27479545e-01, 1.36822559e-01, 4.25841171e+00, -7.36416666e+01,
+    -3.36082112e+01, -8.94055107e+01, -2.98736214e+00, -1.57921531e+00,
+    -3.39766499e+00, -1.47912104e-04, -5.16373030e-04, -9.85522538e+01,
+    -3.05907788e-02, -1.27877517e-01, -1.63514832e+00,
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 }
 
-std::vector<float> default_arm_params()
+std::vector<double> default_arm_params()
 {
   return {
-    1.94000000e-01F, 4.29000000e-01F, 1.14999999e-01F, 3.32999998e-01F,
-    -0.00000000e+00F, -0.00000000e+00F, -0.00000000e+00F, -4.29000003e-02F,
-    1.96649101e-02F, 4.29000003e-02F, 2.88077923e-03F, 7.23516749e-03F,
-    9.16434754e-03F, 2.16416476e-03F, -1.19076924e-03F, 8.07346553e-03F,
-    7.10109586e-01F, 7.10109586e-01F, 1.99576149e-06F, -0.00000000e+00F,
-    -0.00000000e+00F, -0.00000000e+00F, 1.10178508e-01F, 1.83331277e-01F,
-    1.04292121e-01F, -3.32240937e-02F, -8.30350362e-02F, -3.83631263e-02F,
-    1.18956416e-01F, 1.22363853e-01F, 4.34411664e-03F, -3.96112974e-04F,
-    -2.13904668e-02F, -1.77228242e-03F, 1.92510932e-02F, 2.56548460e-02F,
-    7.17220917e-03F, 1.48789886e-03F, 4.53687373e-04F, -1.09861913e-03F,
-    2.39569756e+00F, 2.23596482e+00F, 8.19671021e-01F, 3.57249665e-01F,
-    0.0F, 0.0F, 0.0F, 0.0F,
-    -0.0F, -0.0F, -0.0F, -0.0F,
-    0.0F, 0.0F, 0.0F, 0.0F,
-    0.0F, 0.0F, 0.0F,
-    0.0F, 0.0F, 0.0F,
-    0.0F,
-    0.19F, 0.0F, -0.12F, 3.14159F, 0.0F, 0.0F,
-    0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F,
-    0.0F, 0.0F, 0.04F, 0.0F, 0.0F, 0.0F};
+    1.94000000e-01, 4.29000000e-01, 1.14999999e-01, 3.32999998e-01,
+    -0.00000000e+00, -0.00000000e+00, -0.00000000e+00, -4.29000003e-02,
+    1.96649101e-02, 4.29000003e-02, 2.88077923e-03, 7.23516749e-03,
+    9.16434754e-03, 2.16416476e-03, -1.19076924e-03, 8.07346553e-03,
+    7.10109586e-01, 7.10109586e-01, 1.99576149e-06, -0.00000000e+00,
+    -0.00000000e+00, -0.00000000e+00, 1.10178508e-01, 1.83331277e-01,
+    1.04292121e-01, -3.32240937e-02, -8.30350362e-02, -3.83631263e-02,
+    1.18956416e-01, 1.22363853e-01, 4.34411664e-03, -3.96112974e-04,
+    -2.13904668e-02, -1.77228242e-03, 1.92510932e-02, 2.56548460e-02,
+    7.17220917e-03, 1.48789886e-03, 4.53687373e-04, -1.09861913e-03,
+    2.39569756e+00, 2.23596482e+00, 8.19671021e-01, 3.57249665e-01,
+    0.0, 0.0, 0.0, 0.0,
+    -0.0, -0.0, -0.0, -0.0,
+    0.0, 0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0,
+    0.0,
+    0.19, 0.0, -0.12, 3.14159, 0.0, 0.0,
+    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    0.0, 0.0, 0.04, 0.0, 0.0, 0.0};
 }
 
-void tile_into(const std::vector<float> & row, std::size_t count, std::vector<float> & out)
+void tile_into(const std::vector<double> & row, std::size_t count, std::vector<double> & out)
 {
   out.clear();
   out.reserve(row.size() * count);
@@ -112,10 +113,10 @@ void tile_into(const std::vector<float> & row, std::size_t count, std::vector<fl
 }
 
 void split_observations(
-  const std::vector<float> & observations,
+  const std::vector<double> & observations,
   std::size_t robot_count,
-  std::vector<float> & vehicle,
-  std::vector<float> & arm)
+  std::vector<double> & vehicle,
+  std::vector<double> & arm)
 {
   vehicle.resize(robot_count * BatchUvmsCore::kVehicleStateDim);
   arm.resize(robot_count * BatchUvmsCore::kArmStateDim);
@@ -133,12 +134,12 @@ void split_observations(
 }
 
 void join_observations(
-  const std::vector<float> & vehicle,
-  const std::vector<float> & arm,
+  const std::vector<double> & vehicle,
+  const std::vector<double> & arm,
   std::size_t robot_count,
-  std::vector<float> & observations)
+  std::vector<double> & observations)
 {
-  observations.assign(robot_count * BatchUvmsCore::kObservationDim, 0.0F);
+  observations.assign(robot_count * BatchUvmsCore::kObservationDim, 0.0);
   for (std::size_t robot = 0; robot < robot_count; ++robot) {
     const auto obs_offset = robot * BatchUvmsCore::kObservationDim;
     std::copy_n(
@@ -187,40 +188,40 @@ public:
     release();
     count_ = count;
     if (count_ > 0) {
-      check_cuda(cudaMalloc(reinterpret_cast<void **>(&data_), count_ * sizeof(float)), "cudaMalloc");
+      check_cuda(cudaMalloc(reinterpret_cast<void **>(&data_), count_ * sizeof(double)), "cudaMalloc");
     }
   }
 
-  void fill(float value)
+  void fill(double value)
   {
-    std::vector<float> host(count_, value);
+    std::vector<double> host(count_, value);
     copy_from_host(host);
   }
 
-  void copy_from_host(const std::vector<float> & host)
+  void copy_from_host(const std::vector<double> & host)
   {
     if (host.size() != count_) {
       throw std::invalid_argument("host/device buffer size mismatch");
     }
     if (count_ > 0) {
       check_cuda(
-        cudaMemcpy(data_, host.data(), count_ * sizeof(float), cudaMemcpyHostToDevice),
+        cudaMemcpy(data_, host.data(), count_ * sizeof(double), cudaMemcpyHostToDevice),
         "cudaMemcpy host to device");
     }
   }
 
-  void copy_to_host(std::vector<float> & host) const
+  void copy_to_host(std::vector<double> & host) const
   {
     host.resize(count_);
     if (count_ > 0) {
       check_cuda(
-        cudaMemcpy(host.data(), data_, count_ * sizeof(float), cudaMemcpyDeviceToHost),
+        cudaMemcpy(host.data(), data_, count_ * sizeof(double), cudaMemcpyDeviceToHost),
         "cudaMemcpy device to host");
     }
   }
 
-  float * data() { return data_; }
-  const float * data() const { return data_; }
+  double * data() { return data_; }
+  const double * data() const { return data_; }
 
 private:
   void release() noexcept
@@ -232,7 +233,7 @@ private:
     count_ = 0;
   }
 
-  float * data_{nullptr};
+  double * data_{nullptr};
   std::size_t count_{0};
 };
 
@@ -247,34 +248,34 @@ public:
   void reset(bool hold_commands, py::object observations)
   {
     const bool has_observations = !observations.is_none();
-    observations_host_.assign(robot_count_ * BatchUvmsCore::kObservationDim, 0.0F);
-    actions_host_.assign(robot_count_ * BatchUvmsCore::kActionDim, 0.0F);
-    vehicle_wrench_host_.assign(robot_count_ * BatchUvmsCore::kVehicleActionDim, 0.0F);
-    rewards_.assign(robot_count_, 0.0F);
+    observations_host_.assign(robot_count_ * BatchUvmsCore::kObservationDim, 0.0);
+    actions_host_.assign(robot_count_ * BatchUvmsCore::kActionDim, 0.0);
+    vehicle_wrench_host_.assign(robot_count_ * BatchUvmsCore::kVehicleActionDim, 0.0);
+    rewards_.assign(robot_count_, 0.0);
     dones_.assign(robot_count_, 0U);
 
     if (has_observations) {
-      const auto array = py::array_t<float, py::array::c_style | py::array::forcecast>::ensure(observations);
+      const auto array = py::array_t<double, py::array::c_style | py::array::forcecast>::ensure(observations);
       if (!array) {
-        throw std::invalid_argument("observations must be convertible to a float32 array");
+        throw std::invalid_argument("observations must be convertible to a float64 array");
       }
-      observations_host_ = flatten_float_array(array);
+      observations_host_ = flatten_double_array(array);
       if (observations_host_.size() != robot_count_ * BatchUvmsCore::kObservationDim) {
         throw std::invalid_argument("observations must have shape [robot_count, observation_dim] or flat matching size");
       }
     }
 
-    std::vector<float> vehicle_host;
-    std::vector<float> arm_host;
+    std::vector<double> vehicle_host;
+    std::vector<double> arm_host;
     split_observations(observations_host_, robot_count_, vehicle_host, arm_host);
     vehicle_state_.copy_from_host(vehicle_host);
     arm_state_.copy_from_host(arm_host);
-    vehicle_next_.fill(0.0F);
-    arm_next_.fill(0.0F);
+    vehicle_next_.fill(0.0);
+    arm_next_.fill(0.0);
     actions_device_.copy_from_host(actions_host_);
     vehicle_wrench_.copy_from_host(vehicle_wrench_host_);
-    arm_torque_.fill(0.0F);
-    lock_mask_.fill(0.0F);
+    arm_torque_.fill(0.0);
+    lock_mask_.fill(0.0);
 
     commands_held_ = hold_commands;
     tick_id_ = 0;
@@ -287,9 +288,9 @@ public:
     }
   }
 
-  void set_actions(py::array_t<float, py::array::c_style | py::array::forcecast> actions, std::uint64_t tick_id)
+  void set_actions(py::array_t<double, py::array::c_style | py::array::forcecast> actions, std::uint64_t tick_id)
   {
-    actions_host_ = flatten_float_array(actions);
+    actions_host_ = flatten_double_array(actions);
     if (actions_host_.size() != robot_count_ * BatchUvmsCore::kActionDim) {
       throw std::invalid_argument("actions must have shape [robot_count, action_dim] or flat matching size");
     }
@@ -306,10 +307,10 @@ public:
     if (actions_ptr == 0U) {
       throw std::invalid_argument("actions_ptr must be a nonzero CUDA device pointer");
     }
-    const auto * source = reinterpret_cast<const float *>(actions_ptr);
+    const auto * source = reinterpret_cast<const double *>(actions_ptr);
     check_cuda(
       cudaMemcpy(
-        actions_device_.data(), source, robot_count_ * BatchUvmsCore::kActionDim * sizeof(float),
+        actions_device_.data(), source, robot_count_ * BatchUvmsCore::kActionDim * sizeof(double),
         cudaMemcpyDeviceToDevice),
       "cudaMemcpy device actions");
     split_device_actions();
@@ -318,67 +319,66 @@ public:
     commands_held_ = false;
   }
 
-  void set_observations(py::array_t<float, py::array::c_style | py::array::forcecast> observations)
+  void set_observations(py::array_t<double, py::array::c_style | py::array::forcecast> observations)
   {
-    observations_host_ = flatten_float_array(observations);
+    observations_host_ = flatten_double_array(observations);
     if (observations_host_.size() != robot_count_ * BatchUvmsCore::kObservationDim) {
       throw std::invalid_argument("observations must have shape [robot_count, observation_dim] or flat matching size");
     }
 
-    std::vector<float> vehicle_host;
-    std::vector<float> arm_host;
+    std::vector<double> vehicle_host;
+    std::vector<double> arm_host;
     split_observations(observations_host_, robot_count_, vehicle_host, arm_host);
     vehicle_state_.copy_from_host(vehicle_host);
     arm_state_.copy_from_host(arm_host);
-    vehicle_next_.fill(0.0F);
-    arm_next_.fill(0.0F);
-    rewards_.assign(robot_count_, 0.0F);
+    vehicle_next_.fill(0.0);
+    arm_next_.fill(0.0);
+    rewards_.assign(robot_count_, 0.0);
     dones_.assign(robot_count_, 0U);
     observations_dirty_ = false;
   }
 
-  void set_vehicle_params(py::array_t<float, py::array::c_style | py::array::forcecast> params)
+  void set_vehicle_params(py::array_t<double, py::array::c_style | py::array::forcecast> params)
   {
-    const std::vector<float> flat = flatten_float_array(params);
+    const std::vector<double> flat = flatten_double_array(params);
     if (flat.size() != kVehicleParamDim) {
       throw std::invalid_argument("vehicle params must have shape [33]");
     }
-    std::vector<float> tiled;
+    std::vector<double> tiled;
     tile_into(flat, robot_count_, tiled);
     vehicle_params_.copy_from_host(tiled);
   }
 
-  void set_arm_params(py::array_t<float, py::array::c_style | py::array::forcecast> params)
+  void set_arm_params(py::array_t<double, py::array::c_style | py::array::forcecast> params)
   {
-    const std::vector<float> flat = flatten_float_array(params);
+    const std::vector<double> flat = flatten_double_array(params);
     if (flat.size() != kArmParamDim) {
       throw std::invalid_argument("arm params must have shape [81]");
     }
-    std::vector<float> tiled;
+    std::vector<double> tiled;
     tile_into(flat, robot_count_, tiled);
     arm_params_.copy_from_host(tiled);
   }
 
   void set_arm_environment(
-    float endeffector_mass,
-    float endeffector_damping,
-    float endeffector_stiffness,
-    float baumgarte_alpha)
+    double endeffector_mass,
+    double endeffector_damping,
+    double endeffector_stiffness,
+    double baumgarte_alpha)
   {
     ee_mass_.fill(endeffector_mass);
     ee_damping_.fill(endeffector_damping);
     ee_stiffness_.fill(endeffector_stiffness);
     baumgarte_alpha_.fill(baumgarte_alpha);
+    arm_alpha_ = baumgarte_alpha;
   }
 
   void step(double dt)
   {
-    if (dt <= 0.0) {
-      return;
-    }
+    arm_integration_policy::intervals(dt, arm_alpha_);
 
     if (!commands_held_) {
-      dt_host_.assign(robot_count_, static_cast<float>(dt));
+      dt_host_.assign(robot_count_, static_cast<double>(dt));
       dt_.copy_from_host(dt_host_);
 
       uvms_gpu::VehicleStepDevicePointers vehicle_ptrs{
@@ -408,32 +408,32 @@ public:
     sim_time_ += dt;
     step_count_ += 1.0;
     tick_id_ = std::max(tick_id_ + 1, applied_action_tick_id_);
-    std::fill(rewards_.begin(), rewards_.end(), 0.0F);
+    std::fill(rewards_.begin(), rewards_.end(), 0.0);
     std::fill(dones_.begin(), dones_.end(), 0U);
   }
 
-  py::array_t<float> observations()
+  py::array_t<double> observations()
   {
     sync_observations_to_host();
-    return make_float_array(
+    return make_double_array(
       observations_host_,
       {static_cast<py::ssize_t>(robot_count_), static_cast<py::ssize_t>(BatchUvmsCore::kObservationDim)});
   }
 
-  py::array_t<float> actions() const
+  py::array_t<double> actions() const
   {
     if (actions_dirty_) {
       actions_device_.copy_to_host(actions_host_);
       actions_dirty_ = false;
     }
-    return make_float_array(
+    return make_double_array(
       actions_host_,
       {static_cast<py::ssize_t>(robot_count_), static_cast<py::ssize_t>(BatchUvmsCore::kActionDim)});
   }
 
-  py::array_t<float> rewards() const
+  py::array_t<double> rewards() const
   {
-    return make_float_array(rewards_, {static_cast<py::ssize_t>(robot_count_)});
+    return make_double_array(rewards_, {static_cast<py::ssize_t>(robot_count_)});
   }
 
   py::array_t<std::uint8_t> dones() const
@@ -441,13 +441,13 @@ public:
     return make_uint8_array(dones_, {static_cast<py::ssize_t>(robot_count_)});
   }
 
-  py::array_t<float> selected_state()
+  py::array_t<double> selected_state()
   {
     sync_observations_to_host();
     const auto begin = observations_host_.begin() +
       static_cast<std::ptrdiff_t>(selected_robot_index_ * BatchUvmsCore::kObservationDim);
-    std::vector<float> state(begin, begin + static_cast<std::ptrdiff_t>(BatchUvmsCore::kObservationDim));
-    return make_float_array(state, {static_cast<py::ssize_t>(BatchUvmsCore::kObservationDim)});
+    std::vector<double> state(begin, begin + static_cast<std::ptrdiff_t>(BatchUvmsCore::kObservationDim));
+    return make_double_array(state, {static_cast<py::ssize_t>(BatchUvmsCore::kObservationDim)});
   }
 
   void set_selected_robot_index(std::size_t index)
@@ -486,8 +486,8 @@ private:
     lock_mask_.resize(robot_count_ * kLockMaskDim);
     baumgarte_alpha_.resize(robot_count_);
 
-    std::vector<float> vehicle_params_host;
-    std::vector<float> arm_params_host;
+    std::vector<double> vehicle_params_host;
+    std::vector<double> arm_params_host;
     tile_into(default_vehicle_params(), robot_count_, vehicle_params_host);
     tile_into(default_arm_params(), robot_count_, arm_params_host);
     vehicle_params_.resize(vehicle_params_host.size());
@@ -495,12 +495,12 @@ private:
     vehicle_params_.copy_from_host(vehicle_params_host);
     arm_params_.copy_from_host(arm_params_host);
 
-    external_wrench_.fill(0.0F);
-    ee_mass_.fill(300.0F);
-    ee_damping_.fill(400.0F);
-    ee_stiffness_.fill(0.0F);
-    lock_mask_.fill(0.0F);
-    baumgarte_alpha_.fill(200.0F);
+    external_wrench_.fill(0.0);
+    ee_mass_.fill(300.0);
+    ee_damping_.fill(400.0);
+    ee_stiffness_.fill(0.0);
+    lock_mask_.fill(0.0);
+    baumgarte_alpha_.fill(200.0);
     reset(true, py::none());
   }
 
@@ -509,8 +509,8 @@ private:
     if (!observations_dirty_) {
       return;
     }
-    std::vector<float> vehicle_host;
-    std::vector<float> arm_host;
+    std::vector<double> vehicle_host;
+    std::vector<double> arm_host;
     vehicle_state_.copy_to_host(vehicle_host);
     arm_state_.copy_to_host(arm_host);
     join_observations(vehicle_host, arm_host, robot_count_, observations_host_);
@@ -521,26 +521,26 @@ private:
   {
     check_cuda(
       cudaMemcpy2D(
-        vehicle_wrench_.data(), BatchUvmsCore::kVehicleActionDim * sizeof(float),
-        actions_device_.data(), BatchUvmsCore::kActionDim * sizeof(float),
-        BatchUvmsCore::kVehicleActionDim * sizeof(float), robot_count_, cudaMemcpyDeviceToDevice),
+        vehicle_wrench_.data(), BatchUvmsCore::kVehicleActionDim * sizeof(double),
+        actions_device_.data(), BatchUvmsCore::kActionDim * sizeof(double),
+        BatchUvmsCore::kVehicleActionDim * sizeof(double), robot_count_, cudaMemcpyDeviceToDevice),
       "cudaMemcpy2D vehicle actions");
     check_cuda(
       cudaMemcpy2D(
-        arm_torque_.data(), BatchUvmsCore::kArmActionDim * sizeof(float),
+        arm_torque_.data(), BatchUvmsCore::kArmActionDim * sizeof(double),
         actions_device_.data() + BatchUvmsCore::kVehicleActionDim,
-        BatchUvmsCore::kActionDim * sizeof(float),
-        BatchUvmsCore::kArmActionDim * sizeof(float), robot_count_, cudaMemcpyDeviceToDevice),
+        BatchUvmsCore::kActionDim * sizeof(double),
+        BatchUvmsCore::kArmActionDim * sizeof(double), robot_count_, cudaMemcpyDeviceToDevice),
       "cudaMemcpy2D arm actions");
   }
 
   std::size_t robot_count_{1};
   std::size_t selected_robot_index_{0};
-  std::vector<float> observations_host_;
-  mutable std::vector<float> actions_host_;
-  std::vector<float> vehicle_wrench_host_;
-  std::vector<float> dt_host_;
-  std::vector<float> rewards_;
+  std::vector<double> observations_host_;
+  mutable std::vector<double> actions_host_;
+  std::vector<double> vehicle_wrench_host_;
+  std::vector<double> dt_host_;
+  std::vector<double> rewards_;
   std::vector<std::uint8_t> dones_;
   DeviceFloatBuffer vehicle_state_;
   DeviceFloatBuffer vehicle_next_;
@@ -558,6 +558,7 @@ private:
   DeviceFloatBuffer ee_stiffness_;
   DeviceFloatBuffer lock_mask_;
   DeviceFloatBuffer baumgarte_alpha_;
+  double arm_alpha_{200.0};
   bool commands_held_{true};
   bool observations_dirty_{false};
   mutable bool actions_dirty_{false};
