@@ -749,6 +749,10 @@ namespace ros2_control_blue_reach_5
 
             auto &transform_message = realtime_transform_publisher_->msg_;
             transform_message.transforms.resize(2);
+            physical_transform_publisher_ = std::make_shared<realtime_tools::RealtimePublisher<tf>>(
+                rclcpp::create_publisher<tf>(node_topics_interface_, "/simulation_truth/tf",
+                                           rclcpp::SystemDefaultsQoS()));
+            physical_transform_publisher_->msg_.transforms.resize(2);
 
             disturbance_receiver_ = std::make_shared<DisturbanceReceiver>(
                 node_topics_interface_, hw_vehicle_struct.robot_prefix, "vehicle");
@@ -2076,7 +2080,24 @@ namespace ros2_control_blue_reach_5
             camera_mount_transform.transform.rotation.z = camera_mount_rotation.z();
             camera_mount_transform.transform.rotation.w = camera_mount_rotation.w();
 
-            // Publish the TF
+            // Physical camera/scene TF is isolated from operational estimated TF.
+            if (physical_transform_publisher_ && physical_transform_publisher_->trylock())
+            {
+                auto &physical = physical_transform_publisher_->msg_;
+                physical.transforms = transforms;  // Same physical camera-mount articulation.
+                auto &body = physical.transforms.front().transform;
+                body.translation.x = hw_vehicle_struct.current_state_.position_x;
+                body.translation.y = -hw_vehicle_struct.current_state_.position_y;
+                body.translation.z = -hw_vehicle_struct.current_state_.position_z;
+                tf2::Quaternion rotation;
+                rotation.setRPY(hw_vehicle_struct.current_state_.roll,
+                                -hw_vehicle_struct.current_state_.pitch,
+                                -hw_vehicle_struct.current_state_.yaw);
+                rotation.normalize();
+                body.rotation = tf2::toMsg(rotation);
+                physical_transform_publisher_->unlockAndPublish();
+            }
+            // Publish the operational estimated TF.
             realtime_transform_publisher_->unlockAndPublish();
         }
     }

@@ -24,7 +24,8 @@ from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolic
 from rclpy.time import Time
 from ros2_control_blue_reach_5.msg import DynamicObstacle, DynamicObstacleArray
 from sensor_msgs.msg import CameraInfo, Image
-from tf2_ros import Buffer, TransformException, TransformListener
+from tf2_ros import Buffer, TransformException
+from tf2_msgs.msg import TFMessage
 from ros2_control_blue_reach_5.srv import SetSimCameraDynamics
 
 WATER_SURFACE_Z = 0.0
@@ -211,7 +212,15 @@ class SimCameraRendererNode(Node):
         self.publish_selected_output = bool(self.get_parameter("publish_selected_output").value)
 
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        # Dynamic robot transforms must describe the plant, never the EKF.
+        self.physical_tf_sub = self.create_subscription(
+            TFMessage, "/simulation_truth/tf", self._physical_tf_callback, 100)
+        static_qos = QoSProfile(depth=100, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
+        # Fixed map/environment/URDF transforms are common to both state trees.
+        self.static_tf_sub = self.create_subscription(
+            TFMessage, "/tf_static", self._static_tf_callback, static_qos)
+        self.physical_static_tf_sub = self.create_subscription(
+            TFMessage, "/simulation_truth/tf_static", self._static_tf_callback, static_qos)
         self.image_qos = QoSProfile(depth=1)
         self.info_qos = QoSProfile(depth=1)
         self.image_publishers = {}
@@ -662,6 +671,14 @@ class SimCameraRendererNode(Node):
     def _dynamic_obstacle_type_and_dimensions(obstacle):
         visual_type, dimensions, _ = visual_geometry(obstacle)
         return visual_type, dimensions
+
+    def _physical_tf_callback(self, message):
+        for transform in message.transforms:
+            self.tf_buffer.set_transform(transform, "simulated_plant")
+
+    def _static_tf_callback(self, message):
+        for transform in message.transforms:
+            self.tf_buffer.set_transform_static(transform, "scene_geometry")
 
     def _lookup_matrix(self, frame):
         try:

@@ -34,6 +34,34 @@ class CameraClippingTests(unittest.TestCase):
         self.assertEqual(message.header.stamp, stamp)
         self.assertEqual((message.width, message.height, len(message.data)), (3, 2, 18))
 
+    def test_physical_camera_buffer_uses_plant_pose_and_fixed_geometry(self):
+        from geometry_msgs.msg import TransformStamped
+        from tf2_msgs.msg import TFMessage
+        from tf2_ros import Buffer
+        physical = SimpleNamespace(tf_buffer=Buffer(), world_frame='world')
+        body = TransformStamped()
+        body.header.frame_id, body.child_frame_id = 'world', 'robot_1_base_link'
+        body.header.stamp = Time(sec=1)
+        body.transform.translation.x = 2.
+        body.transform.rotation.w = 1.
+        mount = TransformStamped()
+        mount.header.frame_id, mount.child_frame_id = 'robot_1_base_link', 'robot_1_camera_link'
+        mount.transform.translation.x = .21
+        mount.transform.rotation.w = 1.
+        SimCameraRendererNode._static_tf_callback(physical, TFMessage(transforms=[mount]))
+        # Fixed geometry alone must not fabricate a camera pose.
+        self.assertIsNone(SimCameraRendererNode._lookup_matrix(physical, 'robot_1_camera_link'))
+        SimCameraRendererNode._physical_tf_callback(physical, TFMessage(transforms=[body]))
+        pose = SimCameraRendererNode._lookup_matrix(physical, 'robot_1_camera_link')
+        np.testing.assert_allclose(pose[:3, 3], [2.21, 0., 0.])
+        # An unrelated operational estimate lives in a different TF buffer.
+        operational = Buffer()
+        body.transform.translation.x = 20.
+        operational.set_transform(body, 'ekf')
+        np.testing.assert_allclose(
+            SimCameraRendererNode._lookup_matrix(physical, 'robot_1_camera_link')[:3, 3],
+            [2.21, 0., 0.])
+
 
 if __name__ == "__main__":
     unittest.main()

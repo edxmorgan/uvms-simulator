@@ -22,6 +22,7 @@ import subprocess
 import tempfile
 import time
 import yaml
+import xml.etree.ElementTree as ET
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler, ExecuteProcess, OpaqueFunction, GroupAction
@@ -670,7 +671,7 @@ def launch_setup(context, *args, **kwargs):
             "robot_name:=",
             robot_name,
         ]
-    )
+    ).perform(context)
 
     robot_description = {"robot_description": robot_description_content}
     robot_controllers_read = PathJoinSubstitution(
@@ -694,6 +695,20 @@ def launch_setup(context, *args, **kwargs):
                                                                                   robot_controllers_read_file,
                                                                                     robot_controllers_modified_file,
                                                                                       int(sim_robot_count))
+    # Explicit disjoint joint lists avoid native broadcaster alias collisions.
+    estimated_joints, auxiliary_joints = [], []
+    for joint in ET.fromstring(robot_description_content).findall('ros2_control/joint'):
+        interfaces = {item.attrib['name'] for item in joint.findall('state_interface')}
+        if {'filtered_position', 'filtered_velocity'} <= interfaces:
+            estimated_joints.append(joint.attrib['name'])
+        elif 'position' in interfaces:
+            auxiliary_joints.append(joint.attrib['name'])
+    with open(robot_controllers_modified_file) as stream:
+        controller_config = yaml.safe_load(stream)
+    controller_config['estimated_joint_state_broadcaster']['ros__parameters']['joints'] = estimated_joints
+    controller_config['auxiliary_joint_state_broadcaster']['ros__parameters']['joints'] = auxiliary_joints
+    with open(robot_controllers_modified_file, 'w') as stream:
+        yaml.safe_dump(controller_config, stream)
     has_real_robot = "robot_real_" in robot_prefixes
     sim_camera_prefixes = [
         prefix for prefix in robot_prefixes
@@ -805,11 +820,15 @@ def launch_setup(context, *args, **kwargs):
         Node(
             package="robot_state_publisher",
             executable="robot_state_publisher",
-            name=f"robot_state_publisher_{robot_prefix.rstrip('_')}",
+            name=f"robot_state_publisher_{robot_prefix.rstrip('_')}" + ("_physical" if physical else ""),
             output="both",
             remappings=[
                 ("robot_description", f"{robot_prefix.rstrip('_')}/robot_description"),
-            ],
+            ] + ([
+                ("joint_states", "/joint_state_broadcaster/joint_states"),
+                ("/tf", "/simulation_truth/tf"),
+                ("/tf_static", "/simulation_truth/tf_static"),
+            ] if physical else []),
             parameters=[{
                 "publish_robot_description": False,
                 "robot_description": Command(
@@ -834,6 +853,8 @@ def launch_setup(context, *args, **kwargs):
             }],
         )
         for robot_prefix in robot_prefixes
+        for physical in (False, True)
+        if not physical or (launch_camera_bool and robot_prefix in sim_camera_prefixes)
     ]
 
     # Nodes Definitions
@@ -922,7 +943,20 @@ def launch_setup(context, *args, **kwargs):
     joint_state_broadcaster_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
+        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager",
+                   "--controller-ros-args=--remap /joint_state_broadcaster/dynamic_joint_states:=/dynamic_joint_states"],
+    )
+
+    estimated_joint_state_spawner = Node(
+        package="controller_manager", executable="spawner",
+        arguments=["estimated_joint_state_broadcaster", "--controller-manager", "/controller_manager",
+                   "--controller-ros-args=--remap /estimated_joint_state_broadcaster/joint_states:=/joint_states"],
+    )
+
+    auxiliary_joint_state_spawner = Node(
+        package="controller_manager", executable="spawner",
+        arguments=["auxiliary_joint_state_broadcaster", "--controller-manager", "/controller_manager",
+                   "--controller-ros-args=--remap /auxiliary_joint_state_broadcaster/joint_states:=/joint_states"],
     )
 
     # Spawner Nodes
@@ -1188,6 +1222,8 @@ def launch_setup(context, *args, **kwargs):
     simulator_actions = [
         reset_coordinator_proc,
         joint_state_broadcaster_spawner,
+        *([estimated_joint_state_spawner] if estimated_joints else []),
+        *([auxiliary_joint_state_spawner] if auxiliary_joints else []),
         robot_description_pub_node,
         control_node,
         mode,
