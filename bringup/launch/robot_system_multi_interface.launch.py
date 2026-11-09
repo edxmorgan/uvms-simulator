@@ -32,6 +32,7 @@ from launch_ros.substitutions import FindPackageShare
 
 import launch.logging
 from bringup.utils.rviz_utils import rviz_file_configure
+from bringup.camera_destination import CameraDestination
 from bringup.utils.controller_config import modify_controller_config, controller_spawner_nodes
 
 # Create a logger for the launch file
@@ -972,6 +973,15 @@ def launch_setup(context, *args, **kwargs):
             (prefix for prefix in robot_prefixes if prefix != "robot_real_"),
             robot_prefixes[0] if robot_prefixes else "",
         )
+    if launch_camera_bool and not selected_camera_is_sim and not custom_camera_pipeline:
+        try:
+            manager = CameraDestination(camera_blueos_url, camera_stream_name)
+            stream = manager.select(manager.request("/streams"))
+            camera_pipeline = manager.receiver_pipeline(stream)
+            logger.info("Camera receiver selected for BlueOS encoding: "
+                        + stream["video_and_stream"]["stream_information"]["configuration"]["encode"])
+        except Exception as exc:
+            logger.warning(f"Could not discover BlueOS camera encoding; using H264 receiver: {exc}")
     selected_camera_params = {
         "image_topic": f"{_camera_topic_base(camera_prefix)}/image_raw" if selected_camera_is_mixed else "/alpha/image_raw",
         "camera_info_topic": f"{_camera_topic_base(camera_prefix)}/camera_info" if selected_camera_is_mixed else "/alpha/camera_info",
