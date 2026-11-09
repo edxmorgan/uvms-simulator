@@ -1,0 +1,29 @@
+# Explicit simulation qualification, NOT a generic hardware configuration.
+# Use only with effort commands, uncoupled dynamics and zero water current.
+# Editable assumed bounds from the original constrained estimator; not known truth.
+/**:
+  ros__parameters:
+    confirm_sim_effort_zero_current_uncoupled: true
+    weight_bounds: [105.0, 150.0]
+    # Validated retained parameters feed the simulation EKF only.
+    # Does not change the plant/controller model or start motion.
+    # Set false to disable automatic observation, or launch with
+    # vehicle_identifier_config:=off to omit the optional node entirely.
+    auto_start: true
+    horizon: 4200
+    fit_period: 1.0
+    budget_seconds: 0.5
+    max_gap: 0.05
+    # Fixed engineering scales, not plant truth or a calibrated noise covariance.
+    retention_parameter_scales: [50.0, 50.0, 100.0, 5.0, 2.0, 2.0, 5.0, 2.0, 2.0, 5.0, 100.0, 100.0, 1.0, 1.0, 5.0, 100.0, 50.0, 100.0, 5.0, 5.0, 5.0, 10.0, 10.0, 100.0, 1.0, 1.0, 5.0]
+    # Per-axis validation RMS scales: force in N, torque in Nm.
+    retention_residual_scales: [0.1, 0.1, 0.1, 0.01, 0.01, 0.01]
+    # Absolute minimum average squared sensitivity in the fixed scaled coordinates.
+    # The condition number is diagnostic only; strong channels do not raise this floor.
+    # This is an excitation screen, not a calibrated parameter-confidence bound.
+    retention_min_information: 0.0001
+    retention_validation_seconds: 5.0
+    retention_validation_gap: 0.1
+    retention_max_validation_error: 1.0
+    retention_change_error: 3.0
+    retention_change_blocks: 3
