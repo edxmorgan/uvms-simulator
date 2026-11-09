@@ -94,8 +94,28 @@ namespace ros2_control_blue_reach_5
     utils_service.torque2currentMap = utils_service.load_casadi_fun("torque_to_current_map", "libT2C.so");
     utils_service.forward_kinematics = utils_service.load_casadi_fun("fkeval", "libFK.so");
     utils_service.manip_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libmEKF_next.so");
+    arm_observer_.predict = utils_service.load_casadi_fun(
+      "arm_disturbance_ekf_predict_locked", "libmDisturbanceEKF_next.so");
+    arm_observer_.update = utils_service.load_casadi_fun(
+      "arm_disturbance_ekf_update_limited", "libmDisturbanceEKF_next.so");
+    arm_observer_.reset();
+    RCLCPP_WARN(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+      "Augmented arm EKF enabled in SHADOW mode: nominal model/noise require hardware calibration; compensation admission disabled");
     utils_service.forward_kinematics_com = utils_service.load_casadi_fun("fkcomeval", "libFKcom.so");
     robot_prefix = get_hardware_info().hardware_parameters.at("prefix");
+    const std::array<std::string,5> expected_axes{"e","d","c","b","a"};
+    if (get_hardware_info().joints.size()!=expected_axes.size()) {
+      RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+        "Arm EKF requires five joints in e,d,c,b,a order");
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+    for (std::size_t i=0;i<expected_axes.size();++i) {
+      if (get_hardware_info().joints[i].name!=robot_prefix+"_axis_"+expected_axes[i]) {
+        RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+          "Unexpected arm joint order: %s", get_hardware_info().joints[i].name.c_str());
+        return hardware_interface::CallbackReturn::ERROR;
+      }
+    }
     cfg_.serial_port_ = get_hardware_info().hardware_parameters.at("serial_port");
     cfg_.state_update_freq_ = std::stoi(get_hardware_info().hardware_parameters.at("state_update_frequency"));
     const int requested_poll_hz = cfg_.state_update_freq_;
@@ -172,12 +192,12 @@ namespace ros2_control_blue_reach_5
 
     for (const hardware_interface::ComponentInfo &gpio : get_hardware_info().gpios)
     {
-      // ReachSystemMultiInterfaceHardware has exactly 7 gpio state interfaces
-      if (gpio.state_interfaces.size() != 7)
+      // Same disturbance telemetry contract as the simulated arm.
+      if (gpio.state_interfaces.size() != 128)
       {
         RCLCPP_FATAL(
             rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
-            "GPIO '%s'has %zu state interfaces. 7 expected.", gpio.name.c_str(),
+            "GPIO '%s'has %zu state interfaces. 128 expected.", gpio.name.c_str(),
             gpio.state_interfaces.size());
         return hardware_interface::CallbackReturn::ERROR;
       }
@@ -443,6 +463,28 @@ namespace ros2_control_blue_reach_5
         get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[5].name, &control_power_));
     state_interfaces.emplace_back(hardware_interface::StateInterface(
         get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[6].name, &control_energy_));
+    const auto add = [&](const std::string &name, double *value) {
+      state_interfaces.emplace_back(get_hardware_info().gpios[0].name, name, value);
+    };
+    // Legacy names retained for layout compatibility; on hardware these count
+    // accepted serial snapshots and estimator lifecycle generations, not sim ticks.
+    add("sim_step", &arm_observer_.sample_step);
+    add("sim_generation", &arm_observer_.generation);
+    add("estimator_step", &arm_observer_.step);
+    add("estimator_valid", &arm_observer_.valid);
+    const std::array<std::string,4> axes{"e","d","c","b"};
+    for(int i=0;i<4;++i) {
+      add("estimated_disturbance.torque."+axes[i], &arm_observer_.torque[i]);
+      add("estimated_disturbance.variance.torque."+axes[i], &arm_observer_.variance[i]);
+      add("estimator_joint_locked."+axes[i], &arm_observer_.locked[i]);
+      add("estimator_joint_at_limit."+axes[i], &arm_observer_.at_limit[i]);
+      add("estimator_disturbance_observable."+axes[i], &arm_observer_.admitted[i]);
+    }
+    for(int i=0;i<4;++i) for(int j=0;j<4;++j)
+      add("estimated_disturbance.covariance."+std::to_string(i)+"."+std::to_string(j),
+          &arm_observer_.covariance[4*i+j]);
+    for(int i=0;i<81;++i)
+      add("estimator_nominal_parameter."+std::to_string(i), &arm_observer_.model[i]);
     return state_interfaces;
   }
 
@@ -524,6 +566,7 @@ namespace ros2_control_blue_reach_5
   hardware_interface::CallbackReturn ReachSystemMultiInterfaceHardware::on_activate(
       const rclcpp_lifecycle::State & /*previous_state*/)
   {
+    arm_observer_.reset();
     serial_budget_.reset();
     activated_at_ = JointFeedbackClock::Clock::now();
     feedback_fault_ = false;
@@ -546,6 +589,7 @@ namespace ros2_control_blue_reach_5
   hardware_interface::CallbackReturn ReachSystemMultiInterfaceHardware::on_deactivate(
       const rclcpp_lifecycle::State & /*previous_state*/)
   {
+    arm_observer_.reset();
     RCLCPP_INFO(
         rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "Deactivating... please wait...");
     try
@@ -569,7 +613,7 @@ namespace ros2_control_blue_reach_5
     delta_seconds = period.seconds();
     time_seconds = time.seconds();
     // Get access to the real-time states
-    const std::lock_guard<std::mutex> lock(access_async_states_);
+    std::unique_lock<std::mutex> lock(access_async_states_);
     control_power_ = 0.0;
     for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
     {
@@ -606,6 +650,11 @@ namespace ros2_control_blue_reach_5
       hw_joint_struct_[i].current_state_.sim_period = delta_seconds;
     };
 
+    std::array<JointFeedbackClock,4> clocks;
+    for(int i=0;i<4;++i) clocks[i]=feedback_clocks_[i];
+    // Numerical estimation must not block serial receive callbacks. State and
+    // timestamps above are one protected snapshot; only async_state changes there.
+    lock.unlock();
     control_energy_ += control_power_ * delta_seconds;
 
     DM q = DM::vertcat({hw_joint_struct_[0].current_state_.position,
@@ -674,6 +723,17 @@ namespace ros2_control_blue_reach_5
       hw_joint_struct_[i].current_state_.estimated_acceleration = estimated_acceleration;
       hw_joint_struct_[i].current_state_.acceleration = estimated_acceleration;
     }
+    DM measurement=DM::zeros(8,1), input=DM::zeros(4,1);
+    DM lower=DM::zeros(4,1), upper=DM::zeros(4,1);
+    for(int i=0;i<4;++i) {
+      measurement(i)=hw_joint_struct_[i].current_state_.position;
+      measurement(4+i)=hw_joint_struct_[i].current_state_.velocity;
+      input(i)=hw_joint_struct_[i].current_state_.effort;
+      lower(i)=hw_joint_struct_[i].limits_.position_min;
+      upper(i)=hw_joint_struct_[i].limits_.position_max;
+    }
+    // Preserve existing controller-facing filters during shadow commissioning.
+    arm_observer_.observe(clocks,measurement,input,lower,upper,JointFeedbackClock::Clock::now());
     return hardware_interface::return_type::OK;
   }
 

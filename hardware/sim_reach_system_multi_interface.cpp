@@ -25,6 +25,9 @@
 #include <vector>
 
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
+#include "ros2_control_blue_reach_5/arm_actuator_model.hpp"
+#include "ros2_control_blue_reach_5/nominal_arm_parameters.hpp"
+#include "ros2_control_blue_reach_5/arm_time_integration.hpp"
 #include "rclcpp/rclcpp.hpp"
 
 using namespace casadi;
@@ -35,68 +38,6 @@ namespace ros2_control_blue_reach_5
     {
         constexpr double kTorqueCurrentZeroEpsilon = 1.0e-9;
 
-        ros2_control_blue_reach_5::msg::SimManipulatorDynamics default_manipulator_dynamics()
-        {
-            auto msg = ros2_control_blue_reach_5::msg::SimManipulatorDynamics();
-            msg.link_masses = {1.94000000e-01, 4.29000000e-01, 1.14999999e-01, 3.32999998e-01};
-            msg.link_first_moments = {
-                -0.00000000e+00, -0.00000000e+00, -0.00000000e+00, -4.29000003e-02,
-                1.96649101e-02, 4.29000003e-02, 2.88077923e-03, 7.23516749e-03,
-                9.16434754e-03, 2.16416476e-03, -1.19076924e-03, 8.07346553e-03};
-            msg.link_inertias = {
-                7.10109586e-01, 7.10109586e-01, 1.99576149e-06, -0.00000000e+00,
-                -0.00000000e+00, -0.00000000e+00, 1.10178508e-01, 1.83331277e-01,
-                1.04292121e-01, -3.32240937e-02, -8.30350362e-02, -3.83631263e-02,
-                1.18956416e-01, 1.22363853e-01, 4.34411664e-03, -3.96112974e-04,
-                -2.13904668e-02, -1.77228242e-03, 1.92510932e-02, 2.56548460e-02,
-                7.17220917e-03, 1.48789886e-03, 4.53687373e-04, -1.09861913e-03};
-            msg.viscous_friction = {2.39569756e+00, 2.23596482e+00, 8.19671021e-01, 3.57249665e-01};
-            msg.coulomb_friction = {0.0, 0.0, 0.0, 0.0};
-            msg.static_friction = {-0.0, -0.0, -0.0, -0.0};
-            msg.stribeck_velocity = {0.0, 0.0, 0.0, 0.0};
-            msg.gravity_vector = {0.0, 0.0, 0.0};
-            msg.payload_com = {0.0, 0.0, 0.0};
-            msg.payload_mass = 0.0;
-            msg.payload_inertia = {0.0, 0.0, 0.0};
-            msg.base_pose = {0.19, 0.0, -0.12, 3.14159, 0.0, 0.0};
-            msg.world_pose = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-            msg.tip_offset_pose = {0.0, 0.0, 0.04, 0.0, 0.0, 0.0};
-            msg.joint_lock_on_deadband = 0.05;
-            msg.joint_lock_off_deadband = 0.10;
-            msg.baumgarte_alpha = 200.0;
-            msg.endeffector_mass = 300.0;
-            msg.endeffector_damping = 400.0;
-            msg.endeffector_stiffness = 0.0;
-            return msg;
-        }
-
-        std::vector<casadi::DM> pack_manipulator_dynamics(
-            const ros2_control_blue_reach_5::msg::SimManipulatorDynamics &msg)
-        {
-            std::vector<casadi::DM> values;
-            values.reserve(81);
-            auto append = [&values](const auto &range)
-            {
-                for (const double value : range)
-                {
-                    values.emplace_back(value);
-                }
-            };
-            append(msg.link_masses);
-            append(msg.link_first_moments);
-            append(msg.link_inertias);
-            append(msg.viscous_friction);
-            append(msg.coulomb_friction);
-            append(msg.static_friction);
-            append(msg.stribeck_velocity);
-            append(msg.gravity_vector);
-            append(msg.payload_com);
-            values.emplace_back(msg.payload_mass);
-            append(msg.base_pose);
-            append(msg.world_pose);
-            append(msg.tip_offset_pose);
-            return values;
-        }
 
         double gravity_magnitude(const std::array<double, 3> &gravity_vector)
         {
@@ -140,6 +81,50 @@ namespace ros2_control_blue_reach_5
 
     void SimReachSystemMultiInterfaceHardware::reset_joint_estimators()
     {
+        arm_x_est_ = casadi::DM::zeros(12, 1);
+        arm_P_est_ = casadi::DM::eye(12) * 0.001;
+        arm_Q_ = casadi::DM::zeros(12, 12);
+        arm_R_ = casadi::DM::zeros(8, 8);
+        for (int i = 0; i < 4; ++i)
+        {
+            arm_P_est_(8 + i, 8 + i) = 1.0;
+            arm_Q_(i, i) = 1e-8;
+            arm_Q_(4 + i, 4 + i) = 1e-6;
+            // Continuous torque random-walk density (Nm^2/s). Validated with
+            // the configured encoder R, noisy contact/release and load steps.
+            // The former 0.1 followed encoder noise as rapidly varying torque.
+            arm_Q_(8 + i, 8 + i) = 0.001;
+            arm_R_(i, i) = 1e-6;
+            arm_R_(4 + i, 4 + i) = 1e-5;
+        }
+        estimated_disturbance_.fill(0.0);
+        disturbance_variance_.fill(1.0);
+        disturbance_covariance_.fill(0.0);
+        for (int i=0;i<4;++i) disturbance_covariance_[4*i+i]=1.0;
+        estimator_applied_input_ = casadi::DM::zeros(4, 1);
+        estimator_completed_lock_mask_ = casadi::DM::zeros(4, 1);
+        estimator_completed_contact_ = casadi::DM::zeros(4, 1);
+        estimator_lower_limits_ = casadi::DM::zeros(4, 1);
+        estimator_upper_limits_ = casadi::DM::zeros(4, 1);
+        for (std::size_t i=0; i<4 && i<hw_joint_struct_.size(); ++i)
+        {
+            estimator_lower_limits_(i) = hw_joint_struct_[i].limits_.position_min;
+            estimator_upper_limits_(i) = hw_joint_struct_[i].limits_.position_max;
+        }
+        estimator_joint_at_limit_.fill(0.0);
+        estimator_disturbance_observable_.fill(0.0);
+        estimator_completed_lock_alpha_ = 200.0;
+        estimator_joint_locked_.fill(0.0);
+        estimator_step_ = 0.0;
+        estimator_valid_ = 0.0;
+        estimator_completed_dt_ = 0.0;
+        // Fixed dory_alpha nominal model shared with the controller and default
+        // plant. Subsequent plant-only changes remain estimation targets.
+        auto nominal = default_manipulator_dynamics();
+        estimator_nominal_parameters_ = casadi::DM::vertcat(pack_manipulator_dynamics(nominal));
+        const auto parameters = dense_vector(estimator_nominal_parameters_, 81);
+        std::copy(parameters.begin(), parameters.end(), estimator_model_readback_.begin());
+
         const std::size_t nj = get_hardware_info().joints.size();
         x_est_list_.resize(nj);
         P_est_list_.resize(nj);
@@ -180,10 +165,53 @@ namespace ros2_control_blue_reach_5
         x_est_list_[index](0) = state.position;
         x_est_list_[index](1) = state.velocity;
         x_est_list_[index](2) = state.acceleration;
+        if (index < 4)
+        {
+            arm_x_est_(static_cast<int>(index)) = state.position;
+            arm_x_est_(4 + static_cast<int>(index)) = state.velocity;
+        }
+    }
+
+    void SimReachSystemMultiInterfaceHardware::update_joint_locks()
+    {
+        // A startup mode, independent of later plant profile/reset requests.
+        // The resulting mask is shared by plant integration and its EKF step.
+        if (!arm_joint_locks_enabled_)
+        {
+            std::fill(is_locked_.begin(), is_locked_.end(), false);
+            return;
+        }
+        for (std::size_t j = 0; j < 4; ++j)
+        {
+            const double torque = double(arm_torques[j]);
+            if (!is_locked_[j] && std::abs(torque) < on_db_[j])
+                is_locked_[j] = true;
+            else if (is_locked_[j] && std::abs(torque) > off_db_[j])
+                is_locked_[j] = false;
+        }
+    }
+
+    void SimReachSystemMultiInterfaceHardware::apply_motor_lock()
+    {
+        // Decide hysteresis from the limited request before switching motors off.
+        // Never use the previous zeroed feedback to decide whether to unlock.
+        update_joint_locks();
+        for (std::size_t j = 0; j < 4; ++j)
+        {
+            if (!is_locked_[j]) continue;
+            arm_torques[j] = 0.0;
+            auto &state = hw_joint_struct_[j].current_state_;
+            state.current = 0.0;
+            state.effort = 0.0;
+            state.computed_effort_uncertainty = state.computed_effort;
+        }
     }
 
     void SimReachSystemMultiInterfaceHardware::reset_joint_simulation_state()
     {
+        if (disturbance_receiver_) disturbance_receiver_->reset();
+        sim_step_ = 0.0;
+        sim_generation_ += 1.0;
         const std::size_t joint_count = hw_joint_struct_.size();
         for (auto &joint : hw_joint_struct_)
         {
@@ -230,7 +258,11 @@ namespace ros2_control_blue_reach_5
         payload_Ixx = 0.0;
         payload_Iyy = 0.0;
         payload_Izz = 0.0;
-        gravity_ = 0.0;
+        if (manipulator_parameters_.size() >= 59)
+            gravity_ = std::sqrt(
+                std::pow(double(manipulator_parameters_[56]), 2) +
+                std::pow(double(manipulator_parameters_[57]), 2) +
+                std::pow(double(manipulator_parameters_[58]), 2));
         delta_seconds = 0.0;
         time_seconds = 0.0;
         commands_held_ = true;
@@ -369,6 +401,8 @@ namespace ros2_control_blue_reach_5
         reset_service_.reset();
         release_service_.reset();
         dynamics_service_.reset();
+        dynamics_readback_service_.reset();
+        disturbance_receiver_.reset();
         executor_.reset();
         node_frames_interface_.reset();
     }
@@ -393,23 +427,39 @@ namespace ros2_control_blue_reach_5
         RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Testing casadi ready for operations");
         // Use CasADi's "external" to load the compiled dynamics functions
         utils_service.usage_cplusplus_checks("test", "libtest.so", "reach system");
-        utils_service.current2torqueMap = utils_service.load_casadi_fun("current_to_torque_map", "libC2T.so");
-        utils_service.torque2currentMap = utils_service.load_casadi_fun("torque_to_current_map", "libT2C.so");
-        utils_service.manipulator_dynamics = utils_service.load_casadi_fun("Mnext_reg", "libMnext.so");
+        utils_service.manipulator_dynamics = utils_service.load_casadi_fun("arm_plant_next", "libmDisturbanceEKF_next.so");
         utils_service.manipulator_joint_lock_dynamics = utils_service.load_casadi_fun("hard_lock_hysteresis", "libLock_f.so");
         utils_service.forward_kinematics = utils_service.load_casadi_fun("fkeval", "libFK.so");
         utils_service.forward_kinematics_com = utils_service.load_casadi_fun("fkcomeval", "libFKcom.so");
         utils_service.base_ext_R_to_vehicle = utils_service.load_casadi_fun("R_base", "libBase_ext_R_vehicle.so");
         utils_service.manip_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libmEKF_next.so");
+        utils_service.manip_disturbance_predict = utils_service.load_casadi_fun(
+            "arm_disturbance_ekf_predict_locked", "libmDisturbanceEKF_next.so");
+        utils_service.manip_disturbance_update = utils_service.load_casadi_fun(
+            "arm_disturbance_ekf_update_limited", "libmDisturbanceEKF_next.so");
         
 
         robot_prefix = get_hardware_info().hardware_parameters.at("prefix");
+        const auto lock_option = get_hardware_info().hardware_parameters.find("arm_joint_locks");
+        if (lock_option != get_hardware_info().hardware_parameters.end())
+        {
+            const auto &value = lock_option->second;
+            if (value != "true" && value != "false" && value != "True" && value != "False")
+            {
+                RCLCPP_ERROR(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                             "arm_joint_locks must be true or false");
+                return hardware_interface::CallbackReturn::ERROR;
+            }
+            arm_joint_locks_enabled_ = value == "true" || value == "True";
+        }
+        RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                    "Artificial arm joint locks: %s", arm_joint_locks_enabled_ ? "enabled" : "disabled");
         payload_mass = 0.0;
         payload_Ixx = 0.0;
         payload_Iyy = 0.0;
         payload_Izz = 0.0;
-        gravity_ = 0.0;
         const auto dynamics = default_manipulator_dynamics();
+        gravity_ = gravity_magnitude(dynamics.gravity_vector);
         manipulator_parameters_ = pack_manipulator_dynamics(dynamics);
         joint_lock_on_deadband_ = dynamics.joint_lock_on_deadband;
         joint_lock_off_deadband_ = dynamics.joint_lock_off_deadband;
@@ -489,12 +539,12 @@ namespace ros2_control_blue_reach_5
 
         for (const hardware_interface::ComponentInfo &gpio : get_hardware_info().gpios)
         {
-            // SimReachSystemMultiInterfaceHardware has exactly 7 gpio state interfaces
-            if (gpio.state_interfaces.size() != 7)
+            // Existing metadata plus augmented EKF outputs and nominal-model readback.
+            if (gpio.state_interfaces.size() != 128)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
-                    "GPIO '%s'has %zu state interfaces. 7 expected.", gpio.name.c_str(),
+                    "GPIO '%s'has %zu state interfaces. 128 expected.", gpio.name.c_str(),
                     gpio.state_interfaces.size());
                 return hardware_interface::CallbackReturn::ERROR;
             }
@@ -517,6 +567,8 @@ namespace ros2_control_blue_reach_5
         try
         {
             node_frames_interface_ = std::make_shared<rclcpp::Node>(system_name + "_topics_interface");
+            disturbance_receiver_ = std::make_shared<DisturbanceReceiver>(
+                node_frames_interface_, robot_prefix, "arm");
 
             executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
             executor_->add_node(node_frames_interface_);
@@ -656,7 +708,7 @@ namespace ros2_control_blue_reach_5
             });
 
         RCLCPP_INFO(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
-                    "Initialized %zu per joint EKFs.", get_hardware_info().joints.size());
+                    "Initialized 12-state arm disturbance EKF and gripper acceleration filter.");
 
         return hardware_interface::CallbackReturn::SUCCESS;
     }
@@ -750,6 +802,42 @@ namespace ros2_control_blue_reach_5
                 get_hardware_info().joints[i].name, get_hardware_info().joints[i].state_interfaces[26].name, &hw_joint_struct_[i].current_state_.gravityT_z));
         };
 
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, "sim_step", &sim_step_));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, "sim_generation", &sim_generation_));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, "estimator_step", &estimator_step_));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, "estimator_valid", &estimator_valid_));
+        const std::array<std::string, 4> axes{"e", "d", "c", "b"};
+        for (std::size_t i = 0; i < axes.size(); ++i)
+        {
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name, "estimated_disturbance.torque." + axes[i],
+                &estimated_disturbance_[i]));
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name, "estimated_disturbance.variance.torque." + axes[i],
+                &disturbance_variance_[i]));
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name, "estimator_joint_locked." + axes[i],
+                &estimator_joint_locked_[i]));
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name, "estimator_joint_at_limit." + axes[i],
+                &estimator_joint_at_limit_[i]));
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name, "estimator_disturbance_observable." + axes[i],
+                &estimator_disturbance_observable_[i]));
+        }
+        for (int i=0;i<4;++i) for (int j=0;j<4;++j)
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name,
+                "estimated_disturbance.covariance."+std::to_string(i)+"."+std::to_string(j),
+                &disturbance_covariance_[4*i+j]));
+        for (std::size_t i = 0; i < estimator_model_readback_.size(); ++i)
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name, "estimator_nominal_parameter." + std::to_string(i),
+                &estimator_model_readback_[i]));
         // 0-3: payload
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[0].name, &payload_mass));
@@ -864,8 +952,8 @@ namespace ros2_control_blue_reach_5
         // Time step for this cycle
         casadi::DM dt_dm(delta_seconds);
 
-        // Run EKF for each joint, measurement y = [position, velocity]^T from current raw states
-        for (std::size_t i = 0; i < get_hardware_info().joints.size(); ++i)
+        // The gripper has a separate scalar model and retains its existing filter.
+        for (std::size_t i = 4; i < get_hardware_info().joints.size(); ++i)
         {
             // Pack measurement
             casadi::DM y_k = casadi::DM::zeros(2, 1);
@@ -911,9 +999,9 @@ namespace ros2_control_blue_reach_5
         const rclcpp::Time &time, const rclcpp::Duration &period)
     {
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+        apply_pending_reset_request();
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
-        apply_pending_reset_request();
 
         if (commands_held_)
         {
@@ -969,12 +1057,11 @@ namespace ros2_control_blue_reach_5
             if (std::abs(tau_cmd) > kTorqueCurrentZeroEpsilon)
             {
                 const bool pos_tau = (tau_cmd > 0.0);
-                std::vector<DM> T2C_arg = {
-                    DM(hw_joint_struct_[j].actuator_Properties_.kt),
-                    DM(pos_tau ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
-                               : hw_joint_struct_[j].actuator_Properties_.backward_I_static),
-                    DM(tau_cmd)};
-                I_cmd = utils_service.torque2currentMap(T2C_arg).at(0).scalar();
+                I_cmd = arm_actuator_model::torque_to_current(
+                    hw_joint_struct_[j].actuator_Properties_.kt,
+                    pos_tau ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
+                            : hw_joint_struct_[j].actuator_Properties_.backward_I_static,
+                    tau_cmd);
             }
 
             // clamp in current using your existing hard limiter that also enforces position limits
@@ -985,12 +1072,11 @@ namespace ros2_control_blue_reach_5
             if (std::abs(I_safe) > kTorqueCurrentZeroEpsilon)
             {
                 const bool pos_cur = (I_safe > 0.0);
-                std::vector<DM> C2T_arg = {
-                    DM(hw_joint_struct_[j].actuator_Properties_.kt),
-                    DM(pos_cur ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
-                               : hw_joint_struct_[j].actuator_Properties_.backward_I_static),
-                    DM(I_safe)};
-                tau_safe = utils_service.current2torqueMap(C2T_arg).at(0).scalar();
+                tau_safe = arm_actuator_model::current_to_torque(
+                    hw_joint_struct_[j].actuator_Properties_.kt,
+                    pos_cur ? hw_joint_struct_[j].actuator_Properties_.forward_I_static
+                            : hw_joint_struct_[j].actuator_Properties_.backward_I_static,
+                    I_safe);
             }
 
             hw_joint_struct_[j].current_state_.current = I_safe;
@@ -999,6 +1085,8 @@ namespace ros2_control_blue_reach_5
             hw_joint_struct_[j].current_state_.computed_effort_uncertainty = tau_cmd - tau_safe;
             arm_torques.push_back(tau_safe);
         };
+
+        apply_motor_lock();
 
         control_power_ = 0.0;
 
@@ -1014,59 +1102,35 @@ namespace ros2_control_blue_reach_5
         // number of dynamic joints in the model
         constexpr std::size_t n_dyn = 4;
 
-        // update hysteresis for the 4 dynamic joints
-        for (std::size_t j = 0; j < n_dyn; ++j)
-        {
-            // const double u = arm_torques[j];
-            const double u = arm_torques[j].scalar();
-
-            if (!is_locked_[j] && std::abs(u) < on_db_[j])
-            {
-                is_locked_[j] = true;
-            }
-            else if (is_locked_[j] && std::abs(u) > off_db_[j])
-            {
-                is_locked_[j] = false;
-            }
-        }
-
         // build a single column mask of length 4
         casadi::DM lock_mask = casadi::DM::zeros(static_cast<int>(n_dyn), 1);
         for (std::size_t j = 0; j < n_dyn; ++j)
         {
             lock_mask(j) = is_locked_[j] ? 1.0 : 0.0;
-            // lock_mask(j) = 0.0;
         }
 
-        // simulate_joint_lock_argument = {arm_torques, s_lock_current, on_db_, off_db_};
-        // joint_lock_sim = utils_service.manipulator_joint_lock_dynamics(simulate_joint_lock_argument);
-        
-        // casadi::DM lock_mask = casadi::DM::zeros(static_cast<int>(n_dyn), 1);
-        // for (std::size_t j = 0; j < n_dyn; ++j)
-        // {
-        //     lock_mask(j) = s_lock_current[j];
-        //     // lock_mask(j) = 0.0;
-        // }
-        // // optional log
-        // RCLCPP_INFO_THROTTLE(
-        //     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
-        //     *node_frames_interface_->get_clock(), 500,
-        //     "position = [%.3e %.3e %.3e %.3e | ee %.3e], mask = [%d %d %d %d]",
-        //     hw_joint_struct_[0].current_state_.position,
-        //     hw_joint_struct_[1].current_state_.position,
-        //     hw_joint_struct_[2].current_state_.position,
-        //     hw_joint_struct_[3].current_state_.position,
-        //     hw_joint_struct_[4].current_state_.position,
-        //     static_cast<int>(is_locked_[0]),
-        //     static_cast<int>(is_locked_[1]),
-        //     static_cast<int>(is_locked_[2]),
-        //     static_cast<int>(is_locked_[3]));
-
+        // Injection is plant-only; actuator input to the EKF remains unchanged.
+        const auto injection = disturbance_receiver_ ? disturbance_receiver_->sample() : msg::DisturbanceCommand{};
+        auto plant_torque = DM::vertcat(arm_torques);
+        for (int j=0; j<4; ++j) plant_torque(j) += injection.joint_torques[j];
         // call dynamics with the mask
-        arm_simulate_argument = {arm_state, arm_torques, delta_seconds, manipulator_parameters_, DM(endeffector_mass_),
+        arm_simulate_argument = {arm_state, plant_torque, delta_seconds, manipulator_parameters_, DM(endeffector_mass_),
                                  DM(endeffector_damping_), DM(endeffector_stiffness_), lock_mask, DM(baumgarte_alpha_)};
-        arm_sim = utils_service.manipulator_dynamics(arm_simulate_argument);
+        try {
+            arm_sim = arm_time_integration::plant(utils_service.manipulator_dynamics, arm_simulate_argument);
+        } catch (const std::exception &error) {
+            estimator_valid_ = 0.0;
+            RCLCPP_ERROR(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                         "Arm plant integration failed (dt=%.9g s): %s", delta_seconds, error.what());
+            return hardware_interface::return_type::ERROR;
+        }
         arm_next_states = dense_vector(arm_sim.at(0), 10);
+        if (disturbance_receiver_) disturbance_receiver_->completed(injection, delta_seconds);
+        for (int j = 0; j < 4; ++j)
+            estimator_applied_input_(j) = arm_torques[j];
+        estimator_completed_lock_mask_ = lock_mask;
+        estimator_completed_lock_alpha_ = baumgarte_alpha_;
+        estimator_completed_dt_ = delta_seconds;
 
         // clamp the NEW state, then write it back
         for (int j = 0; j < 5; ++j)
@@ -1076,6 +1140,9 @@ namespace ros2_control_blue_reach_5
 
             const auto &lim = hw_joint_struct_[j].limits_;
 
+            if (j < 4)
+                estimator_completed_contact_(j) =
+                    (q <= lim.position_min + 1e-9 || q >= lim.position_max - 1e-9) ? 1.0 : 0.0;
             if (q < lim.position_min)
             {
                 q = lim.position_min;
@@ -1093,6 +1160,7 @@ namespace ros2_control_blue_reach_5
             hw_joint_struct_[j].current_state_.velocity = qd;
         }
         // Publish TFs
+        sim_step_ += 1.0;
         rclcpp::Time current_time = node_frames_interface_->now();
         if (realtime_frame_transform_publisher_ && realtime_frame_transform_publisher_->trylock())
         {

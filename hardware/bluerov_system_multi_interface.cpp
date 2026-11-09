@@ -17,6 +17,7 @@
 
 #include "ros2_control_blue_reach_5/dvldriver.hpp"
 #include <angles/angles.h>
+#include <Eigen/Cholesky>
 #include <chrono>
 #include <cmath>
 #include <limits>
@@ -29,12 +30,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include <random>
 #include <rclcpp/qos.hpp>
-#if __has_include("ros2_control_blue_reach_5/dynamics_params.hpp")
-//   #pragma message("Private parameters enabled (header found)")
-#include "ros2_control_blue_reach_5/dynamics_params.hpp"
-#else
-//   #pragma message("Fallback parameters used")
-#endif
+#include "ros2_control_blue_reach_5/nominal_vehicle_parameters.hpp"
 
 using namespace casadi;
 
@@ -134,8 +130,16 @@ namespace ros2_control_blue_reach_5
         utils_service.usage_cplusplus_checks("test", "libtest.so", "vehicle");
         utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
         utils_service.from_thrust_to_pwm = utils_service.load_casadi_fun("getNpwm", "libThrust_PWM.so");
-        utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
-        // utils_service.uv_dynamic_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libmodelbasedEKF_next.so");
+        utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("disturbance_ekf_update", "libdisturbanceEKF_next.so");
+        estimator_predict_ = utils_service.load_casadi_fun("disturbance_ekf_predict", "libdisturbanceEKF_next.so");
+        estimator_covariance_predict_ = utils_service.load_casadi_fun("disturbance_ekf_predict_covariance", "libdisturbanceEKF_next.so");
+        estimator_correct_ = utils_service.load_casadi_fun("disturbance_ekf_correct", "libdisturbanceEKF_next.so");
+        sensor_correct_ = utils_service.load_casadi_fun("disturbance_ekf_sensor_correct", "libdisturbanceEKF_next.so");
+        sensor_model_ = utils_service.load_casadi_fun("vehicle_sensor_model", "libdisturbanceEKF_next.so");
+        utils_service.pwm_to_thrusts = utils_service.load_casadi_fun("pwm_to_thrusts", "libPWM_THRUST.so");
+        estimator_nominal_parameters_ = casadi::DM(default_nominal_vehicle_parameters());
+        const auto estimator_model = default_nominal_vehicle_parameters();
+        std::copy(estimator_model.begin(), estimator_model.end(), estimator_model_readback_.begin());
         utils_service.pwm2rads = utils_service.load_casadi_fun("pwm_to_rads", "libPWM_RAD.so");
         utils_service.unwrap = utils_service.load_casadi_fun("unwrap", "libAngWrap.so");
 
@@ -181,6 +185,24 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.use_pwm =
             use_pwm_str == "true" || use_pwm_str == "True" || use_pwm_str == "1";
         use_dvl_ = bool_param(get_hardware_info().hardware_parameters, "use_dvl", false);
+        manual_control_ = bool_param(get_hardware_info().hardware_parameters, "manual_control", false);
+        // Dropout limits, not measurement-update periods; actual telemetry rates
+        // depend on firmware and the MAVLink stream configuration.
+        const auto timeout = [&](const char *name, double &value) {
+            const auto &params = get_hardware_info().hardware_parameters;
+            const auto it = params.find(name);
+            if (it != params.end()) value = std::stod(it->second);
+            if (!std::isfinite(value) || value <= 0.0)
+                throw std::invalid_argument(std::string(name) + " must be finite and positive");
+        };
+        try {
+            timeout("imu_timeout_s", imu_timeout_s_);
+            timeout("pressure_timeout_s", pressure_timeout_s_);
+            timeout("dvl_timeout_s", dvl_timeout_s_);
+        } catch (const std::exception &error) {
+            RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "%s", error.what());
+            return hardware_interface::CallbackReturn::ERROR;
+        }
         dvl_host_ = string_param(get_hardware_info().hardware_parameters, "dvl_host", dvl_host_);
         dvl_port_ = int_param(get_hardware_info().hardware_parameters, "dvl_port", dvl_port_);
 
@@ -291,13 +313,14 @@ namespace ros2_control_blue_reach_5
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Light2_channel: %d", hw_vehicle_struct.light2channel);
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "CameraMountPitch_channel: %d", hw_vehicle_struct.cameraMountPitch_channel);
 
-            // BlueRovSystemMultiInterfaceHardware has exactly 83 gpio state interfaces
-            if (gpio.state_interfaces.size() != 83)
+            // Navigation/diagnostics, disturbance observer and 21 identification fields.
+            constexpr std::size_t expected_gpio_state_interfaces = 205;
+            if (gpio.state_interfaces.size() != expected_gpio_state_interfaces)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
-                    "GPIO '%s'has %zu state interfaces. 83 expected.", gpio.name.c_str(),
-                    gpio.state_interfaces.size());
+                    "GPIO '%s' has %zu state interfaces. %zu expected.", gpio.name.c_str(),
+                    gpio.state_interfaces.size(), expected_gpio_state_interfaces);
                 return hardware_interface::CallbackReturn::ERROR;
             }
             // RRBotSystemMultiInterface has exactly 28 gpio command interfaces
@@ -318,11 +341,24 @@ namespace ros2_control_blue_reach_5
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
         constexpr auto DEFAULT_TRANSFORM_TOPIC = "/tf";
+        {
+            std::scoped_lock lock(imu_mutex_, mavlink_mutex_, dvl_data_mutex_);
+            imu_new_msg_ = pressure_new_ = estimator_dvl_new_ = false;
+            imu_received_ = pressure_received_ = dvl_received_ = {};
+            identification_received_ = {};
+            last_imu_stamp_ = -1;
+            last_raw_imu_stamp_ = -1;
+            raw_imu_received_={};raw_imu_new_.fill(0.);raw_imu_measurement_.fill(0.);
+            last_pressure_stamp_ = 0;
+            last_dvl_stamp_ = -1.0;
+            first_imu_read = true;
+        }
         // setup realtime buffers, ROS publishers ...
         try
         {
             // Initialize node
             node_topics_interface_ = std::make_shared<rclcpp::Node>(system_name + "_topics_interface");
+            configure_sensor_measurements();
             // Initialize executor and add node
             executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
             // executor_ = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
@@ -374,6 +410,8 @@ namespace ros2_control_blue_reach_5
                 // RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Received IMU message");
                 {
                     std::lock_guard<std::mutex> lock(imu_mutex_);
+                    const int64_t stamp = rclcpp::Time(imu_msg->header.stamp).nanoseconds();
+                    if (stamp <= last_imu_stamp_ || imu_msg->orientation_covariance[0] < 0) return;
 
                     hw_vehicle_struct.imu_state.orientation_w = imu_msg->orientation.w;
                     hw_vehicle_struct.imu_state.orientation_x = imu_msg->orientation.x;
@@ -383,6 +421,10 @@ namespace ros2_control_blue_reach_5
                     // Convert the geometry_msgs quaternion to a tf2 quaternion
                     tf2::Quaternion imu_q;
                     tf2::fromMsg(imu_msg->orientation, imu_q);
+                    if (!std::isfinite(imu_q.length2()) || imu_q.length2() < 1e-12) return;
+                    imu_q.normalize();
+                    last_imu_stamp_ = stamp;
+                    imu_received_ = std::chrono::steady_clock::now();
 
                     // Convert quaternion to roll, pitch, yaw
                     tf2::Matrix3x3(imu_q).getRPY(hw_vehicle_struct.imu_state.roll,
@@ -407,13 +449,18 @@ namespace ros2_control_blue_reach_5
             imu_subscriber_ =
                 node_topics_interface_->create_subscription<sensor_msgs::msg::Imu>(
                     "/mavros/imu/data", best_effort_qos, imu_callback);
+            // /imu/data re-stamps cached acceleration with attitude time. Consume
+            // actual raw IMU packets separately so old samples are never re-fused.
+            raw_imu_subscriber_=node_topics_interface_->create_subscription<sensor_msgs::msg::Imu>(
+                "/mavros/imu/data_raw", best_effort_qos,
+                [this](sensor_msgs::msg::Imu::ConstSharedPtr m){receive_raw_imu(*m);});
 
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                         "Subscribed to /mavros/imu/data with Reliable QoS");
 
             mavlink_sub_ = node_topics_interface_->create_subscription<mavros_msgs::msg::Mavlink>(
                 "/uas1/mavlink_source",
-                best_effort_qos,
+                rclcpp::QoS(rclcpp::KeepLast(100)).best_effort(),
                 std::bind(&BlueRovSystemMultiInterfaceHardware::mavlink_data_handler, this, std::placeholders::_1));
             RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                         "Subscribed to /uas1/mavlink_source for MAVLink messages.");
@@ -458,6 +505,10 @@ namespace ros2_control_blue_reach_5
                         switch (dvl_msg.message_type) {
                             case blue::dynamics::DVLMessageType::VELOCITY: {
                                 dv_vel = std::get<blue::dynamics::DVLVelocityMessage>(dvl_msg.data);
+                                // Reject replayed/out-of-order samples before modifying any
+                                // measurement used by the estimator or its validity gate.
+                                if (dv_vel.time_of_validity <= last_dvl_stamp_) break;
+                                last_dvl_stamp_ = dv_vel.time_of_validity;
                                 hw_vehicle_struct.dvl_state.altitude = dv_vel.altitude;
                                 hw_vehicle_struct.dvl_state.fom = dv_vel.fom;
                                 hw_vehicle_struct.dvl_state.format = dv_vel.format;
@@ -468,7 +519,12 @@ namespace ros2_control_blue_reach_5
                                 hw_vehicle_struct.dvl_state.time_of_validity = dv_vel.time_of_validity;
                                 hw_vehicle_struct.dvl_state.transducers = dv_vel.transducers;
                                 hw_vehicle_struct.dvl_state.type = dv_vel.type;
-                                hw_vehicle_struct.dvl_state.velocity_valid = dv_vel.velocity_valid;
+                                hw_vehicle_struct.dvl_state.velocity_valid = dv_vel.velocity_valid &&
+                                    std::isfinite(dv_vel.vx) && std::isfinite(dv_vel.vy) && std::isfinite(dv_vel.vz);
+                                if (hw_vehicle_struct.dvl_state.velocity_valid) {
+                                    dvl_received_ = std::chrono::steady_clock::now();
+                                    estimator_dvl_new_ = true;
+                                }
                                 hw_vehicle_struct.dvl_state.vx = dv_vel.vx;
                                 hw_vehicle_struct.dvl_state.vy = dv_vel.vy;
                                 hw_vehicle_struct.dvl_state.vz = dv_vel.vz;
@@ -527,10 +583,18 @@ namespace ros2_control_blue_reach_5
         x_est_ = casadi::DM::zeros(18, 1);
         // Initialize state covariance as a 18x18 identity scaled by a small value.
         P_est_ = casadi::DM::eye(18) * 0.001;
+        for (int i = 12; i < 18; ++i) P_est_(i, i) = 1.0;
+        estimator_initialized_ = false;
+        estimator_valid_ = 0.0;
+        estimator_step_ = 0.0;
+        estimator_applied_input_ = casadi::DM::zeros(6, 1);
+        estimated_disturbance_.fill(0.0);
         // right after P_ = diag(Q_vector) and R_ = diag(R_vector);
         for (std::size_t i = 0; i < 18; ++i)
         {
             P_diag_[i] = double(P_est_(i, i));
+            if (i >= 12) for (int j=0;j<6;++j)
+                disturbance_covariance_[6*(i-12)+j]=double(P_est_(i,12+j));
         }
 
         // Process noise covariance: 18x18, scaled by 0.01
@@ -547,18 +611,16 @@ namespace ros2_control_blue_reach_5
         Q_vector(9) = 0.001;
         Q_vector(10) = 0.001;
         Q_vector(11) = 0.001;
+        // Continuous covariance intensity; discretized with each prediction period.
+        // Provisional hardware tuning, not a real-sensor calibration.
+        for (int i = 12; i < 18; ++i) Q_vector(i) = wrench_intensity_[i-12];
         Q_ = casadi::DM::diag(Q_vector);
+        Q_(casadi::Slice(12,18),casadi::Slice(12,18))=wrench_covariance_;
 
-        // Measurement noise R_
-        casadi::DM R_vector = casadi::DM::zeros(7, 1); // 7x1 vector
-        R_vector(0) = 0.01;                            // z_pressure noise variance
-        R_vector(1) = 0.005;                           // IMU roll noise variance
-        R_vector(2) = 0.005;                           // IMU pitch noise variance
-        R_vector(3) = 0.005;                           // IMU yaw noise variance
-        R_vector(4) = 0.005;                           // DVL vx noise variance
-        R_vector(5) = 0.005;                           // DVL vy noise variance
-        R_vector(6) = 0.005;                           // DVL vz noise variance
-        R_ = casadi::DM::diag(R_vector);
+        // Depth and delivered AHRS Euler variances are calibrated independently.
+        // DVL covariance is populated from each accepted A50 packet in read().
+        R_ = casadi::DM::eye(7);
+        for (int i=0; i<4; ++i) R_(i,i) = depth_attitude_variances_[i];
 
         RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
                     "Initialized P_est_, Q_, and R_ for Kalman filter.");
@@ -807,6 +869,60 @@ namespace ros2_control_blue_reach_5
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[81].name, &control_power_));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[82].name, &control_energy_));
+        const std::array<std::string, 6> axes = {"force.x", "force.y", "force.z",
+                                                               "torque.x", "torque.y", "torque.z"};
+        for (std::size_t i = 0; i < estimator_model_readback_.size(); ++i)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimator_nominal_parameter." + std::to_string(i), &estimator_model_readback_[i]);
+        for (int i = 0; i < 6; ++i) {
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimated_disturbance." + axes[i], &estimated_disturbance_[i]);
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimated_disturbance.variance." + axes[i], &P_diag_[12+i]);
+        }
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name, "estimator_valid", &estimator_valid_);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name, "estimator_step", &estimator_step_);
+        for (std::size_t i=0;i<6;++i)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimator_noise.intensity."+std::to_string(i), &noise_adaptation_.active_density[i]);
+        const std::array<std::string,6> noise_status_names{
+            "enabled", "applied_fit_count", "dropped", "failed", "fit_seconds", "endpoint_step"};
+        for (std::size_t i=0;i<noise_status_names.size();++i)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimator_noise."+noise_status_names[i], &noise_adaptation_.diagnostics[i]);
+        auto identification_interface = [&](const std::string &name,double &value) {
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "identification."+name,&value);
+        };
+        identification_interface("valid",identification_sample_.valid);
+        identification_interface("generation",identification_sample_.generation);
+        identification_interface("step",identification_sample_.step);
+        identification_interface("time",identification_sample_.time);
+        identification_interface("period",identification_sample_.period);
+        identification_interface("depth",identification_sample_.depth);
+        for(int i=0;i<3;++i)
+            identification_interface("attitude."+std::to_string(i),identification_sample_.attitude[i]);
+        for(int i=0;i<6;++i) {
+            identification_interface("velocity."+std::to_string(i),identification_sample_.velocity[i]);
+            identification_interface("wrench."+std::to_string(i),identification_sample_.wrench[i]);
+        }
+        for (std::size_t i=0;i<6;++i) for (std::size_t j=0;j<6;++j)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimated_disturbance.covariance."+std::to_string(i)+"."+std::to_string(j),
+                &disturbance_covariance_[6*i+j]);
+        // Posterior model acceleration; keep physical/raw acceleration separately.
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "linear_acceleration_estimate.x", &hw_vehicle_struct.current_state_.du);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "linear_acceleration_estimate.y", &hw_vehicle_struct.current_state_.dv);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "linear_acceleration_estimate.z", &hw_vehicle_struct.current_state_.dw);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "angular_acceleration_estimate.x", &hw_vehicle_struct.current_state_.dp);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "angular_acceleration_estimate.y", &hw_vehicle_struct.current_state_.dq);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "angular_acceleration_estimate.z", &hw_vehicle_struct.current_state_.dr);
         return state_interfaces;
     }
 
@@ -939,6 +1055,69 @@ namespace ros2_control_blue_reach_5
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
 
+        // A coherent snapshot and single-consumption flags are protected together.
+        std::unique_lock<std::mutex> imu_lock(imu_mutex_, std::defer_lock);
+        std::unique_lock<std::mutex> pressure_lock(mavlink_mutex_, std::defer_lock);
+        std::unique_lock<std::mutex> dvl_lock(dvl_data_mutex_, std::defer_lock);
+        std::lock(imu_lock, pressure_lock, dvl_lock);
+        const auto now = std::chrono::steady_clock::now();
+        const auto oldest = std::min({imu_received_, pressure_received_, dvl_received_});
+        const auto newest = std::max({imu_received_, pressure_received_, dvl_received_});
+        const auto fresh = [&](const auto &stamp, double timeout) {
+            return stamp != std::chrono::steady_clock::time_point{} &&
+                std::chrono::duration<double>(now - stamp).count() <= timeout;
+        };
+        const bool imu_fresh = fresh(imu_received_, imu_timeout_s_);
+        const bool pressure_fresh = fresh(pressure_received_, pressure_timeout_s_);
+        if (estimator_dvl_new_ && !update_dvl_measurement_covariance()) {
+            hw_vehicle_struct.dvl_state.velocity_valid = false;
+            estimator_dvl_new_ = false;
+            RCLCPP_WARN_THROTTLE(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                *node_topics_interface_->get_clock(), 5000,
+                "A50 covariance is invalid; skipping velocity observation, disturbance estimate invalid");
+        }
+        const bool dvl_fresh = use_dvl_ && hw_vehicle_struct.dvl_state.velocity_valid &&
+            fresh(dvl_received_, dvl_timeout_s_);
+        navigation_sensors_valid_ = imu_fresh && pressure_fresh;
+        const bool full_observation = navigation_sensors_valid_ && dvl_fresh;
+        const bool raw_fresh=fresh(raw_imu_received_,imu_timeout_s_);
+        noise_adaptation_.before_prediction(Q_, full_observation && raw_fresh &&
+            raw_imu_available_[0] && raw_imu_available_[1]);
+        // Identification keeps its coherent raw-sensor endpoint contract. EKF
+        // measurement consumption must not determine this independent cadence.
+        const bool identification_ready = full_observation &&
+            imu_received_ > identification_received_[0] &&
+            pressure_received_ > identification_received_[1] &&
+            dvl_received_ > identification_received_[2] &&
+            std::chrono::duration<double>(newest - oldest).count() <= 0.05;
+        if (!navigation_sensors_valid_) {
+            identification_sample_.reset();
+            estimator_valid_ = 0.0;
+            RCLCPP_WARN_THROTTLE(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                *node_topics_interface_->get_clock(), 5000,
+                "Sensor dropout: IMU fresh=%d pressure fresh=%d; thrusters held neutral",
+                imu_fresh, pressure_fresh);
+            // Initialize only from actual observations. After initialization,
+            // continue prediction/TF and available corrections, with validity
+            // false and commands neutral, rather than repeatedly resetting P.
+            if (!estimator_initialized_) return hardware_interface::return_type::OK;
+        }
+        if (!full_observation) {
+            identification_sample_.reset();
+            estimator_valid_ = 0.0;
+            RCLCPP_WARN_THROTTLE(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                *node_topics_interface_->get_clock(), 5000,
+                "Full sensor set unavailable (IMU=%d pressure=%d DVL=%d): predicting with available updates; disturbance and identification invalid",
+                imu_fresh, pressure_fresh, dvl_fresh);
+        }
+        if (!std::isfinite(delta_seconds) || delta_seconds <= 0.0 || delta_seconds > 0.5) {
+            noise_adaptation_.before_prediction(Q_, false);
+            navigation_sensors_valid_ = false;
+            identification_sample_.reset();
+            estimator_valid_ = 0.0;
+            return hardware_interface::return_type::ERROR;
+        }
+
         if (first_imu_read)
         {
             last_wrapped_roll = hw_vehicle_struct.imu_state.roll;
@@ -982,50 +1161,98 @@ namespace ros2_control_blue_reach_5
         {
             y_k(0) = hw_vehicle_struct.depth_from_pressure2;
             y_k(1) = hw_vehicle_struct.imu_state.roll_unwrap;
-            y_k(2) = hw_vehicle_struct.imu_state.pitch_unwrap;
-            y_k(3) = hw_vehicle_struct.imu_state.yaw_unwrap;
-            y_k(4) = hw_vehicle_struct.dvl_state.vx;
-            y_k(5) = hw_vehicle_struct.dvl_state.vy;
-            y_k(6) = hw_vehicle_struct.dvl_state.vz;
+            y_k(2) = -hw_vehicle_struct.imu_state.pitch_unwrap;
+            y_k(3) = -hw_vehicle_struct.imu_state.yaw_unwrap;
+            // Absent velocity entries are placeholders excluded by the mask,
+            // never observations of zero velocity.
+            if (dvl_fresh) {
+                y_k(4) = hw_vehicle_struct.dvl_state.vx;
+                y_k(5) = hw_vehicle_struct.dvl_state.vy;
+                y_k(6) = hw_vehicle_struct.dvl_state.vz;
+            }
         };
 
-        // Wrap time step in a DM object.
-        casadi::DM dt_dm(delta_seconds);
-        std::vector<casadi::DM> ekf_inputs = {x_est_, P_est_, dt_dm, y_k, Q_, R_};
+        std::vector<casadi::DM> state_est;
+        std::vector<casadi::DM> adaptation_prediction;
+        try {
+            for (double value : y_k.nonzeros())
+                if (!std::isfinite(value)) throw std::runtime_error("nonfinite measurement");
+            if (!estimator_initialized_) {
+                noise_adaptation_.reset(Q_);
+                P_est_ = casadi::DM::eye(18) * 0.001;
+                for (int i = 12; i < 18; ++i) P_est_(i,i) = 1.0;
+                x_est_(casadi::Slice(9,18)) = casadi::DM::zeros(9,1);
+                x_est_(casadi::Slice(2, 6)) = y_k(casadi::Slice(0,4));
+                if (dvl_fresh) x_est_(casadi::Slice(6,9)) = y_k(casadi::Slice(4,7));
+                else for (int i=6;i<9;++i) P_est_(i,i)=1.0;
+                // No truth initialization and no acceleration-as-disturbance states.
+                estimator_initialized_ = true;
+            } else {
+                const auto prediction = casadi_reach_alpha_5::predict_disturbance_covariance(
+                    estimator_covariance_predict_, x_est_, P_est_, estimator_applied_input_,
+                    estimator_nominal_parameters_, delta_seconds, Q_);
+                x_est_ = prediction[0]; P_est_ = prediction[1];
+                adaptation_prediction = prediction;
+            }
+            casadi::DM mask = casadi::DM::zeros(7,1);
+            mask(0) = pressure_new_ && pressure_fresh ? 1.0 : 0.0;
+            for (int i=1;i<4;++i) mask(i) = imu_new_msg_ && imu_fresh ? 1.0 : 0.0;
+            for (int i=4;i<7;++i) mask(i) = estimator_dvl_new_ && dvl_fresh ? 1.0 : 0.0;
 
-        // Call your CasADi function
-        std::vector<casadi::DM> state_est = utils_service.uv_Exkalman_update(ekf_inputs);
-
-        casadi::DM u_uv_k = casadi::DM::zeros(6, 1);
-        {
-        u_uv_k(0) = hw_vehicle_struct.command_state_.Fx;
-        u_uv_k(1) = hw_vehicle_struct.command_state_.Fy;
-        u_uv_k(2) = hw_vehicle_struct.command_state_.Fz;
-        u_uv_k(3) = hw_vehicle_struct.command_state_.Tx;
-        u_uv_k(4) = hw_vehicle_struct.command_state_.Ty;
-        u_uv_k(5) = hw_vehicle_struct.command_state_.Tz;
-        };
-
-        casadi::Slice first12(0,12);
-
-        // shrink state and covariance
-        casadi::DM x12 = x_est_(first12, Slice());  
-        casadi::DM P12 = P_est_(first12, first12);  
-        casadi::DM Q12 = Q_(first12, first12);  
-
-
-        std::vector<casadi::DM> dynamic_ekf_inputs = {x12, u_uv_k, P12, dt_dm, y_k, Q12, R_};
-        // std::vector<casadi::DM> state_pred = utils_service.uv_dynamic_Exkalman_update(dynamic_ekf_inputs);
-
-        // Extract result
-        x_est_ = state_est[0];
-        P_est_ = state_est[1];
+            if(!raw_fresh) raw_imu_new_.fill(0.);
+            const auto raw=casadi::DM(std::vector<double>(raw_imu_measurement_.begin(),raw_imu_measurement_.end()));
+            const auto full_mask=casadi::DM::vertcat({mask,
+                casadi::DM(std::vector<double>(raw_imu_new_.begin(),raw_imu_new_.end()))});
+            sensor_R_(casadi::Slice(0,7),casadi::Slice(0,7))=R_;
+            for(int i=0;i<6;++i) sensor_R_(7+i,7+i)=raw_imu_variance_[i];
+            const auto corrected = sensor_correct_(std::vector<casadi::DM>{
+                x_est_, P_est_, estimator_applied_input_,estimator_nominal_parameters_,
+                casadi::DM::vertcat({y_k,raw}),sensor_R_,full_mask,
+                full_observation ? 1.0 : 0.0,imu_offset_,sensor_gravity_});
+            raw_imu_new_.fill(0.);
+            x_est_ = corrected[0]; P_est_ = corrected[1];
+            imu_new_msg_ = pressure_new_ = estimator_dvl_new_ = false;
+            {
+                const auto model = sensor_model_(std::vector<casadi::DM>{
+                    x_est_, estimator_applied_input_, estimator_nominal_parameters_,
+                    imu_offset_, sensor_gravity_});
+                state_est = {x_est_,P_est_,corrected[2],corrected[3],model[2]};
+                state_est[1] = P_est_;
+            }
+            for (const auto &out : state_est)
+                for (double value : out.nonzeros())
+                    if (!std::isfinite(value)) throw std::runtime_error("nonfinite EKF output");
+            x_est_ = state_est[0];
+            P_est_ = state_est[1];
+            estimator_valid_ = full_observation ? 1.0 : 0.0;
+            estimator_step_ += 1.0;
+            if (!adaptation_prediction.empty())
+                noise_adaptation_.after_correction(adaptation_prediction, corrected, delta_seconds,
+                    static_cast<uint64_t>(estimator_step_));
+        } catch (const std::exception &error) {
+            noise_adaptation_.before_prediction(Q_, false);
+            navigation_sensors_valid_ = false;
+            identification_sample_.reset();
+            estimator_valid_ = 0.0;
+            RCLCPP_ERROR(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                         "Disturbance EKF failed: %s", error.what());
+            return hardware_interface::return_type::ERROR;
+        }
+        // Integrate the held actuator input over all control cycles, but publish
+        // a new endpoint only when all three sensor streams have new data.
+        imu_lock.unlock();
+        pressure_lock.unlock();
+        dvl_lock.unlock();
         for (std::size_t i = 0; i < 18; ++i)
         {
             P_diag_[i] = double(P_est_(i, i));
+            if (i >= 12) for (int j=0;j<6;++j)
+                disturbance_covariance_[6*(i-12)+j]=double(P_est_(i,12+j));
         }
 
         const std::vector<double> x_est_v = dense_vector(x_est_, 18);
+        const auto acceleration = dense_vector(state_est[4], 6);
+        for (int i = 0; i < 6; ++i) estimated_disturbance_[i] = x_est_v[12+i];
 
         // Update the estimated state in your hardware vehicle struct
         hw_vehicle_struct.estimate_state_.position_x = x_est_v[0];
@@ -1038,12 +1265,12 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.estimate_state_.p = x_est_v[9];
         hw_vehicle_struct.estimate_state_.q = x_est_v[10];
         hw_vehicle_struct.estimate_state_.r = x_est_v[11];
-        hw_vehicle_struct.current_state_.du = x_est_v[12];
-        hw_vehicle_struct.current_state_.dv = x_est_v[13];
-        hw_vehicle_struct.current_state_.dw = x_est_v[14];
-        hw_vehicle_struct.current_state_.dp = x_est_v[15];
-        hw_vehicle_struct.current_state_.dq = x_est_v[16];
-        hw_vehicle_struct.current_state_.dr = x_est_v[17];
+        hw_vehicle_struct.current_state_.du = acceleration[0];
+        hw_vehicle_struct.current_state_.dv = acceleration[1];
+        hw_vehicle_struct.current_state_.dw = acceleration[2];
+        hw_vehicle_struct.current_state_.dp = acceleration[3];
+        hw_vehicle_struct.current_state_.dq = acceleration[4];
+        hw_vehicle_struct.current_state_.dr = acceleration[5];
 
         // Lock and check if new data is available
         std::lock_guard<std::mutex> lock(dvl_data_mutex_);
@@ -1197,6 +1424,7 @@ namespace ros2_control_blue_reach_5
 
         if (rt_override_rc_pub_ && rt_override_rc_pub_->trylock())
         {
+            std::vector<double> sent_model_pwm(8, 1500.0);
             for (size_t i = 0; i < hw_vehicle_struct.hw_thrust_structs_.size(); ++i)
             {
                 // Retrieve the thruster struct for brevity
@@ -1205,7 +1433,9 @@ namespace ros2_control_blue_reach_5
                 // Scale the command_pwm using the rc_direction.
                 // For instance, if rc_direction is -1, this inverts the PWM command.
 
-                float scaled_diff_pwm = (thruster.command_state_.command_pwm - 1500) * thruster.rc_direction;
+                const double command = (estimator_valid_ == 1.0 || (manual_control_ && navigation_sensors_valid_)) && std::isfinite(thruster.command_state_.command_pwm)
+                    ? thruster.command_state_.command_pwm : 1500.0;
+                float scaled_diff_pwm = (command - 1500) * thruster.rc_direction;
 
                 float scaled_pwm = std::clamp(1500 + scaled_diff_pwm, 1100.0f, 1900.0f);
 
@@ -1219,7 +1449,10 @@ namespace ros2_control_blue_reach_5
                 // }
 
                 // update the corresponding channel
-                rt_override_rc_pub_->msg_.channels[thruster.channel - 1] = static_cast<int>(scaled_pwm);
+                const int sent_pwm = static_cast<int>(scaled_pwm);
+                rt_override_rc_pub_->msg_.channels[thruster.channel - 1] = sent_pwm;
+                // Undo configured wiring direction to recover model convention.
+                sent_model_pwm[i] = 1500.0 + (sent_pwm - 1500.0) * thruster.rc_direction;
             };
 
             // Retrieve the light message from the realtime buffer.
@@ -1255,6 +1488,9 @@ namespace ros2_control_blue_reach_5
             }
 
             rt_override_rc_pub_->unlockAndPublish();
+            // This is modeled actuator effort, NOT measured thrust or requested force.
+            const auto thrust = utils_service.pwm_to_thrusts(std::vector<DM>{DM(sent_model_pwm)});
+            estimator_applied_input_ = DM::mtimes(thrust_config, DM(dense_vector(thrust[0], 8)));
         }
         return hardware_interface::return_type::OK;
     }
@@ -1516,16 +1752,114 @@ namespace ros2_control_blue_reach_5
         camera_mount_pitch_msg_buffer_.writeFromNonRT(msg);
     }
 
-    inline double BlueRovSystemMultiInterfaceHardware::pressureToDepth(double press_abs_hpa, double water_density = 997.0)
+    void BlueRovSystemMultiInterfaceHardware::configure_sensor_measurements()
+    {
+        rcl_interfaces::msg::ParameterDescriptor descriptor;
+        descriptor.read_only = true;
+        surface_pressure_pa_ = node_topics_interface_->declare_parameter<double>(
+            "surface_pressure_pa", 101325.0, descriptor);
+        if (!std::isfinite(surface_pressure_pa_) || surface_pressure_pa_ <= 0.0)
+            throw std::invalid_argument("surface_pressure_pa must be finite and positive");
+        const auto variances = node_topics_interface_->declare_parameter<std::vector<double>>(
+            "depth_attitude_measurement_variances", {0.01,0.005,0.005,0.005}, descriptor);
+        if (variances.size() != 4 || std::any_of(variances.begin(), variances.end(),
+            [](double v) { return !std::isfinite(v) || v <= 0.0; }))
+            throw std::invalid_argument("depth_attitude_measurement_variances requires four positive variances");
+        std::copy(variances.begin(), variances.end(), depth_attitude_variances_.begin());
+        const auto vector_setting=[&](const char* name, const std::vector<double> &defaults, bool positive) {
+            const auto values=node_topics_interface_->declare_parameter<std::vector<double>>(name,defaults,descriptor);
+            if(values.size()!=defaults.size() || std::any_of(values.begin(),values.end(),
+                [positive](double v){return !std::isfinite(v)||(positive && v<=0.);}))
+                throw std::invalid_argument(std::string(name)+": invalid values");
+            return values;
+        };
+        const auto raw_variance=vector_setting("raw_imu_measurement_variances",{1e-6,1e-6,1e-6,1e-4,1e-4,1e-4},true);
+        const auto bias=vector_setting("raw_imu_bias_body",{0.,0.,0.,0.,0.,0.},false);
+        const auto intensity=vector_setting("ekf_wrench_process_intensities",{7e-4,7e-4,7e-4,7e-4,7e-4,7e-4},true);
+        std::copy(raw_variance.begin(),raw_variance.end(),raw_imu_variance_.begin());
+        std::copy(bias.begin(),bias.end(),raw_imu_bias_.begin());
+        std::copy(intensity.begin(),intensity.end(),wrench_intensity_.begin());
+        const auto full_wrench=node_topics_interface_->declare_parameter<std::vector<double>>(
+            "ekf_wrench_process_covariance",std::vector<double>{},descriptor);
+        wrench_covariance_=casadi_reach_alpha_5::wrench_process_covariance(full_wrench,intensity);
+        const bool adapt_noise=node_topics_interface_->declare_parameter<bool>(
+            "ekf_adapt_wrench_process_noise",false,descriptor);
+        if(adapt_noise && !full_wrench.empty())
+            throw std::invalid_argument("ekf_adapt_wrench_process_noise does not support a full covariance override");
+        VehicleDisturbanceNoiseAdaptation::Density configured_noise{};
+        for(int i=0;i<6;++i) configured_noise[i]=double(wrench_covariance_(i,i));
+        noise_adaptation_.configure(configured_noise,adapt_noise
+            ? std::string("libdisturbanceEKF_next.so") : std::string());
+
+        imu_offset_=casadi::DM(vector_setting("imu_offset_body",{0.,0.,0.},false));
+        sensor_gravity_=node_topics_interface_->declare_parameter<double>("sensor_gravity",9.80665,descriptor);
+        if(!std::isfinite(sensor_gravity_)||sensor_gravity_<=0.)
+            throw std::invalid_argument("sensor_gravity must be finite and positive");
+        RCLCPP_INFO(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+            "Surface pressure reference %.2f Pa; set from a surface Bar30 measurement, never auto-zero underwater", surface_pressure_pa_);
+        if (surface_pressure_pa_ == 101325.0)
+            RCLCPP_WARN(rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"),
+                "Standard atmosphere reference selected; this is not a measured surface calibration");
+    }
+
+    void BlueRovSystemMultiInterfaceHardware::receive_raw_imu(const sensor_msgs::msg::Imu &message)
+    {
+        std::lock_guard<std::mutex> lock(imu_mutex_);
+        const int64_t stamp=rclcpp::Time(message.header.stamp).nanoseconds();
+        if(stamp<=0 || stamp<=last_raw_imu_stamp_) return;
+        // MAVROS rotates aircraft FRD into base_link FLU. A differently oriented
+        // frame requires an explicit transform, not an implicit sign assumption.
+        if(message.header.frame_id!="base_link" && message.header.frame_id!=hw_vehicle_struct.body_frame_id) return;
+        last_raw_imu_stamp_=stamp;
+        raw_imu_received_=std::chrono::steady_clock::now();
+        const std::array<double,6> values{message.angular_velocity.x,-message.angular_velocity.y,
+            -message.angular_velocity.z,message.linear_acceleration.x,
+            -message.linear_acceleration.y,-message.linear_acceleration.z};
+        const std::array<bool,2> available{message.angular_velocity_covariance[0]>=0.,
+                                          message.linear_acceleration_covariance[0]>=0.};
+        for(int group=0;group<2;++group) {
+            bool valid=available[group];
+            for(int i=3*group;i<3*group+3;++i) valid=valid&&std::isfinite(values[i]);
+            raw_imu_available_[group]=valid;
+            for(int i=3*group;i<3*group+3;++i) {
+                raw_imu_new_[i]=valid?1.:0.;
+                if(valid) raw_imu_measurement_[i]=values[i]-raw_imu_bias_[i];
+            }
+        }
+    }
+
+    bool BlueRovSystemMultiInterfaceHardware::update_dvl_measurement_covariance()
+    {
+        // A50 velocity and its covariance are in the SAME sensor axes. The existing
+        // installation contract aligns those axes with body FRD; no sign flip or
+        // world rotation is applied to either. A differently mounted DVL needs both
+        // velocity and covariance transformed together, not covariance alone.
+        Eigen::Matrix3d covariance;
+        for (int i=0; i<3; ++i)
+            for (int j=0; j<3; ++j)
+                covariance(i,j) = hw_vehicle_struct.dvl_state.covariance.data[3*i+j];
+        if (!covariance.allFinite()) return false;
+        const double scale = covariance.cwiseAbs().maxCoeff();
+        if (scale <= 0.0 || (covariance-covariance.transpose()).cwiseAbs().maxCoeff() > 1e-6*scale)
+            return false;
+        covariance = ((covariance + covariance.transpose())*0.5).eval();
+        Eigen::LLT<Eigen::Matrix3d> factor(covariance);
+        if (factor.info() != Eigen::Success) return false;
+        for (int i=0; i<3; ++i)
+            for (int j=0; j<3; ++j) R_(4+i,4+j) = covariance(i,j);
+        return true;
+    }
+
+    double BlueRovSystemMultiInterfaceHardware::pressureToDepth(double press_abs_hpa, double water_density)
     {
         // Convert hPa to Pa
         const double press_abs_pa = press_abs_hpa * 100.0;
 
-        // Standard atmospheric pressure at sea level, in Pascals
-        const double press_surface_pa = 101325.0;
+        if (!std::isfinite(press_abs_hpa) || !std::isfinite(water_density) || water_density <= 0.0)
+            throw std::invalid_argument("pressure/depth conversion requires finite pressure and positive density");
 
         // Compute the overpressure relative to surface
-        const double delta_p = press_abs_pa - press_surface_pa;
+        const double delta_p = press_abs_pa - surface_pressure_pa_;
 
         // Standard gravitational acceleration (m/s^2)
         const double g = 9.80665;
@@ -1584,6 +1918,10 @@ namespace ros2_control_blue_reach_5
                     // Acquire lock before modifying shared data
                     {
                         std::lock_guard<std::mutex> lock(mavlink_mutex_);
+                        if (sp2.time_boot_ms <= last_pressure_stamp_ || !std::isfinite(sp2.press_abs)) break;
+                        last_pressure_stamp_ = sp2.time_boot_ms;
+                        pressure_received_ = std::chrono::steady_clock::now();
+                        pressure_new_ = true;
                         hw_vehicle_struct.depth_from_pressure2 = pressureToDepth(sp2.press_abs, hw_vehicle_struct.water_density);
                     }
 
@@ -1631,6 +1969,10 @@ namespace ros2_control_blue_reach_5
 
     void BlueRovSystemMultiInterfaceHardware::stop_thrusters()
     {
+        noise_adaptation_.reset(Q_);
+        navigation_sensors_valid_ = false;
+        estimator_valid_ = 0.0;
+        estimator_initialized_ = false;
         if (rt_override_rc_pub_ && rt_override_rc_pub_->trylock())
         {
             for (size_t i = 0; i < hw_vehicle_struct.hw_thrust_structs_.size(); ++i)
@@ -1638,6 +1980,7 @@ namespace ros2_control_blue_reach_5
                 rt_override_rc_pub_->msg_.channels[hw_vehicle_struct.hw_thrust_structs_[i].channel - 1] = hw_vehicle_struct.hw_thrust_structs_[i].neutral_pwm;
             }
             rt_override_rc_pub_->unlockAndPublish();
+            estimator_applied_input_ = casadi::DM::zeros(6,1);
         }
     }
 
@@ -1654,6 +1997,7 @@ namespace ros2_control_blue_reach_5
 
     void BlueRovSystemMultiInterfaceHardware::stop_background_work() noexcept
     {
+        noise_adaptation_.stop();
         try
         {
             if (use_dvl_)
