@@ -387,6 +387,11 @@ if(BUILD_TESTING)
   target_include_directories(test_serial_budget PRIVATE hardware/include)
   ament_add_gtest(test_command_safety test/test_command_safety.cpp)
   target_include_directories(test_command_safety PRIVATE hardware/include)
+  ament_add_gtest(test_arm_actuator_model test/test_arm_actuator_model.cpp)
+  target_include_directories(test_arm_actuator_model PRIVATE hardware/include)
+  ament_add_gtest(test_batch_arm_actuation test/test_batch_arm_actuation.cpp)
+  target_include_directories(test_batch_arm_actuation PRIVATE hardware/include)
+  target_link_libraries(test_batch_arm_actuation ${BATCH_UVMS_CORE_LIB})
 endif()
 
 ## EXPORTS

@@ -27,11 +27,11 @@ void check_cuda(cudaError_t err, const char* what) {
 }
 
 struct DeviceBuffer {
-    float* ptr = nullptr;
+    double* ptr = nullptr;
     std::size_t count = 0;
 
     explicit DeviceBuffer(std::size_t n) : count(n) {
-        check_cuda(cudaMalloc(&ptr, count * sizeof(float)), "cudaMalloc failed");
+        check_cuda(cudaMalloc(&ptr, count * sizeof(double)), "cudaMalloc failed");
     }
 
     DeviceBuffer(const DeviceBuffer&) = delete;
@@ -43,12 +43,12 @@ struct DeviceBuffer {
         }
     }
 
-    void copy_from(const std::vector<float>& values) {
+    void copy_from(const std::vector<double>& values) {
         if (values.size() != count) {
             throw std::invalid_argument("host/device buffer size mismatch");
         }
         check_cuda(
-            cudaMemcpy(ptr, values.data(), count * sizeof(float), cudaMemcpyHostToDevice),
+            cudaMemcpy(ptr, values.data(), count * sizeof(double), cudaMemcpyHostToDevice),
             "cudaMemcpy host-to-device failed");
     }
 };
@@ -130,20 +130,20 @@ Args parse_args(int argc, char** argv) {
 }
 
 struct MatchedCase {
-    std::vector<float> x_uvms;
-    std::vector<float> x_vehicle;
-    std::vector<float> x_arm;
-    std::vector<float> vehicle_wrench;
-    std::vector<float> arm_torque;
-    std::vector<float> vehicle_params;
-    std::vector<float> arm_params;
-    std::vector<float> dt;
-    std::vector<float> external_wrench;
-    std::vector<float> ee_mass;
-    std::vector<float> ee_damping;
-    std::vector<float> ee_stiffness;
-    std::vector<float> lock_mask;
-    std::vector<float> baumgarte_alpha;
+    std::vector<double> x_uvms;
+    std::vector<double> x_vehicle;
+    std::vector<double> x_arm;
+    std::vector<double> vehicle_wrench;
+    std::vector<double> arm_torque;
+    std::vector<double> vehicle_params;
+    std::vector<double> arm_params;
+    std::vector<double> dt;
+    std::vector<double> external_wrench;
+    std::vector<double> ee_mass;
+    std::vector<double> ee_damping;
+    std::vector<double> ee_stiffness;
+    std::vector<double> lock_mask;
+    std::vector<double> baumgarte_alpha;
 };
 
 MatchedCase make_case(int batch_size) {
@@ -152,27 +152,27 @@ MatchedCase make_case(int batch_size) {
     MatchedCase data;
     data.x_uvms = make_uvms_state(batch_size);
     split_uvms_state(data.x_uvms, batch_size, &data.x_vehicle, &data.x_arm);
-    data.vehicle_wrench = make_matrix(batch_size, kVehicleWrenchDim, 0.01F);
-    data.arm_torque = make_matrix(batch_size, kArmTorqueDim, 0.01F);
+    data.vehicle_wrench = make_matrix(batch_size, kVehicleWrenchDim, 0.01);
+    data.arm_torque = make_matrix(batch_size, kArmTorqueDim, 0.01);
     data.vehicle_params = tile(default_vehicle_params(), batch_size);
     data.arm_params = tile(default_arm_params(), batch_size);
-    data.dt.assign(static_cast<std::size_t>(batch_size), 0.01F);
-    data.external_wrench = filled(batch_size, kExternalWrenchDim, 0.0F);
-    data.ee_mass.assign(static_cast<std::size_t>(batch_size), 300.0F);
-    data.ee_damping.assign(static_cast<std::size_t>(batch_size), 400.0F);
-    data.ee_stiffness.assign(static_cast<std::size_t>(batch_size), 0.0F);
-    data.lock_mask = filled(batch_size, kLockMaskDim, 0.0F);
-    data.baumgarte_alpha.assign(static_cast<std::size_t>(batch_size), 200.0F);
+    data.dt.assign(static_cast<std::size_t>(batch_size), 0.01);
+    data.external_wrench = filled(batch_size, kExternalWrenchDim, 0.0);
+    data.ee_mass.assign(static_cast<std::size_t>(batch_size), 300.0);
+    data.ee_damping.assign(static_cast<std::size_t>(batch_size), 400.0);
+    data.ee_stiffness.assign(static_cast<std::size_t>(batch_size), 0.0);
+    data.lock_mask = filled(batch_size, kLockMaskDim, 0.0);
+    data.baumgarte_alpha.assign(static_cast<std::size_t>(batch_size), 200.0);
     return data;
 }
 
 double run_cpu_size(int batch_size, const Args& args, const MatchedCase& data, const std::string& mode) {
-    std::vector<float> cpu_uvms_next(
-        static_cast<std::size_t>(batch_size) * uvms_dynamics_test::kUvmsStateDim, 0.0F);
-    std::vector<float> cpu_vehicle_next(
-        static_cast<std::size_t>(batch_size) * uvms_dynamics_test::kVehicleStateDim, 0.0F);
-    std::vector<float> cpu_arm_next(
-        static_cast<std::size_t>(batch_size) * uvms_dynamics_test::kArmStateDim, 0.0F);
+    std::vector<double> cpu_uvms_next(
+        static_cast<std::size_t>(batch_size) * uvms_dynamics_test::kUvmsStateDim, 0.0);
+    std::vector<double> cpu_vehicle_next(
+        static_cast<std::size_t>(batch_size) * uvms_dynamics_test::kVehicleStateDim, 0.0);
+    std::vector<double> cpu_arm_next(
+        static_cast<std::size_t>(batch_size) * uvms_dynamics_test::kArmStateDim, 0.0);
     uvms_cpu::UvmsStepHostPointers cpu_ptrs{
         data.x_uvms.data(), data.vehicle_wrench.data(), data.arm_torque.data(),
         data.vehicle_params.data(), data.arm_params.data(), data.dt.data(),
@@ -323,7 +323,7 @@ double run_gpu_size(int batch_size, const Args& args, const MatchedCase& data, c
     }
     check_cuda(cudaEventSynchronize(stop), "cudaEventSynchronize stop failed");
 
-    float elapsed_ms = 0.0F;
+    float elapsed_ms = 0.0F;  // CUDA event timing API uses float milliseconds.
     check_cuda(cudaEventElapsedTime(&elapsed_ms, start, stop), "cudaEventElapsedTime failed");
     check_cuda(cudaEventDestroy(start), "cudaEventDestroy start failed");
     check_cuda(cudaEventDestroy(stop), "cudaEventDestroy stop failed");
