@@ -52,7 +52,7 @@ int integral_bias_work_bytes(casadi_int *sz_arg, casadi_int* sz_res, casadi_int 
 #define integral_bias_SZ_ARG 6
 #define integral_bias_SZ_RES 2
 #define integral_bias_SZ_IW 0
-#define integral_bias_SZ_W 258
+#define integral_bias_SZ_W 247
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

@@ -1,18 +1,47 @@
 {
+  "model": "fully submerged; no air/water interface",
+  "native": false,
+  "cuda": false,
+  "compiler": "gcc",
+  "compiler_flags": [
+    "-O1",
+    "-fPIC",
+    "-shared"
+  ],
   "casadi_version": "3.8.0+",
-  "frame": "NED/FRD",
-  "assumptions": "zero current; uncoupled vehicle",
-  "output": "dense column-major 6x27",
+  "frame": "NED / body FRD",
   "source_sha256": {
-    "diffUV/identification_data.py": "2052260c0cf76279aac37d34cc18628c266698994eb51156c78e761b043986dc",
-    "diffUV/base.py": "442489ea6326701ffb59a10b7cde1b318435133e39005f0a6235c35c791d0722",
-    "diffUV/utils/operators.py": "0ea4d87214dff84b0fb221dfed483122b2e246b45168694f4161c502b3d157bb",
-    "diffUV/utils/euler_ops.py": "02273f62fef7f6837ae602b9933332fb8267d169fec80e46051c39d51ee09a79",
-    "diffUV/utils/symbols.py": "0ddc225bff8df37a6deebd872e91a34296cb1ce1bfe79e671987d982c77defd3",
-    "usage/export_vehicle_identification.py": "b11bcdd0d1687752db26f32b10f58520ffacf44d826c0e4cec5bea48c04a6b7d"
+    "simulator.py": "f97fb6c37fdd91afbeb8bd4de4e1f972402117b05bff1319f73f55491e4161dc",
+    "estimation.py": "a9dcef4c59b18f31f65a42d76c51fb895797c28641e30f94bb73cdd3a871b91f",
+    "identification_filter.py": "64ae0f667f92c6bbb8d4721603a74744f266ed350784642e61a20ff2ed430a3e",
+    "kinematics.py": "be4f1f265e26d8d71486b91afe9b653630b382cf310bac43675ae60b3b642ff7",
+    "dynamics_euler.py": "1f30e53d69900475114e756754f433c8b87941ac2cfeaa6a68e81f72adace62c",
+    "live_identification.py": "25769b91880e0be92d8e26989dc31f0b2f4b8e051fbd9f3a0ce6e59e37f3b68d",
+    "controller.py": "7aa97679810111a8c84fbd72e6f91b5ba3970796c65b44ec42967afd687d7744",
+    "base.py": "99d51b3341edb73cb94e3782aa19ecbf6a500781ecd4acabe6af07a66761305a",
+    "identification_data.py": "2052260c0cf76279aac37d34cc18628c266698994eb51156c78e761b043986dc",
+    "dynamics_quat.py": "b4bb47d52735efed06b70d9c1d02e4942fd3a68f2e57118c47f7e6cc3a2b92d5",
+    "system_id.py": "4241c590675de1d8cf9c63698ff28d97edd20d84c287a42585be274c162f851b",
+    "convex_vehicle_identification.py": "b7b88891efa9752a45ebfecabe94d1d7d6c732826a3c5b58595b138865aedbfc",
+    "__init__.py": "842470ed0efd06374b234454c484d05ae40ded2c3dc0cf8c389817da0f2f11c2",
+    "torch_base.py": "613574dbf31b4dec121ae93979fab8d6e6cde2fa83a6ab68398d253e8b800245",
+    "utils/operators.py": "0ea4d87214dff84b0fb221dfed483122b2e246b45168694f4161c502b3d157bb",
+    "utils/symbols.py": "0ddc225bff8df37a6deebd872e91a34296cb1ce1bfe79e671987d982c77defd3",
+    "utils/euler_ops.py": "02273f62fef7f6837ae602b9933332fb8267d169fec80e46051c39d51ee09a79",
+    "utils/rotation_error.py": "87adfeb34b2425b86b344b37599b58844bbe2c78fa0ab889f86654c8ce64b081",
+    "utils/__init__.py": "018f583f24863e51dc550af0cb7f05d06f987823cb0e4165b5354c1d6263dbcc",
+    "utils/torch_ops.py": "bafcffb4df6f1f97ac9a2114e362853a93c77691ffebabd946d7c2c3b235856f",
+    "utils/quaternion_ops.py": "c3776aae1d436c6c5f63a067f4ef75c49b9f78bae5e6212828a857b12fa68e14"
   },
   "artifact_sha256": {
-    "vehicle_regressor.c": "2eb100f0e5420a5186d1ec4045087cb579b2082ab597fefd53db81193a455d94",
-    "vehicle_regressor.h": "d543a2f914a17a0510065a137c6fe2c1a0c133e76d2f92608ec7a415a27b25d5"
+    "vehicle_regressor.c": "64e99f9da064901b9e086098b8dd84e188bcbb74a2cb899f5de19eb57533bfc4",
+    "vehicle_regressor.h": "4c7a12f94ac02ab194ecfaac3b3d488e8a03a23cf1a198e6ff77c64cb52e72df"
+  },
+  "assumptions": "fully submerged; constant inertia; zero current; uncoupled vehicle",
+  "output": "dense column-major 6x27",
+  "exporter": {
+    "path": "usage/code_generation.ipynb",
+    "entry_point": "export_vehicle",
+    "sha256": "59a090a9172e4432e34ade61a77ec920106c4a725126dfbeafdbfb2164235cb6"
   }
 }

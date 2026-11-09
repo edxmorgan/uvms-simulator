@@ -367,8 +367,11 @@ if(BUILD_TESTING)
   target_compile_definitions(test_hardware_arm_observer PRIVATE TEST_CASADI_DIR="${PROJECT_SOURCE_DIR}/casadi_lib")
   # Retention safety rules are testable without a MOSEK SDK or license.
   ament_add_gtest(test_identification_retention test/test_identification_retention.cpp
-    hardware/vehicle_identification_retention.cpp)
-  target_include_directories(test_identification_retention PRIVATE hardware/include)
+    hardware/vehicle_identification_retention.cpp
+    hardware/vehicle_identification_window.cpp
+    hardware/generated/vehicle_identification/vehicle_regressor.c)
+  target_include_directories(test_identification_retention PRIVATE hardware/include
+    hardware/generated/vehicle_identification)
   target_link_libraries(test_identification_retention Eigen3::Eigen)
   target_compile_features(test_identification_retention PRIVATE cxx_std_17)
   ament_add_gtest(test_serial_budget test/test_serial_budget.cpp

@@ -4,6 +4,26 @@
 #include <random>
 
 namespace vi = uvms::identification;
+TEST(IdentificationWindow, GeneratedRestoringIsSubmergedAtEveryDepth) {
+  Eigen::MatrixXd reference;
+  for (double depth : {-1., -.001, 0., .001, 1., 3., 10.}) {
+    vi::LiveWindow window(5, .05);
+    for (int step = 0; step <= 5; ++step) {
+      vi::Measurement m{0., double(step), step*.01, .01, depth,
+                        Eigen::Vector3d::Zero(), vi::Vector6::Zero(), vi::Vector6::Zero()};
+      window.push(m);
+    }
+    const auto result = window.snapshot();
+    ASSERT_TRUE(result);
+    // FRD restoring force is B-W in heave. Coordinate zero is not a surface switch.
+    EXPECT_DOUBLE_EQ(result->design(2, 10), -1.);
+    EXPECT_DOUBLE_EQ(result->design(2, 11), 1.);
+    EXPECT_LT((result->design.col(10)+result->design.col(11)).norm(), 1e-14);
+    if (reference.size()==0) reference=result->design;
+    EXPECT_LT((result->design-reference).norm(), 1e-14);
+  }
+}
+
 TEST(HardwareIdentification, IntegratesAppliedWrenchBetweenFreshMeasurements) {
   vi::HardwareSample s;
   const std::array<double,6> a{1,2,3,4,5,6}, b{3,6,9,12,15,18};
