@@ -375,6 +375,7 @@ namespace ros2_control_blue_reach_5
 
         if (disturbance_receiver_) disturbance_receiver_->reset();
         commands_held_ = true;
+        dynamics_paused_ = false;
         reset_vehicle_estimators();
         seed_vehicle_estimator_from_state(hw_vehicle_struct.default_state_);
         RCLCPP_INFO(
@@ -427,6 +428,7 @@ namespace ros2_control_blue_reach_5
         }
 
         commands_held_ = request.hold_commands;
+        dynamics_paused_ = request.pause_dynamics;
         if (request.set_vehicle_dynamics)
         {
             use_coupled_dynamics_ = request.use_coupled_dynamics;
@@ -798,6 +800,12 @@ namespace ros2_control_blue_reach_5
                 const std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> request,
                 std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Response> response)
         {
+            if (request->pause_dynamics && !request->hold_commands)
+            {
+                response->success = false;
+                response->message = "pause_dynamics requires hold_commands";
+                return;
+            }
             if (request->set_vehicle_dynamics &&
                 !valid_thrust_configuration_matrix(request->vehicle_dynamics.thrust_configuration_matrix))
             {
@@ -847,6 +855,7 @@ namespace ros2_control_blue_reach_5
             {
                 std::lock_guard<std::mutex> lock(simulation_state_mutex_);
                 commands_held_ = false;
+                dynamics_paused_ = false;
                 RCLCPP_INFO(
                     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
                     "[%s] released simulated vehicle commands",
@@ -1307,6 +1316,7 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         reset_vehicle_simulation_state();
         commands_held_ = false;
+        dynamics_paused_ = false;
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "Activating... please wait...");
 
@@ -1656,6 +1666,11 @@ namespace ros2_control_blue_reach_5
             control_power_ = 0.0;
         }
 
+        if (disturbance_receiver_) disturbance_receiver_->paused(dynamics_paused_);
+        if (dynamics_paused_)
+        {
+            return hardware_interface::return_type::OK;
+        }
         const DM thrust_config = thrust_configuration_dm(thrust_configuration_matrix_);
 
         if (hw_vehicle_struct.use_pwm)
