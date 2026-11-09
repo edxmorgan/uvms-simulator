@@ -16,6 +16,8 @@
 #include "ros2_control_blue_reach_5/sim_vehicle_system_multi_interface.hpp"
 
 #include <chrono>
+#include <Eigen/Cholesky>
+#include <cstdlib>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -27,12 +29,7 @@
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include <random>
-#if __has_include("ros2_control_blue_reach_5/dynamics_params.hpp")
-//   #pragma message("Private parameters enabled (header found)")
-#include "ros2_control_blue_reach_5/dynamics_params.hpp"
-#else
-//   #pragma message("Fallback parameters used")
-#endif
+#include "ros2_control_blue_reach_5/nominal_vehicle_parameters.hpp"
 
 using namespace casadi;
 
@@ -110,23 +107,10 @@ namespace ros2_control_blue_reach_5
             return values;
         }
 
-        std::vector<double> default_vehicle_simulation_parameters()
-        {
-            return {
-                3.72028553e+01, 2.21828075e+01, 6.61734807e+01, 3.38909801e+00,
-                6.41362046e-01, 6.41362034e-01, 3.38909800e+00, 1.39646394e+00,
-                4.98032205e-01, 2.53118738e+00, 1.05000000e+02, 9.78296453e+01,
-                8.27479545e-01, 1.36822559e-01, 4.25841171e+00, -7.36416666e+01,
-                -3.36082112e+01, -8.94055107e+01, -2.98736214e+00, -1.57921531e+00,
-                -3.39766499e+00, -1.47912104e-04, -5.16373030e-04, -9.85522538e+01,
-                -3.05907788e-02, -1.27877517e-01, -1.63514832e+00,
-                0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        }
-
         ros2_control_blue_reach_5::msg::SimVehicleDynamics default_vehicle_dynamics()
         {
             auto msg = ros2_control_blue_reach_5::msg::SimVehicleDynamics();
-            const auto values = default_vehicle_simulation_parameters();
+            const auto values = default_nominal_vehicle_parameters();
             msg.m_x_du = values[0];
             msg.m_y_dv = values[1];
             msg.m_z_dw = values[2];
@@ -222,10 +206,87 @@ namespace ros2_control_blue_reach_5
     {
         x_est_ = casadi::DM::zeros(18, 1);
         P_est_ = casadi::DM::eye(18) * 0.001;
+        for (int i = 12; i < 18; ++i) P_est_(i, i) = 1.0;
+        estimated_disturbance_.fill(0.0);
+        estimator_applied_input_ = casadi::DM::zeros(6, 1);
+        estimator_step_ = 0.0;
+        estimator_valid_ = 0.0;
         for (std::size_t i = 0; i < 18; ++i)
         {
             P_diag_[i] = double(P_est_(i, i));
+            if (i >= 12) for (int j=0;j<6;++j)
+                disturbance_covariance_[6*(i-12)+j]=double(P_est_(i,12+j));
         }
+        restore_nominal_estimator_model();
+        pending_retained_model_.reset();
+        if (node_topics_interface_) estimator_model_reset_stamp_ = node_topics_interface_->now();
+    }
+
+    void SimVehicleSystemMultiInterfaceHardware::restore_nominal_estimator_model()
+    {
+        noise_adaptation_.reset(Q_);
+        ++evaluation_reset_sequence_;
+        const auto parameters = pack_vehicle_dynamics(default_vehicle_dynamics());
+        estimator_nominal_parameters_ = casadi::DM(parameters);
+        std::copy(parameters.begin(), parameters.end(), estimator_model_readback_.begin());
+        estimator_model_retained_ = 0.;
+        estimator_model_epoch_ = estimator_model_accepted_time_ = -1.;
+        estimator_model_net_weight_only_ = false;
+        for (int i = 12; i < 18; ++i) {
+            x_est_(i) = 0.;
+            for (int j = 0; j < 18; ++j) P_est_(i,j) = P_est_(j,i) = 0.;
+            P_est_(i,i) = 1.;
+        }
+        estimated_disturbance_.fill(0.);
+    }
+
+    void SimVehicleSystemMultiInterfaceHardware::receive_retained_model(const Identification &m)
+    {
+        std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+        const auto stamp = rclcpp::Time(m.stamp);
+        const double age = (node_topics_interface_->now() - stamp).seconds();
+        if (m.hardware_measurements || m.joint != hw_vehicle_struct.robot_prefix + "IOs" ||
+            !m.retained_available || !m.retained_valid ||
+            m.source_generation != sim_generation_ || m.epoch >= (1ULL << 53) ||
+            stamp < estimator_model_reset_stamp_ || age < 0. || age > 3. ||
+            !std::isfinite(m.retained_accepted_time) || m.retained_accepted_time < 0. ||
+            m.retained_accepted_time > hw_vehicle_struct.sim_time) return;
+        if (estimator_model_retained_ == 1. &&
+            m.retained_accepted_time < estimator_model_accepted_time_) return;
+        const auto &p = m.retained_parameters;
+        for (double v : p) if (!std::isfinite(v)) return;
+        if (std::abs(p[3]-p[6]) > 1e-8 || std::abs(p[4]-p[5]) > 1e-8 ||
+            p[0]<=0 || p[1]<=0 || p[2]<=0 || p[7]<=0 || p[8]<=0 || p[9]<=0 ||
+            p[0]*p[8]-p[3]*p[3]<=0 || p[1]*p[7]-p[4]*p[4]<=0 ||
+            p[10]<=0 || p[11]<0) return;
+        for (int i=15; i<27; ++i) if (p[i]>0.) return;
+        pending_retained_model_ = m;
+        retained_model_received_ = std::chrono::steady_clock::now();
+    }
+
+    void SimVehicleSystemMultiInterfaceHardware::apply_retained_model()
+    {
+        // Net weight is sufficient only in the identified submerged/surface regime.
+        const bool above_water = hw_vehicle_struct.depth_from_pressure2 < 0. || double(x_est_(2)) < 0.;
+        if (estimator_model_net_weight_only_ && above_water) restore_nominal_estimator_model();
+        if (!pending_retained_model_) return;
+        const auto m = *pending_retained_model_;
+        pending_retained_model_.reset();
+        if (m.source_generation != sim_generation_ ||
+            std::chrono::duration<double>(std::chrono::steady_clock::now()-retained_model_received_).count()>3. ||
+            (m.retained_net_weight_only && above_water) ||
+            (estimator_model_retained_ == 1. && estimator_model_epoch_ == m.epoch &&
+             estimator_model_accepted_time_ == m.retained_accepted_time)) return;
+        // Preserve navigation state/covariance, but discard disturbance attributed to the old model.
+        restore_nominal_estimator_model();
+        for (int i=0; i<27; ++i) {
+            estimator_nominal_parameters_(i) = m.retained_parameters[i];
+            estimator_model_readback_[i] = m.retained_parameters[i];
+        }
+        estimator_model_retained_ = 1.;
+        estimator_model_epoch_ = m.epoch;
+        estimator_model_accepted_time_ = m.retained_accepted_time;
+        estimator_model_net_weight_only_ = m.retained_net_weight_only;
     }
 
     void SimVehicleSystemMultiInterfaceHardware::seed_vehicle_estimator_from_state(
@@ -244,12 +305,8 @@ namespace ros2_control_blue_reach_5
         x_est_(9) = state.p;
         x_est_(10) = state.q;
         x_est_(11) = state.r;
-        x_est_(12) = state.du;
-        x_est_(13) = state.dv;
-        x_est_(14) = state.dw;
-        x_est_(15) = state.dp;
-        x_est_(16) = state.dq;
-        x_est_(17) = state.dr;
+        // Simulator reset supplies the initial navigation prior, never a wrench prior.
+        // Disturbance states start at zero regardless of the requested plant wrench.
     }
 
     void SimVehicleSystemMultiInterfaceHardware::seed_vehicle_sensor_state_from_state(
@@ -262,8 +319,8 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.imu_state.pitch_unwrap = -state.pitch;
         hw_vehicle_struct.imu_state.yaw_unwrap = -state.yaw;
         hw_vehicle_struct.imu_state.angular_vel_x = state.p;
-        hw_vehicle_struct.imu_state.angular_vel_y = state.q;
-        hw_vehicle_struct.imu_state.angular_vel_z = state.r;
+        hw_vehicle_struct.imu_state.angular_vel_y = -state.q;
+        hw_vehicle_struct.imu_state.angular_vel_z = -state.r;
         hw_vehicle_struct.imu_state.linear_acceleration_x = state.du;
         hw_vehicle_struct.imu_state.linear_acceleration_y = state.dv;
         hw_vehicle_struct.imu_state.linear_acceleration_z = state.dw;
@@ -275,6 +332,17 @@ namespace ros2_control_blue_reach_5
 
     void SimVehicleSystemMultiInterfaceHardware::reset_vehicle_simulation_state()
     {
+        sim_step_ = 0.0;
+        sim_generation_ += 1.0;
+        sensor_elapsed_ = 0.0;
+        sensor_next_sample_.fill(0.0);
+        sensor_sample_time_.fill(0.0);
+        sensor_new_.fill(0.0);
+        raw_imu_new_.fill(0.0);
+        raw_imu_measurement_.fill(0.0);
+        sensor_measurement_.fill(0.0);
+        sensor_noise_rng_.seed(sensor_noise_seed_);
+        sensor_normal_.reset();
         hw_vehicle_struct.current_state_ = hw_vehicle_struct.default_state_;
         hw_vehicle_struct.async_state_ = hw_vehicle_struct.default_state_;
         hw_vehicle_struct.command_state_ = hw_vehicle_struct.default_state_;
@@ -305,6 +373,7 @@ namespace ros2_control_blue_reach_5
             contact_wrench_body_ = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         }
 
+        if (disturbance_receiver_) disturbance_receiver_->reset();
         commands_held_ = true;
         reset_vehicle_estimators();
         seed_vehicle_estimator_from_state(hw_vehicle_struct.default_state_);
@@ -459,8 +528,12 @@ namespace ros2_control_blue_reach_5
         utils_service.vehicle_dynamics = utils_service.load_casadi_fun("Vnext_reg", "libUV_xnext.so");
         utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
         utils_service.thrust2rads = utils_service.load_casadi_fun("thrusts_to_rads", "libTHRUST_RAD.so");
-        utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
-        // utils_service.uv_dynamic_Exkalman_update = utils_service.load_casadi_fun("mb_ekf_update", "libmodelbasedEKF_next.so");
+        utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("disturbance_ekf_update", "libdisturbanceEKF_next.so");
+        estimator_predict_ = utils_service.load_casadi_fun("disturbance_ekf_predict", "libdisturbanceEKF_next.so");
+        estimator_covariance_predict_ = utils_service.load_casadi_fun("disturbance_ekf_predict_covariance", "libdisturbanceEKF_next.so");
+        estimator_correct_ = utils_service.load_casadi_fun("disturbance_ekf_correct", "libdisturbanceEKF_next.so");
+        sensor_correct_ = utils_service.load_casadi_fun("disturbance_ekf_sensor_correct", "libdisturbanceEKF_next.so");
+        physical_sensor_model_ = utils_service.load_casadi_fun("vehicle_sensor_model", "libdisturbanceEKF_next.so");
         utils_service.pwm_to_thrusts = utils_service.load_casadi_fun("pwm_to_thrusts", "libPWM_THRUST.so");
         utils_service.thruster_f2body_f = utils_service.load_casadi_fun("F_thruster_body", "libF_thruster_body.so");
 
@@ -512,6 +585,9 @@ namespace ros2_control_blue_reach_5
             use_pwm_str == "true" || use_pwm_str == "True" || use_pwm_str == "1";
         const auto default_dynamics = default_vehicle_dynamics();
         vehicle_parameters_new = to_dm_vector(pack_vehicle_dynamics(default_dynamics));
+        estimator_nominal_parameters_ = casadi::DM(pack_vehicle_dynamics(default_dynamics));
+        const auto estimator_model = pack_vehicle_dynamics(default_dynamics);
+        std::copy(estimator_model.begin(), estimator_model.end(), estimator_model_readback_.begin());
         thrust_configuration_matrix_ = default_dynamics.thrust_configuration_matrix;
 
         bool same_initial_conditions = false;
@@ -602,12 +678,12 @@ namespace ros2_control_blue_reach_5
 
         for (const hardware_interface::ComponentInfo &gpio : get_hardware_info().gpios)
         {
-            // SimVehicleSystemMultiInterfaceHardware has exactly 83 gpio state interfaces
-            if (gpio.state_interfaces.size() != 83)
+            // Includes simulation step metadata and disturbance estimator diagnostics.
+            if (gpio.state_interfaces.size() != 206)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
-                    "GPIO '%s'has %zu state interfaces. 83 expected.", gpio.name.c_str(),
+                    "GPIO '%s'has %zu state interfaces. 206 expected.", gpio.name.c_str(),
                     gpio.state_interfaces.size());
                 return hardware_interface::CallbackReturn::ERROR;
             }
@@ -635,6 +711,16 @@ namespace ros2_control_blue_reach_5
         {
             // Initialize node
             node_topics_interface_ = std::make_shared<rclcpp::Node>(system_name + "_topics_interface");
+            configure_estimator_noise();
+            retained_model_subscription_ = node_topics_interface_->create_subscription<Identification>(
+                "/vehicle_identification/" + hw_vehicle_struct.robot_prefix + "IOs/candidate", 10,
+                [this](Identification::ConstSharedPtr m) { receive_retained_model(*m); });
+
+            // Opt-in simulation evaluation telemetry. Never changes estimator inputs or outputs.
+            if (std::getenv("UVMS_EKF_EVALUATION_TRACE")) {
+                evaluation_trace_pub_ = node_topics_interface_->create_publisher<std_msgs::msg::Float64MultiArray>(
+                    "/" + hw_vehicle_struct.robot_prefix + "ekf_evaluation_trace", rclcpp::QoS(2048).reliable());
+            }
 
             // Initialize executor and add node
             executor_ = std::make_shared<rclcpp::executors::SingleThreadedExecutor>();
@@ -661,6 +747,8 @@ namespace ros2_control_blue_reach_5
             auto &transform_message = realtime_transform_publisher_->msg_;
             transform_message.transforms.resize(2);
 
+            disturbance_receiver_ = std::make_shared<DisturbanceReceiver>(
+                node_topics_interface_, hw_vehicle_struct.robot_prefix, "vehicle");
             contact_wrench_sub_ =
                 node_topics_interface_->create_subscription<geometry_msgs::msg::WrenchStamped>(
                     "contact_wrench_body",
@@ -696,32 +784,14 @@ namespace ros2_control_blue_reach_5
 
         reset_vehicle_estimators();
 
-        // Process noise covariance: 18x18, scaled by 0.01
-        casadi::DM Q_vector = casadi::DM::zeros(18, 1);
-        Q_vector(0) = 0.001;
-        Q_vector(1) = 0.001;
-        Q_vector(2) = 0.001;
-        Q_vector(3) = 0.001;
-        Q_vector(4) = 0.001;
-        Q_vector(5) = 0.001;
-        Q_vector(6) = 0.001;
-        Q_vector(7) = 0.001;
-        Q_vector(8) = 0.001;
-        Q_vector(9) = 0.001;
-        Q_vector(10) = 0.001;
-        Q_vector(11) = 0.001;
-        Q_ = casadi::DM::diag(Q_vector);
-
-        // Measurement noise R_
-        casadi::DM R_vector = casadi::DM::zeros(7, 1); // 7x1 vector
-        R_vector(0) = 0.01;                            // z_pressure noise variance
-        R_vector(1) = 0.005;                           // IMU roll noise variance
-        R_vector(2) = 0.005;                           // IMU pitch noise variance
-        R_vector(3) = 0.005;                           // IMU yaw noise variance
-        R_vector(4) = 0.005;                           // DVL vx noise variance
-        R_vector(5) = 0.005;                           // DVL vy noise variance
-        R_vector(6) = 0.005;                           // DVL vz noise variance
-        R_ = casadi::DM::diag(R_vector);
+        sensor_noise_service_ = node_topics_interface_->create_service<std_srvs::srv::SetBool>(
+            "/" + hw_vehicle_struct.robot_prefix + "set_sensor_noise",
+            [this](const std::shared_ptr<std_srvs::srv::SetBool::Request> request,
+                   std::shared_ptr<std_srvs::srv::SetBool::Response> response) {
+                sensor_noise_requested_.store(request->data);
+                response->success = true;
+                response->message = "Sensor-noise change queued for next simulation step; EKF tuning unchanged";
+            });
 
         auto reset_state_callback =
             [this](
@@ -826,6 +896,7 @@ namespace ros2_control_blue_reach_5
 
     hardware_interface::CallbackReturn SimVehicleSystemMultiInterfaceHardware::on_cleanup(const rclcpp_lifecycle::State &)
     {
+        noise_adaptation_.stop();
         stop_ros_interfaces();
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
@@ -928,6 +999,13 @@ namespace ros2_control_blue_reach_5
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[27].name, &hw_vehicle_struct.current_state_.Tz));
 
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, "sim_step", &sim_step_));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, "sim_generation", &sim_generation_));
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name, "estimator_model_retained", &estimator_model_retained_);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name, "estimator_model_epoch", &estimator_model_epoch_);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name, "estimator_model_accepted_time", &estimator_model_accepted_time_);
         // 28-29: Simulation time and period
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[28].name, &hw_vehicle_struct.sim_time));
@@ -1070,6 +1148,60 @@ namespace ros2_control_blue_reach_5
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[81].name, &control_power_));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[82].name, &control_energy_));
+        for (std::size_t i=0; i<3; ++i)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "sensor_sample_time." + std::to_string(i), &sensor_sample_time_[i]);
+        for (std::size_t i=0; i<7; ++i)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "sensor_new." + std::to_string(i), &sensor_new_[i]);
+        for (std::size_t i=0; i<6; ++i)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "sensor_new." + std::to_string(7+i), &raw_imu_new_[i]);
+        const std::array<std::string, 6> wrench_axes = {
+            "force.x", "force.y", "force.z", "torque.x", "torque.y", "torque.z"};
+        for (std::size_t i = 0; i < estimator_model_readback_.size(); ++i)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimator_nominal_parameter." + std::to_string(i), &estimator_model_readback_[i]);
+        for (std::size_t i = 0; i < wrench_axes.size(); ++i)
+        {
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name, "estimated_disturbance." + wrench_axes[i],
+                &estimated_disturbance_[i]));
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name, "estimated_disturbance.variance." + wrench_axes[i],
+                &P_diag_[12 + i]));
+        }
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, "estimator_step", &estimator_step_));
+        state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name, "estimator_valid", &estimator_valid_));
+        for (std::size_t i=0;i<6;++i)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimator_noise.intensity."+std::to_string(i), &noise_adaptation_.active_density[i]);
+        const std::array<std::string,6> noise_status_names{
+            "enabled", "applied_fit_count", "dropped", "failed", "fit_seconds", "endpoint_step"};
+        for (std::size_t i=0;i<noise_status_names.size();++i)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimator_noise."+noise_status_names[i], &noise_adaptation_.diagnostics[i]);
+        for (std::size_t i=0;i<6;++i) for (std::size_t j=0;j<6;++j)
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "estimated_disturbance.covariance."+std::to_string(i)+"."+std::to_string(j),
+                &disturbance_covariance_[6*i+j]);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "sensor_noise_enabled", &sensor_noise_enabled_);
+        // Posterior model acceleration; keep physical/raw acceleration separately.
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "linear_acceleration_estimate.x", &hw_vehicle_struct.estimate_state_.du);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "linear_acceleration_estimate.y", &hw_vehicle_struct.estimate_state_.dv);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "linear_acceleration_estimate.z", &hw_vehicle_struct.estimate_state_.dw);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "angular_acceleration_estimate.x", &hw_vehicle_struct.estimate_state_.dp);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "angular_acceleration_estimate.y", &hw_vehicle_struct.estimate_state_.dq);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "angular_acceleration_estimate.z", &hw_vehicle_struct.estimate_state_.dr);
         return state_interfaces;
     }
 
@@ -1188,10 +1320,168 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn SimVehicleSystemMultiInterfaceHardware::on_deactivate(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        noise_adaptation_.reset(Q_);
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "Deactivating... please wait...");
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "Successfully deactivated!");
         return hardware_interface::CallbackReturn::SUCCESS;
+    }
+
+    void SimVehicleSystemMultiInterfaceHardware::configure_estimator_noise()
+    {
+        // Sample at independent sensor rates on the completed dynamics clock.
+        // EKF uncertainty is configured independently of generated sensor noise.
+        // Unknown acceleration remains represented by the augmented wrench.
+        rcl_interfaces::msg::ParameterDescriptor descriptor;
+        descriptor.read_only = true;
+        sensor_noise_requested_.store(node_topics_interface_->declare_parameter<bool>(
+            "sim_sensor_noise_enabled", true, descriptor));
+        sensor_noise_enabled_ = sensor_noise_requested_.load() ? 1.0 : 0.0;
+
+        auto diagonal = [&](const char *name, std::size_t size, double value, bool positive) {
+            const auto values = node_topics_interface_->declare_parameter<std::vector<double>>(
+                name, std::vector<double>(size, value), descriptor);
+            if (values.size() != size || std::any_of(values.begin(), values.end(),
+                [positive](double v) { return !std::isfinite(v) || v < 0.0 || (positive && v == 0.0); }))
+                throw std::invalid_argument(std::string(name) + ": invalid covariance diagonal");
+            return casadi::DM::diag(casadi::DM(values));
+        };
+        const auto navigation = diagonal("ekf_navigation_process_intensities", 12, 0.0, false);
+        // Separate physical units: force N^2/s, moment (N m)^2/s. This is a
+        // responsive example prior, not a calibration or an injected-load input.
+        const auto wrench_values = node_topics_interface_->declare_parameter<std::vector<double>>(
+            "ekf_wrench_process_intensities", {7e-4,7e-4,7e-4,7e-4,7e-4,7e-4}, descriptor);
+        if (wrench_values.size()!=6 || std::any_of(wrench_values.begin(),wrench_values.end(),
+            [](double v){return !std::isfinite(v)||v<0.;}))
+            throw std::invalid_argument("ekf_wrench_process_intensities requires six nonnegative values");
+        const auto full_wrench=node_topics_interface_->declare_parameter<std::vector<double>>(
+            "ekf_wrench_process_covariance", std::vector<double>{}, descriptor);
+        const auto wrench=casadi_reach_alpha_5::wrench_process_covariance(full_wrench,wrench_values);
+        Q_ = casadi::DM::diagcat({navigation, wrench});
+        const bool adapt_noise = node_topics_interface_->declare_parameter<bool>(
+            "ekf_adapt_wrench_process_noise", false, descriptor);
+        if (adapt_noise && !full_wrench.empty())
+            throw std::invalid_argument("ekf_adapt_wrench_process_noise does not support a full covariance override");
+        VehicleDisturbanceNoiseAdaptation::Density configured_noise{};
+        for (int i=0;i<6;++i) configured_noise[i]=double(wrench(i,i));
+        noise_adaptation_.configure(configured_noise, adapt_noise
+            ? std::string("libdisturbanceEKF_next.so") : std::string());
+
+        const auto rates = node_topics_interface_->declare_parameter<std::vector<double>>(
+            "sim_sensor_rates_hz", {10.0, 200.0, 10.0}, descriptor);
+        if (rates.size() != 3 || std::any_of(rates.begin(), rates.end(), [](double v) {
+            return !std::isfinite(v) || v < 0.0 || v > 1000.0;
+        })) throw std::invalid_argument("sim_sensor_rates_hz: expected three rates in [0,1000]; zero means every step");
+        std::copy(rates.begin(), rates.end(), sensor_rates_.begin());
+        const auto standard_deviations = node_topics_interface_->declare_parameter<std::vector<double>>(
+            "sim_sensor_noise_std", std::vector<double>(7, 0.001), descriptor);
+        if (standard_deviations.size() != 7 || std::any_of(
+            standard_deviations.begin(), standard_deviations.end(), [](double v) {
+                return !std::isfinite(v) || v < 0.0 || !std::isfinite(v*v);
+            })) throw std::invalid_argument("sim_sensor_noise_std: expected seven finite nonnegative standard deviations");
+        std::copy(standard_deviations.begin(), standard_deviations.end(), sensor_noise_std_.begin());
+        // Stable per-robot default: identical robots must not share noise streams.
+        uint32_t default_seed = 2166136261u;
+        for (unsigned char c : hw_vehicle_struct.robot_prefix) default_seed = (default_seed ^ c) * 16777619u;
+        const auto seed = node_topics_interface_->declare_parameter<int64_t>(
+            "sim_sensor_noise_seed", default_seed, descriptor);
+        if (seed < 0 || seed > std::numeric_limits<uint32_t>::max())
+            throw std::invalid_argument("sim_sensor_noise_seed: expected an unsigned 32-bit seed");
+        sensor_noise_seed_ = static_cast<uint32_t>(seed);
+        sensor_noise_rng_.seed(sensor_noise_seed_);
+        sensor_normal_.reset();
+        R_ = casadi::DM::zeros(7, 7);
+        R_(casadi::Slice(0,4),casadi::Slice(0,4)) =
+            diagonal("depth_attitude_measurement_variances", 4, 1e-6, true);
+        const auto assumed_dvl = node_topics_interface_->declare_parameter<std::vector<double>>(
+            "dvl_measurement_covariance", {1e-6,0.,0.,0.,1e-6,0.,0.,0.,1e-6}, descriptor);
+        const auto checked_covariance = [](const std::vector<double>& values, const char* name) {
+            if (values.size()!=9) throw std::invalid_argument(std::string(name)+": expected nine row-major entries");
+            Eigen::Matrix3d C;
+            for(int i=0;i<3;++i) for(int j=0;j<3;++j) C(i,j)=values[3*i+j];
+            const double scale=C.cwiseAbs().maxCoeff();
+            if(!C.allFinite() || scale<=0. ||
+               (C-C.transpose()).cwiseAbs().maxCoeff()>1e-6*scale)
+                throw std::invalid_argument(std::string(name)+": expected finite symmetric covariance");
+            C=((C+C.transpose())*.5).eval();
+            if(Eigen::LLT<Eigen::Matrix3d>(C).info()!=Eigen::Success)
+                throw std::invalid_argument(std::string(name)+": covariance must be positive definite");
+            return C;
+        };
+        const auto assumed_C=checked_covariance(assumed_dvl,"dvl_measurement_covariance");
+        for(int i=0;i<3;++i) for(int j=0;j<3;++j) R_(4+i,4+j)=assumed_C(i,j);
+        // Optional measured A50 covariance in body FRD, row-major (m/s)^2.
+        // Empty keeps the diagonal std profile; explicit covariance takes precedence.
+        const auto covariance = node_topics_interface_->declare_parameter<std::vector<double>>(
+            "sim_dvl_covariance", std::vector<double>{}, descriptor);
+        sensor_dvl_factor_.fill(0.0);
+        for (int i=0; i<3; ++i) sensor_dvl_factor_[3*i+i] = sensor_noise_std_[4+i];
+        if (!covariance.empty()) {
+            const auto C=checked_covariance(covariance,"sim_dvl_covariance");
+            Eigen::LLT<Eigen::Matrix3d> factor(C);
+            const Eigen::Matrix3d L=factor.matrixL();
+            for (int i=0; i<3; ++i) for (int j=0; j<3; ++j) {
+                sensor_dvl_factor_[3*i+j]=L(i,j);
+            }
+        }
+        const auto raw_std=node_topics_interface_->declare_parameter<std::vector<double>>(
+            "sim_raw_imu_noise_std", {.001,.001,.001,.01,.01,.01}, descriptor);
+        if(raw_std.size()!=6 || std::any_of(raw_std.begin(),raw_std.end(),
+            [](double v){return !std::isfinite(v)||v<0.||!std::isfinite(v*v);}))
+            throw std::invalid_argument("sim_raw_imu_noise_std requires six finite nonnegative values");
+        std::copy(raw_std.begin(),raw_std.end(),raw_imu_std_.begin());
+        const auto offset=node_topics_interface_->declare_parameter<std::vector<double>>(
+            "imu_offset_body", {0.,0.,0.}, descriptor);
+        if(offset.size()!=3 || std::any_of(offset.begin(),offset.end(),[](double v){return !std::isfinite(v);}))
+            throw std::invalid_argument("imu_offset_body requires three finite FRD coordinates");
+        imu_offset_=casadi::DM(offset);
+        sensor_gravity_=node_topics_interface_->declare_parameter<double>("sensor_gravity",9.80665,descriptor);
+        if(!std::isfinite(sensor_gravity_)||sensor_gravity_<=0.)
+            throw std::invalid_argument("sensor_gravity must be positive");
+        sensor_R_=casadi::DM::eye(13);
+        sensor_R_(casadi::Slice(0,7),casadi::Slice(0,7))=R_;
+        const auto raw_variances=node_topics_interface_->declare_parameter<std::vector<double>>(
+            "raw_imu_measurement_variances", {1e-6,1e-6,1e-6,1e-4,1e-4,1e-4}, descriptor);
+        if(raw_variances.size()!=6 || std::any_of(raw_variances.begin(),raw_variances.end(),
+            [](double v){return !std::isfinite(v)||v<=0.;}))
+            throw std::invalid_argument("raw_imu_measurement_variances requires six finite positive variances");
+        for(int i=0;i<6;++i) sensor_R_(7+i,7+i)=raw_variances[i];
+    }
+
+    std::array<double, 7> SimVehicleSystemMultiInterfaceHardware::sample_vehicle_measurements(
+        const std::vector<double> &state, double dt)
+    {
+        if (!std::isfinite(dt) || dt <= 0.0)
+            throw std::invalid_argument("sensor sample requires a positive completed-step duration");
+        sensor_noise_enabled_ = sensor_noise_requested_.load() ? 1.0 : 0.0;
+        sensor_elapsed_ += dt;
+        sensor_new_.fill(0.0);
+        constexpr std::array<int, 4> offsets{0, 1, 4, 7};
+        for (std::size_t group=0; group<3; ++group) {
+            const double rate = sensor_rates_[group];
+            // Quantize the scheduled sample to the nearest completed step.
+            // Waiting strictly until after each deadline loses samples when the
+            // sensor and physics rates match but the wall-clock period jitters.
+            const double horizon = sensor_elapsed_ + (rate > 0.0 ?
+                std::min(0.5*dt, 0.5/rate) : 0.0);
+            if (horizon + 1e-10 < sensor_next_sample_[group]) continue;
+            std::array<double,3> dvl_noise{};
+            if (group==2) for (auto &value:dvl_noise) value=sensor_normal_(sensor_noise_rng_);
+            for (int i=offsets[group]; i<offsets[group+1]; ++i) {
+                double noise=0.0;
+                if (group==2) {
+                    for (int j=0;j<3;++j) noise+=sensor_dvl_factor_[3*(i-4)+j]*dvl_noise[j];
+                } else noise=sensor_noise_std_[i]*sensor_normal_(sensor_noise_rng_);
+                sensor_measurement_[i] = state.at(i+2) + apply_sensor_noise(noise);
+                sensor_new_[i] = 1.0;
+            }
+            sensor_sample_time_[group] = sensor_elapsed_;
+            // No catch-up samples invented from the latest state after a long step.
+            // Quantization is at most one physics step; schedules never accumulate drift.
+            sensor_next_sample_[group] = rate == 0.0 ? sensor_elapsed_ :
+                (std::floor((horizon + 1e-10)*rate) + 1.0)/rate;
+        }
+        return sensor_measurement_;
     }
 
     hardware_interface::return_type SimVehicleSystemMultiInterfaceHardware::read(
@@ -1200,44 +1490,105 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
         apply_pending_reset_request();
-        // measurements
+        // Each measurement belongs to the last completed write, not this read period.
+        if (dynamics_paused_ || sim_step_ == estimator_step_)
+        {
+            return hardware_interface::return_type::OK;
+        }
         casadi::DM y_k = casadi::DM::zeros(7, 1);
         {
             y_k(0) = hw_vehicle_struct.depth_from_pressure2;
             y_k(1) = hw_vehicle_struct.imu_state.roll_unwrap;
-            y_k(2) = hw_vehicle_struct.imu_state.pitch_unwrap;
-            y_k(3) = hw_vehicle_struct.imu_state.yaw_unwrap;
+            y_k(2) = -hw_vehicle_struct.imu_state.pitch_unwrap;
+            y_k(3) = -hw_vehicle_struct.imu_state.yaw_unwrap;
             y_k(4) = hw_vehicle_struct.dvl_state.vx;
             y_k(5) = hw_vehicle_struct.dvl_state.vy;
             y_k(6) = hw_vehicle_struct.dvl_state.vz;
         };
 
-        // Wrap time step in a DM object.
-        casadi::DM dt_dm(delta_seconds);
-        std::vector<casadi::DM> ekf_inputs = {x_est_, P_est_, dt_dm, y_k, Q_, R_};
-
-        // Call your CasADi function
-        std::vector<casadi::DM> state_est = utils_service.uv_Exkalman_update(ekf_inputs);
-
-        // casadi::DM u_uv_k = casadi::DM::zeros(6, 1);
-        // {
-        // u_uv_k(0) = hw_vehicle_struct.command_state_.Fx;
-        // u_uv_k(1) = hw_vehicle_struct.command_state_.Fy;
-        // u_uv_k(2) = hw_vehicle_struct.command_state_.Fz;
-        // u_uv_k(3) = hw_vehicle_struct.command_state_.Tx;
-        // u_uv_k(4) = hw_vehicle_struct.command_state_.Ty;
-        // u_uv_k(5) = hw_vehicle_struct.command_state_.Tz;
-        // };
-
-        // casadi::Slice first12(0,12);
-
-        // // shrink state and covariance
-        // casadi::DM x12 = x_est_(first12, Slice());
-        // casadi::DM P12 = P_est_(first12, first12);
-        // casadi::DM Q12 = Q_(first12, first12);
-
-        // std::vector<casadi::DM> dynamic_ekf_inputs = {x12, u_uv_k, P12, dt_dm, y_k, Q12, R_};
-        // std::vector<casadi::DM> state_pred = utils_service.uv_dynamic_Exkalman_update(dynamic_ekf_inputs);
+        const double completed_dt = hw_vehicle_struct.sim_period;
+        if (sim_step_ != estimator_step_ + 1.0 ||
+            !std::isfinite(completed_dt) || completed_dt <= 0.0)
+        {
+            noise_adaptation_.before_prediction(Q_, false);
+            estimator_valid_ = 0.0;
+            RCLCPP_ERROR(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                         "Disturbance EKF lost completed-step synchronization; reset required");
+            return hardware_interface::return_type::ERROR;
+        }
+        apply_retained_model();
+        noise_adaptation_.before_prediction(Q_, true);
+        const auto raw_measurement = casadi::DM(std::vector<double>(raw_imu_measurement_.begin(),raw_imu_measurement_.end()));
+        const auto y_sensor = casadi::DM::vertcat({y_k, raw_measurement});
+        const auto sensor_mask = casadi::DM::vertcat({
+            casadi::DM(std::vector<double>(sensor_new_.begin(),sensor_new_.end())),
+            casadi::DM(std::vector<double>(raw_imu_new_.begin(),raw_imu_new_.end()))});
+        std::vector<casadi::DM> ekf_inputs = {
+            x_est_, P_est_, estimator_applied_input_, estimator_nominal_parameters_,
+            completed_dt, y_sensor, Q_ * completed_dt, sensor_R_};
+        std::vector<casadi::DM> state_est;
+        try
+        {
+            const auto prediction = casadi_reach_alpha_5::predict_disturbance_covariance(
+                estimator_covariance_predict_, x_est_, P_est_, estimator_applied_input_,
+                estimator_nominal_parameters_, completed_dt, Q_);
+            const auto &prior_P = prediction[1];
+            // The trace stores the actual integrated discrete covariance.
+            ekf_inputs[6] = prediction[3];
+            const auto corrected = sensor_correct_(std::vector<casadi::DM>{
+                prediction[0], prior_P, estimator_applied_input_, estimator_nominal_parameters_,
+                y_sensor, sensor_R_, sensor_mask, 1.0, imu_offset_, sensor_gravity_});
+            // Evaluate the nominal acceleration directly; do not run a second
+            // zero-duration Kalman correction just to obtain this output.
+            const auto model = physical_sensor_model_(std::vector<casadi::DM>{
+                corrected[0], estimator_applied_input_, estimator_nominal_parameters_,
+                imu_offset_, sensor_gravity_});
+            state_est = {corrected[0],corrected[1],corrected[2],corrected[3],model[2]};
+            for (const auto &output : state_est)
+                for (const double value : output.nonzeros())
+                    if (!std::isfinite(value)) throw std::runtime_error("nonfinite EKF output");
+            noise_adaptation_.after_correction(prediction, corrected, completed_dt,
+                static_cast<uint64_t>(sim_step_));
+        }
+        catch (const std::exception &error)
+        {
+            noise_adaptation_.before_prediction(Q_, false);
+            estimator_valid_ = 0.0;
+            RCLCPP_ERROR(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                         "Disturbance EKF failed: %s", error.what());
+            return hardware_interface::return_type::ERROR;
+        }
+        if (evaluation_trace_pub_) {
+            std_msgs::msg::Float64MultiArray trace;
+            trace.data = {node_topics_interface_->now().seconds(), hw_vehicle_struct.sim_time,
+                          sim_generation_, sim_step_, completed_dt, evaluation_reset_sequence_,
+                          estimator_model_retained_, estimator_model_epoch_, estimator_model_accepted_time_};
+            auto append = [&](const casadi::DM &value) {
+                // Dense, column-major, including structural zeros in covariances.
+                for (casadi_int j=0; j<value.size2(); ++j)
+                    for (casadi_int i=0; i<value.size1(); ++i) trace.data.push_back(double(value(i,j)));
+            };
+            for (const auto &value : ekf_inputs) append(value);
+            for (const auto &value : state_est) append(value);
+            for (double value : vehicle_next_states) trace.data.push_back(value);
+            for (const auto &value : vehicle_parameters_new) append(value);
+            trace.data.insert(trace.data.end(), {hw_vehicle_struct.imu_state.angular_vel_x, hw_vehicle_struct.imu_state.angular_vel_y, hw_vehicle_struct.imu_state.angular_vel_z});
+            for (double value : arm_base_f_ext) trace.data.push_back(value);
+            // Schema 4 stores integrated Qd; 13 measurements/R/innovations and explicit mask.
+            // Suffix: mask(13), sample times(3), clock(1), IMU offset(3), gravity(1).
+            // Consumers of schema 1 must not replay held observations as fresh data.
+            trace.layout.dim.resize(1);
+            trace.layout.dim[0].label = "vehicle_ekf_trace_v4_integrated_process_noise";
+            trace.data.insert(trace.data.end(), sensor_new_.begin(), sensor_new_.end());
+            trace.data.insert(trace.data.end(), raw_imu_new_.begin(), raw_imu_new_.end());
+            trace.data.insert(trace.data.end(), sensor_sample_time_.begin(), sensor_sample_time_.end());
+            trace.data.push_back(sensor_elapsed_);
+            append(imu_offset_);trace.data.push_back(sensor_gravity_);
+            trace.layout.dim[0].size = trace.layout.dim[0].stride = trace.data.size();
+            evaluation_trace_pub_->publish(trace);
+        }
+        estimator_step_ = sim_step_;
+        estimator_valid_ = 1.0;
 
         // Extract result
         x_est_ = state_est[0];
@@ -1245,6 +1596,8 @@ namespace ros2_control_blue_reach_5
         for (std::size_t i = 0; i < 18; ++i)
         {
             P_diag_[i] = double(P_est_(i, i));
+            if (i >= 12) for (int j=0;j<6;++j)
+                disturbance_covariance_[6*(i-12)+j]=double(P_est_(i,12+j));
         }
 
         // // Convert x_est_ to std::vector<double> or just read from DM?
@@ -1261,12 +1614,14 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.estimate_state_.p = x_est_v[9];
         hw_vehicle_struct.estimate_state_.q = x_est_v[10];
         hw_vehicle_struct.estimate_state_.r = x_est_v[11];
-        hw_vehicle_struct.current_state_.du = x_est_v[12];
-        hw_vehicle_struct.current_state_.dv = x_est_v[13];
-        hw_vehicle_struct.current_state_.dw = x_est_v[14];
-        hw_vehicle_struct.current_state_.dp = x_est_v[15];
-        hw_vehicle_struct.current_state_.dq = x_est_v[16];
-        hw_vehicle_struct.current_state_.dr = x_est_v[17];
+        for (int i = 0; i < 6; ++i) estimated_disturbance_[i] = x_est_v[12 + i];
+        const auto acceleration = dense_vector(state_est[4], 6);
+        hw_vehicle_struct.estimate_state_.du = acceleration[0];
+        hw_vehicle_struct.estimate_state_.dv = acceleration[1];
+        hw_vehicle_struct.estimate_state_.dw = acceleration[2];
+        hw_vehicle_struct.estimate_state_.dp = acceleration[3];
+        hw_vehicle_struct.estimate_state_.dq = acceleration[4];
+        hw_vehicle_struct.estimate_state_.dr = acceleration[5];
 
         return hardware_interface::return_type::OK;
     }
@@ -1275,9 +1630,10 @@ namespace ros2_control_blue_reach_5
         const rclcpp::Time &time, const rclcpp::Duration &period)
     {
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+        apply_pending_reset_request();
+        // Reset clears cached timing; this write still owns its actual interval.
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
-        apply_pending_reset_request();
 
         if (commands_held_)
         {
@@ -1407,19 +1763,11 @@ namespace ros2_control_blue_reach_5
             wrench_copy = contact_wrench_body_;
         }
 
-        //         // Debug print the external wrench that would be applied to dynamics
-        // RCLCPP_INFO(
-        //     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
-        //     "contact wrench body frame Fx=%.3f Fy=%.3f Fz=%.3f Tx=%.3f Ty=%.3f Tz=%.3f  dt=%.4f",
-        //     wrench_copy[0],
-        //     wrench_copy[1],
-        //     wrench_copy[2],
-        //     wrench_copy[3],
-        //     wrench_copy[4],
-        //     wrench_copy[5],
-        //     delta_seconds
-        // );
-
+        const auto contact_only = wrench_copy;
+        // Independent injection input: never overwrites physical contact.
+        const auto injection = disturbance_receiver_ ? disturbance_receiver_->sample() : msg::DisturbanceCommand{};
+        const auto injected_wrench = DisturbanceLease::wrench(injection);
+        for (size_t i=0; i<6; ++i) wrench_copy[i] += injected_wrench[i];
         // Build arm_base_f_ext from wrench_copy
         arm_base_f_ext.clear();
         arm_base_f_ext.reserve(6);
@@ -1430,28 +1778,29 @@ namespace ros2_control_blue_reach_5
         arm_base_f_ext.push_back(wrench_copy[4]); // Ty body
         arm_base_f_ext.push_back(wrench_copy[5]); // Tz body
 
-        // arm_base_f_ext = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         vehicle_simulate_argument = {uv_state, uv_input, vehicle_parameters_new, delta_seconds, arm_base_f_ext};
         vehicle_sim = utils_service.vehicle_dynamics(vehicle_simulate_argument);
         vehicle_next_states = dense_vector(vehicle_sim.at(0), 12);
+        if (disturbance_receiver_) disturbance_receiver_->completed(injection, delta_seconds, contact_only);
+        // Only actuator effort enters the estimator; external wrench stays plant-only.
+        for (int i = 0; i < 6; ++i) estimator_applied_input_(i) = uv_input[i];
 
         hw_vehicle_struct.current_state_.position_x = vehicle_next_states[0];
         hw_vehicle_struct.current_state_.position_y = vehicle_next_states[1];
         hw_vehicle_struct.current_state_.position_z = vehicle_next_states[2];
 
-        hw_vehicle_struct.depth_from_pressure2 = vehicle_next_states[2];
+        const auto measurement = sample_vehicle_measurements(vehicle_next_states, delta_seconds);
+        hw_vehicle_struct.depth_from_pressure2 = measurement[0];
 
         hw_vehicle_struct.current_state_.setEuler(vehicle_next_states[3],
                                                   vehicle_next_states[4],
                                                   vehicle_next_states[5]);
 
-        hw_vehicle_struct.imu_state.setEuler(vehicle_next_states[3],
-                                             -vehicle_next_states[4],
-                                             -vehicle_next_states[5]);
+        hw_vehicle_struct.imu_state.setEuler(measurement[1], -measurement[2], -measurement[3]);
 
-        hw_vehicle_struct.imu_state.roll_unwrap = vehicle_next_states[3];
-        hw_vehicle_struct.imu_state.pitch_unwrap = -vehicle_next_states[4];
-        hw_vehicle_struct.imu_state.yaw_unwrap = -vehicle_next_states[5];
+        hw_vehicle_struct.imu_state.roll_unwrap = measurement[1];
+        hw_vehicle_struct.imu_state.pitch_unwrap = -measurement[2];
+        hw_vehicle_struct.imu_state.yaw_unwrap = -measurement[3];
 
         hw_vehicle_struct.current_state_.u = vehicle_next_states[6];
         hw_vehicle_struct.current_state_.v = vehicle_next_states[7];
@@ -1460,9 +1809,36 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.current_state_.q = vehicle_next_states[10];
         hw_vehicle_struct.current_state_.r = vehicle_next_states[11];
 
-        hw_vehicle_struct.dvl_state.vx = vehicle_next_states[6];
-        hw_vehicle_struct.dvl_state.vy = vehicle_next_states[7];
-        hw_vehicle_struct.dvl_state.vz = vehicle_next_states[8];
+        // Physical sensor model at the completed state, actual applied effort and
+        // actual external loads. Truth is used ONLY to produce simulated readings.
+        // The correction above sees noisy readings, nominal parameters and its own d.
+        const auto physical = physical_sensor_model_(std::vector<casadi::DM>{
+            casadi::DM::vertcat({casadi::DM(vehicle_next_states),casadi::DM(arm_base_f_ext)}),
+            casadi::DM::vertcat(uv_input),casadi::DM::vertcat(vehicle_parameters_new),
+            imu_offset_,sensor_gravity_});
+        const auto physical_acceleration=dense_vector(physical[2],6);
+        hw_vehicle_struct.current_state_.du=physical_acceleration[0];
+        hw_vehicle_struct.current_state_.dv=physical_acceleration[1];
+        hw_vehicle_struct.current_state_.dw=physical_acceleration[2];
+        hw_vehicle_struct.current_state_.dp=physical_acceleration[3];
+        hw_vehicle_struct.current_state_.dq=physical_acceleration[4];
+        hw_vehicle_struct.current_state_.dr=physical_acceleration[5];
+        raw_imu_new_.fill(sensor_new_[1]);
+        if(sensor_new_[1]) {
+            for(int i=0;i<6;++i)
+                raw_imu_measurement_[i]=double(physical[0](7+i))+apply_sensor_noise(raw_imu_std_[i]*sensor_normal_(sensor_noise_rng_));
+            // FRD sensor model -> ROS FLU sensor interfaces, same timestamp as attitude.
+            hw_vehicle_struct.imu_state.angular_vel_x=raw_imu_measurement_[0];
+            hw_vehicle_struct.imu_state.angular_vel_y=-raw_imu_measurement_[1];
+            hw_vehicle_struct.imu_state.angular_vel_z=-raw_imu_measurement_[2];
+            hw_vehicle_struct.imu_state.linear_acceleration_x=raw_imu_measurement_[3];
+            hw_vehicle_struct.imu_state.linear_acceleration_y=-raw_imu_measurement_[4];
+            hw_vehicle_struct.imu_state.linear_acceleration_z=-raw_imu_measurement_[5];
+        }
+
+        hw_vehicle_struct.dvl_state.vx = measurement[4];
+        hw_vehicle_struct.dvl_state.vy = measurement[5];
+        hw_vehicle_struct.dvl_state.vz = measurement[6];
 
         hw_vehicle_struct.current_state_.Fx = hw_vehicle_struct.command_state_.Fx;
         hw_vehicle_struct.current_state_.Fy = hw_vehicle_struct.command_state_.Fy;
@@ -1474,6 +1850,7 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.sim_time = time_seconds;
         hw_vehicle_struct.sim_period = delta_seconds;
 
+        sim_step_ += 1.0;
         auto cam_msg_ptr_ptr = camera_mount_pitch_msg_buffer_.readFromRT();
         if (cam_msg_ptr_ptr && *cam_msg_ptr_ptr)
         {

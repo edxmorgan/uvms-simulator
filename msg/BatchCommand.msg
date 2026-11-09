@@ -16,4 +16,4 @@ uint32 arm_joint_count
 # The UVMS dynamics backend interprets:
 #   actions[:, 0:6] as vehicle wrench [Fx, Fy, Fz, Tx, Ty, Tz]
 #   actions[:, vehicle_action_dim:vehicle_action_dim+arm_action_dim] as arm joint torques
-float32[] actions
+float64[] actions

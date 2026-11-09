@@ -208,6 +208,15 @@ def generate_launch_description():
             description="The frequency (Hz) at which the driver updates the state of the robot.",
         )
     )
+    declared_arguments.append(DeclareLaunchArgument(
+        "hardware_vehicle_sensor_config", default_value="",
+        description="Hardware vehicle ROS YAML: measured surface_pressure_pa and depth/attitude variances."))
+    declared_arguments.append(DeclareLaunchArgument(
+        "sim_vehicle_sensor_config", default_value="",
+        description="Optional ROS parameter YAML for simulated vehicle sensor noise; empty uses the example noise profile."))
+    declared_arguments.append(DeclareLaunchArgument(
+        "arm_joint_locks", default_value="true", choices=["true", "false"],
+        description="Enable artificial joint locks on simulated arms; false for unlocked disturbance tests."))
     declared_arguments.append(
         DeclareLaunchArgument(
             "use_manipulator_hardware",
@@ -586,6 +595,9 @@ def launch_setup(context, *args, **kwargs):
             "use_manipulator_hardware:=",
             use_manipulator_hardware,
             " ",
+            "arm_joint_locks:=",
+            LaunchConfiguration("arm_joint_locks").perform(context),
+            " ",
             "use_vehicle_hardware:=",
             use_vehicle_hardware,
             " ",
@@ -609,6 +621,9 @@ def launch_setup(context, *args, **kwargs):
             " ",
             "use_dvl:=",
             use_dvl,
+            " ",
+            "manual_control:=",
+            str(task in {'manual', 'direct_thrusters'}).lower(),
             " ",
             "dvl_host:=",
             dvl_host,
@@ -832,10 +847,25 @@ def launch_setup(context, *args, **kwargs):
         condition=IfCondition(TextSubstitution(text=launch_overlay_text_text)),
     )
 
+    control_parameters = [robot_controllers_modified_file, robot_description]
+    sensor_config = LaunchConfiguration("sim_vehicle_sensor_config").perform(context).strip()
+    if sensor_config:
+        sensor_config = os.path.expanduser(sensor_config)
+        if use_vehicle_hardware_bool or not os.path.isfile(sensor_config):
+            raise RuntimeError("sim_vehicle_sensor_config requires a simulated vehicle and an existing YAML file")
+        control_parameters.append(sensor_config)
+
+    hardware_sensor_config = LaunchConfiguration("hardware_vehicle_sensor_config").perform(context).strip()
+    if hardware_sensor_config:
+        hardware_sensor_config = os.path.expanduser(hardware_sensor_config)
+        if not use_vehicle_hardware_bool or not os.path.isfile(hardware_sensor_config):
+            raise RuntimeError("hardware_vehicle_sensor_config requires a hardware vehicle and an existing YAML file")
+        control_parameters.append(hardware_sensor_config)
+
     control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
-        parameters=[robot_controllers_modified_file, robot_description],
+        parameters=control_parameters,
         arguments=['--ros-args', '--log-level', 'controller_manager:=ERROR'],
         output="both",
     )
@@ -1145,6 +1175,14 @@ def launch_setup(context, *args, **kwargs):
     # if is_hardware_uvms:
     #     simulator_actions.append(clp_after_switch)
 
+    # Injection is independent of control mode and is never started for hardware.
+    if not use_vehicle_hardware_bool and not use_manipulator_hardware_bool:
+        for prefix in robot_prefixes:
+            simulator_actions.append(Node(
+                package="simlab", executable="disturbance_injection_node",
+                name=prefix+"disturbance_injection", output="screen",
+                parameters=[{"robot_prefix": prefix}]))
+
     # Define simulator_agent
     simulator_agents = GroupAction(
         actions=simulator_actions,)
@@ -1158,6 +1196,7 @@ def launch_setup(context, *args, **kwargs):
             "[/]ros2_control_blue_reach_5[/]robot_description_publisher.py",
             "[/]robot_state_publisher[/]robot_state_publisher",
             "[/]simlab[/]interactive_controller",
+            "[/]simlab[/]disturbance_injection_node",
             "[/]simlab[/]bag_recorder_node",
             "[/]simlab[/]planner_action_server_node",
             "[/]simlab[/]collision_contact_node",
