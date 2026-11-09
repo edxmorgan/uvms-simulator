@@ -36,6 +36,7 @@ import launch.logging
 from bringup.utils.rviz_utils import rviz_file_configure
 from bringup.camera_destination import CameraDestination
 from bringup.utils.controller_config import modify_controller_config, controller_spawner_nodes
+from ament_index_python.packages import get_package_prefix, get_package_share_directory
 
 # Create a logger for the launch file
 logger = launch.logging.get_logger('robot_system_multi_interface_launch')
@@ -246,6 +247,9 @@ def generate_launch_description():
     declared_arguments.append(DeclareLaunchArgument(
         "sim_control_rate", default_value="",
         description="Simulation-only control/physics rate override in Hz (1..500); blank preserves controller YAML."))
+    declared_arguments.append(DeclareLaunchArgument(
+        "vehicle_identifier_config", default_value="",
+        description="Native identifier ROS YAML, or 'off'. Blank selects the simulation or hardware file in interactive mode."))
     declared_arguments.append(DeclareLaunchArgument(
         "arm_joint_locks", default_value="true", choices=["true", "false"],
         description="Enable artificial joint locks on simulated arms; false for unlocked disturbance tests."))
@@ -1228,6 +1232,28 @@ def launch_setup(context, *args, **kwargs):
 
     if planner_action_server_node is not None:
         simulator_actions.append(planner_action_server_node)
+
+    identifier_config = LaunchConfiguration("vehicle_identifier_config").perform(context).strip()
+    if not identifier_config and task == "interactive":
+        identifier_config = os.path.join(get_package_share_directory("ros2_control_blue_reach_5"),
+            "config", "vehicle_identification_hardware.yaml" if use_vehicle_hardware_bool
+            else "vehicle_identification_constraints.yaml")
+    if identifier_config.lower() == "off":
+        identifier_config = ""
+    if identifier_config:
+        executable = os.path.join(get_package_prefix("ros2_control_blue_reach_5"),
+                                  "lib", "ros2_control_blue_reach_5", "vehicle_identification_node")
+        if not os.path.isfile(identifier_config):
+            raise RuntimeError("vehicle_identifier_config must name an existing ROS parameter YAML")
+        if not os.path.isfile(executable):
+            logger.warning("Optional native identifier is not built; continuing without identification")
+        else:
+            for prefix in robot_prefixes:
+                simulator_actions.append(Node(
+                    package="ros2_control_blue_reach_5", executable="vehicle_identification_node",
+                    name=prefix+"vehicle_identification", output="screen",
+                    parameters=[identifier_config, {"joint": prefix+"IOs",
+                        "hardware_measurements": use_vehicle_hardware_bool}]))
 
 
     # if is_hardware_uvms:

@@ -1,0 +1,48 @@
+{
+  "model": "fully submerged; no air/water interface",
+  "native": false,
+  "cuda": false,
+  "compiler": "gcc",
+  "compiler_flags": [
+    "-O1",
+    "-fPIC",
+    "-shared"
+  ],
+  "casadi_version": "3.8.0+",
+  "frame": "NED / body FRD",
+  "source_sha256": {
+    "simulator.py": "f97fb6c37fdd91afbeb8bd4de4e1f972402117b05bff1319f73f55491e4161dc",
+    "estimation.py": "a9dcef4c59b18f31f65a42d76c51fb895797c28641e30f94bb73cdd3a871b91f",
+    "identification_filter.py": "64ae0f667f92c6bbb8d4721603a74744f266ed350784642e61a20ff2ed430a3e",
+    "kinematics.py": "be4f1f265e26d8d71486b91afe9b653630b382cf310bac43675ae60b3b642ff7",
+    "dynamics_euler.py": "1f30e53d69900475114e756754f433c8b87941ac2cfeaa6a68e81f72adace62c",
+    "live_identification.py": "4e2c23c8e18955720f1c43ec272d6d6215a24a1d64aaa37af77eb0fbf8b8ec4e",
+    "controller.py": "7aa97679810111a8c84fbd72e6f91b5ba3970796c65b44ec42967afd687d7744",
+    "base.py": "99d51b3341edb73cb94e3782aa19ecbf6a500781ecd4acabe6af07a66761305a",
+    "identification_data.py": "2d5639ce629516d0ae3046b3aae95789525e14b71be4c33e3f7ce9aa61c243c5",
+    "dynamics_quat.py": "b4bb47d52735efed06b70d9c1d02e4942fd3a68f2e57118c47f7e6cc3a2b92d5",
+    "system_id.py": "4241c590675de1d8cf9c63698ff28d97edd20d84c287a42585be274c162f851b",
+    "convex_vehicle_identification.py": "b7b88891efa9752a45ebfecabe94d1d7d6c732826a3c5b58595b138865aedbfc",
+    "__init__.py": "842470ed0efd06374b234454c484d05ae40ded2c3dc0cf8c389817da0f2f11c2",
+    "torch_base.py": "613574dbf31b4dec121ae93979fab8d6e6cde2fa83a6ab68398d253e8b800245",
+    "utils/operators.py": "0ea4d87214dff84b0fb221dfed483122b2e246b45168694f4161c502b3d157bb",
+    "utils/symbols.py": "0ddc225bff8df37a6deebd872e91a34296cb1ce1bfe79e671987d982c77defd3",
+    "utils/euler_ops.py": "02273f62fef7f6837ae602b9933332fb8267d169fec80e46051c39d51ee09a79",
+    "utils/rotation_error.py": "87adfeb34b2425b86b344b37599b58844bbe2c78fa0ab889f86654c8ce64b081",
+    "utils/__init__.py": "018f583f24863e51dc550af0cb7f05d06f987823cb0e4165b5354c1d6263dbcc",
+    "utils/torch_ops.py": "bafcffb4df6f1f97ac9a2114e362853a93c77691ffebabd946d7c2c3b235856f",
+    "utils/quaternion_ops.py": "c3776aae1d436c6c5f63a067f4ef75c49b9f78bae5e6212828a857b12fa68e14"
+  },
+  "artifact_sha256": {
+    "vehicle_regressor.c": "fa9a23b2767298289cfd7a59385ed5f94c9c82b8fa91f509a8b0946ccef9035a",
+    "vehicle_regressor.h": "fb958392fcef2ac781b84f3dea2b9a651fb19c5f8a83f6253c5ec289c91b60bc"
+  },
+  "assumptions": "fully submerged; constant inertia; zero current; uncoupled vehicle",
+  "output": "dense column-major 6x27 inertia/bias; dense 3x1 normalized quadrature weights",
+  "exporter": {
+    "path": "usage/code_generation.ipynb",
+    "entry_point": "export_vehicle",
+    "sha256": "6f44e3c2de17df36afe276729f68e0d07b2cc4ea0166730c02dcb7adb0ec4f31"
+  },
+  "quadrature": "two-interval quadratic; trapezoid fallback at input switches or period ratios outside [0.5,2]"
+}

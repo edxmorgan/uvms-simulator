@@ -125,6 +125,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SimManipulatorDynamics.msg"
   "msg/BatchCommand.msg"
   "msg/BatchObservation.msg"
+  "msg/VehicleIdentification.msg"
   "srv/ResetBatchSim.srv"
   "srv/ResetSimUvms.srv"
   "srv/SetSimCameraDynamics.srv"
@@ -192,6 +193,7 @@ add_library(
 )
 
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
+include(hardware/vehicle_identification.cmake)
 target_link_libraries(${PROJECT_LIB} PUBLIC "${cpp_typesupport_target}")
 
 target_link_libraries(${PROJECT_LIB} PUBLIC ${UVMS_CASADI_TARGET} ${BATCH_UVMS_CORE_LIB})
@@ -371,6 +373,15 @@ if(BUILD_TESTING)
   ament_add_gtest(test_hardware_arm_observer test/test_hardware_arm_observer.cpp)
   target_link_libraries(test_hardware_arm_observer ${PROJECT_LIB})
   target_compile_definitions(test_hardware_arm_observer PRIVATE TEST_CASADI_DIR="${PROJECT_SOURCE_DIR}/casadi_lib")
+  # Retention safety rules are testable without a MOSEK SDK or license.
+  ament_add_gtest(test_identification_retention test/test_identification_retention.cpp
+    hardware/vehicle_identification_retention.cpp
+    hardware/vehicle_identification_window.cpp
+    hardware/generated/vehicle_identification/vehicle_regressor.c)
+  target_include_directories(test_identification_retention PRIVATE hardware/include
+    hardware/generated/vehicle_identification)
+  target_link_libraries(test_identification_retention Eigen3::Eigen)
+  target_compile_features(test_identification_retention PRIVATE cxx_std_17)
   ament_add_gtest(test_serial_budget test/test_serial_budget.cpp
     hardware/packet.cpp hardware/cobs.cpp hardware/crc.cpp)
   target_include_directories(test_serial_budget PRIVATE hardware/include)
