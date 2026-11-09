@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import yaml
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, RegisterEventHandler, ExecuteProcess, OpaqueFunction, GroupAction
@@ -242,6 +243,9 @@ def generate_launch_description():
     declared_arguments.append(DeclareLaunchArgument(
         "sim_vehicle_sensor_config", default_value="",
         description="Optional ROS parameter YAML for simulated vehicle sensor noise; empty uses the example noise profile."))
+    declared_arguments.append(DeclareLaunchArgument(
+        "sim_control_rate", default_value="",
+        description="Simulation-only control/physics rate override in Hz (1..500); blank preserves controller YAML."))
     declared_arguments.append(DeclareLaunchArgument(
         "arm_joint_locks", default_value="true", choices=["true", "false"],
         description="Enable artificial joint locks on simulated arms; false for unlocked disturbance tests."))
@@ -875,6 +879,7 @@ def launch_setup(context, *args, **kwargs):
         condition=IfCondition(TextSubstitution(text=launch_overlay_text_text)),
     )
 
+    rate_override = LaunchConfiguration("sim_control_rate").perform(context).strip()
     control_parameters = [robot_controllers_modified_file, robot_description]
     sensor_config = LaunchConfiguration("sim_vehicle_sensor_config").perform(context).strip()
     if sensor_config:
@@ -890,6 +895,17 @@ def launch_setup(context, *args, **kwargs):
             raise RuntimeError("hardware_vehicle_sensor_config requires a hardware vehicle and an existing YAML file")
         control_parameters.append(hardware_sensor_config)
 
+    if rate_override:
+        rate = int(rate_override)
+        if use_vehicle_hardware_bool or use_manipulator_hardware_bool or not 1 <= rate <= 500:
+            raise RuntimeError("sim_control_rate requires simulation-only hardware and an integer in [1, 500]")
+        # Keep the requested rate in the manager's own generated YAML scope.
+        # Runtime timing must still be verified from completed physics steps.
+        with open(robot_controllers_modified_file) as stream:
+            controller_config = yaml.safe_load(stream)
+        controller_config['controller_manager']['ros__parameters']['update_rate'] = rate
+        with open(robot_controllers_modified_file, 'w') as stream:
+            yaml.safe_dump(controller_config, stream)
     control_node = Node(
         package="controller_manager",
         executable="ros2_control_node",
