@@ -158,6 +158,7 @@ namespace ros2_control_blue_reach_5
         std::shared_ptr<rclcpp::Publisher<tf>> transform_publisher_;
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>>
             realtime_transform_publisher_;
+        std::shared_ptr<realtime_tools::RealtimePublisher<tf>> physical_transform_publisher_;
 
         void publishRealtimePoseTransform();
         void publishStaticPoseTransform();
