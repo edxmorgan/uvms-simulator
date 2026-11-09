@@ -6,7 +6,7 @@ import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
-from ros2_control_blue_reach_5.srv import ResetSimUvms, SetSimDynamics
+from ros2_control_blue_reach_5.srv import GetSimDynamics, ResetSimUvms, SetSimDynamics
 from std_srvs.srv import Trigger
 
 
@@ -25,8 +25,23 @@ class SimResetCoordinator(Node):
         self._reset_services = []
         self._release_services = []
         self._dynamics_services = []
+        self._readback_clients = {}
+        self._readback_services = []
 
         for prefix in self._robot_prefixes:
+            self._readback_clients[prefix] = {
+                component: self.create_client(
+                    GetSimDynamics, f"/{prefix}get_sim_{component}_dynamics",
+                    callback_group=self._callback_group,
+                )
+                for component in ("vehicle", "manipulator")
+            }
+            self._readback_services.append(self.create_service(
+                GetSimDynamics, f"/{prefix}get_sim_uvms_dynamics",
+                lambda request, response, robot_prefix=prefix:
+                    self._handle_readback(robot_prefix, response),
+                callback_group=self._callback_group,
+            ))
             self._reset_vehicle_clients[prefix] = self.create_client(
                 ResetSimUvms, f"/{prefix}reset_sim_vehicle", callback_group=self._callback_group
             )
@@ -73,6 +88,50 @@ class SimResetCoordinator(Node):
 
         robots = ", ".join(self._robot_prefixes) if self._robot_prefixes else "<none>"
         self.get_logger().info(f"sim reset coordinator ready for robots: {robots}")
+
+    def _call_readback(self, client, service_name, timeout_sec=5.0):
+        ok, message = self._wait_for_service(client, service_name, timeout_sec)
+        if not ok:
+            return None, message
+        done = threading.Event()
+        try:
+            future = client.call_async(GetSimDynamics.Request())
+            future.add_done_callback(lambda _: done.set())
+            if not done.wait(timeout_sec):
+                future.cancel()
+                return None, f"timeout calling {service_name}"
+            if future.cancelled():
+                return None, f"call cancelled for {service_name}"
+            result = future.result()
+            if result is None:
+                return None, f"{service_name} returned no response"
+            return result, result.message
+        except Exception as exc:
+            return None, f"{service_name} failed: {exc}"
+
+    def _handle_readback(self, prefix, response):
+        # Each component is internally synchronized; these two reads are NOT atomic.
+        messages = []
+        for component, client in self._readback_clients[prefix].items():
+            result, message = self._call_readback(
+                client, f"/{prefix}get_sim_{component}_dynamics")
+            valid = result is not None and result.success and getattr(
+                result, f"{component}_valid")
+            setattr(response, f"{component}_valid", bool(valid))
+            if valid:
+                setattr(response, component, getattr(result, component))
+                field = f"{component}_use_coupled_dynamics"
+                setattr(response, field, getattr(result, field))
+            messages.append(f"{component}: {message}")
+        response.success = response.vehicle_valid and response.manipulator_valid
+        if response.success and (
+            response.vehicle_use_coupled_dynamics !=
+            response.manipulator_use_coupled_dynamics
+        ):
+            response.success = False
+            messages.append("component coupling modes disagree")
+        response.message = "; ".join(messages)
+        return response
 
     def _wait_for_service(self, client, service_name: str, timeout_sec: float = 5.0) -> tuple[bool, str]:
         if client.wait_for_service(timeout_sec=timeout_sec):
