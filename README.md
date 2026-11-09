@@ -51,7 +51,7 @@ sudo apt install git-lfs \
 Python dependencies used by SimLab and the simulated camera renderer:
 
 ```bash
-python3 -m pip install pyPS4Controller pynput scipy casadi ruckig \
+python3 -m pip install pyPS4Controller pynput scipy casadi==3.7.2 ruckig \
     python-fcl trimesh pycollada pyvista open3d
 ```
 
@@ -377,3 +377,15 @@ Notes:
 ## License
 
 AGPL-3.0-or-later
+
+## Updating the coordinated 0.1 interfaces
+
+Update both `uvms-simulator` and `uvms-simlab` together. SimLab 0.1 requires
+`ros2_control_blue_reach_5 >= 0.1.0`; rebuild both packages and restart running
+ROS processes after updating, since disturbance and replay interfaces changed.
+Use Git LFS to obtain bundled model binaries (`git lfs pull` in each repository).
+The public Python model runtime uses CasADi 3.7.2. Private `namor` controllers
+and licensed identification tooling are optional and are not required for
+ordinary simulation. The vehicle model now assumes full immersion; the rendered
+water surface does not supply artificial support. Simulation sensor noise is
+enabled by default and can be toggled through the existing menu.

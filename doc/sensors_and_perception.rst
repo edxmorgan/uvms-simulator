@@ -161,6 +161,15 @@ Camera intrinsics are published with each camera image on the matching
 distortion.
 
 Camera extrinsics are provided through TF, not duplicated on a separate topic.
+
+Simulation rendering uses physical state, independently of operational estimated
+TF. The simulated vehicle publishes physical body and camera-mount transforms on
+``/simulation_truth/tf``. A camera-only robot-state publisher adds raw arm and
+auxiliary joint transforms to that isolated stream. The renderer subscribes to
+that stream plus fixed scene/URDF transforms; it never substitutes the EKF's
+``/tf`` poses. RViz, planning and feedback continue using estimated state. Image
+headers retain the normal camera frame name and calibration convention.
+
 Use TF to query the camera pose relative to the world or the robot:
 
 .. code-block:: shell
@@ -309,3 +318,76 @@ In PS4 ``Options`` mode:
 
 The hardware interface clamps the camera mount PWM to the configured safe
 range.
+
+Optional disturbance process-noise adaptation
+-------------------------------------------------
+
+``ekf_adapt_wrench_process_noise`` is a read-only vehicle topics-interface
+parameter, disabled by default for both simulation and hardware. Enabling it
+loads the source-exported ``disturbance_ekf_smoothing_full_moment`` helper and runs a
+bounded background worker. It uses a past two-second window with approximately
+half-second updates to match the full 6x6 disturbance-increment second moment,
+including force/moment correlations. This remains experimental and opt-in.
+The prior has weight 0.1 and updates have damping 0.5. This is approximate causal
+covariance matching, not exact full-state EM or calibrated confidence.
+
+The operational EKF continues its current-time prediction and correction; only
+its subsequent process intensities change. The worker has no actuator or truth
+access. Inputs include the actual integrated transition, prior, posterior and
+interval duration. Sensor availability gates learning, while intentional
+multirate masks do not count as sensor dropouts. Resets, model replacement and
+availability loss invalidate pending fits and restore configured intensities.
+Positive configured diagonal intensities initialize the learner. Learned
+correlations are retained; only numerical-roundoff negative eigenvalues in
+accumulated moments are projected to zero, while materially indefinite moments
+are rejected. Positive diagonal intensities are required when enabled. Combining adaptation
+with ``ekf_wrench_process_covariance`` is rejected rather than discarding its
+correlations. Hardware remains opt-in and requires independent real-sensor
+validation; simulation results are not a hardware accuracy guarantee.
+
+The standard dynamic joint-state/MCAP pipeline exposes
+``estimator_noise.intensity.0`` through ``.5`` (force in N^2/s, torque in
+(N m)^2/s), ``enabled``, ``applied_fit_count``, ``dropped``, ``failed``,
+``fit_seconds`` and ``endpoint_step`` under ``estimator_noise``. Fit duration is
+worker computation time, not end-to-end result age. A stored valid fit applies
+before a later prediction; the endpoint identifies its last observation.
+
+Live simulation sensor-noise toggle
+----------------------------------------
+
+In the interactive marker menu, select **Robot Control → Sensor noise (sim) →
+On / Off** for the selected robot. The checkmark follows confirmed simulator
+telemetry. This affects vehicle depth, attitude, DVL, gyro and accelerometer
+noise only; sample rates and EKF tuning remain unchanged. Arm encoders are not
+affected. Noise is enabled by default; select Off for ideal simulated measurements.
+
+The per-robot ``/<prefix>set_sensor_noise`` SetBool service queues the change
+for the next completed simulation step. While dynamics are paused, the change
+remains pending. The ``sensor_noise_enabled`` GPIO state in
+``dynamic_joint_states`` reports the applied setting and is captured by the
+standard recorder. Hardware does not expose this service.
+
+The initial value can be configured with the read-only
+``sim_sensor_noise_enabled`` parameter on the simulated vehicle interface node.
+Runtime changes do not rewrite that initial parameter or reset the estimator.
+Random draws continue while noise is disabled, preserving the seeded sampling
+sequence. Held measurements become ideal at their next sensor sample.
+
+Submerged vehicle dynamics
+----------------------------------------
+
+Vehicle dynamics and EKF sensor/prediction models assume full immersion.
+Buoyancy is the configured displaced-volume force at every depth; depth zero
+does not switch buoyancy or provide artificial support. This avoids a false
+external-wrench estimate when noisy depth crosses the coordinate origin.
+Floating, emergence and partial immersion are outside this model.
+
+With the default weight 105 N and buoyancy 97.8296453 N, zero actuator effort
+does not hold depth. Controllers compensate the net weight using the same
+exported submerged restoring model. Sensor noise and estimator tuning are
+independent of this physical-model correction.
+
+Vehicle artifacts are generated together using export_vehicle in
+diff_uv/usage/code_generation.ipynb. Restart consumers after installing a
+consistent artifact set. Do not mix an older surface-dependent plant with a
+submerged EKF or controller.
