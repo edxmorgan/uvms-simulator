@@ -266,6 +266,7 @@ namespace ros2_control_blue_reach_5
         delta_seconds = 0.0;
         time_seconds = 0.0;
         commands_held_ = true;
+        dynamics_paused_ = false;
         reset_joint_estimators();
         for (std::size_t i = 0; i < hw_joint_struct_.size(); ++i)
         {
@@ -337,6 +338,7 @@ namespace ros2_control_blue_reach_5
             payload_Izz = dynamics.payload_inertia[2];
         }
         commands_held_ = request.hold_commands;
+        dynamics_paused_ = request.pause_dynamics;
 
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
@@ -597,6 +599,12 @@ namespace ros2_control_blue_reach_5
                 const std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Request> request,
                 std::shared_ptr<ros2_control_blue_reach_5::srv::ResetSimUvms::Response> response)
         {
+            if (request->pause_dynamics && !request->hold_commands)
+            {
+                response->success = false;
+                response->message = "pause_dynamics requires hold_commands";
+                return;
+            }
             if (request->set_manipulator_dynamics &&
                 (request->manipulator_dynamics.payload_mass < 0.0 ||
                  request->manipulator_dynamics.payload_inertia[0] < 0.0 ||
@@ -650,6 +658,7 @@ namespace ros2_control_blue_reach_5
             {
                 std::lock_guard<std::mutex> lock(simulation_state_mutex_);
                 commands_held_ = false;
+                dynamics_paused_ = false;
                 RCLCPP_INFO(
                     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
                     "[%s] released simulated manipulator commands",
@@ -897,6 +906,7 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         reset_joint_simulation_state();
         commands_held_ = false;
+        dynamics_paused_ = false;
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Activating... please wait...");
         for (std::size_t i = 0; i < hw_joint_struct_.size(); ++i)
@@ -949,8 +959,72 @@ namespace ros2_control_blue_reach_5
 
         std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T, tipOffset};
         T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
-        // Time step for this cycle
-        casadi::DM dt_dm(delta_seconds);
+        // Keep reset estimator state unchanged throughout an explicit pause.
+        if (dynamics_paused_ || sim_step_ == estimator_step_)
+        {
+            return hardware_interface::return_type::OK;
+        }
+        // Match vehicle EKF timing: the measurement is the result of the last
+        // completed write(), and uses that write's applied torque and duration.
+        const double completed_dt = estimator_completed_dt_;
+        if (sim_step_ != estimator_step_ + 1.0 ||
+            !std::isfinite(completed_dt) || completed_dt <= 0.0)
+        {
+            estimator_valid_ = 0.0;
+            RCLCPP_ERROR(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                         "Arm disturbance EKF lost completed-step synchronization; reset required");
+            return hardware_interface::return_type::ERROR;
+        }
+        casadi::DM measurement = casadi::DM::zeros(8, 1);
+        for (int i = 0; i < 4; ++i)
+        {
+            measurement(i) = hw_joint_struct_[i].current_state_.position;
+            measurement(4 + i) = hw_joint_struct_[i].current_state_.velocity;
+        }
+        std::vector<casadi::DM> posterior;
+        try
+        {
+            posterior = arm_time_integration::posterior(utils_service.manip_disturbance_predict,
+                utils_service.manip_disturbance_update, std::vector<casadi::DM>{
+                arm_x_est_, arm_P_est_, estimator_applied_input_, estimator_nominal_parameters_,
+                completed_dt, measurement, arm_Q_ * completed_dt, arm_R_,
+                estimator_completed_lock_mask_, estimator_completed_lock_alpha_,
+                estimator_lower_limits_, estimator_upper_limits_, estimator_completed_contact_});
+            for (const auto &output : posterior)
+                for (const double value : output.nonzeros())
+                    if (!std::isfinite(value)) throw std::runtime_error("nonfinite arm EKF output");
+            for (int i = 0; i < 12; ++i)
+                if (double(posterior.at(1)(i, i)) < 0.0)
+                    throw std::runtime_error("negative arm EKF covariance diagonal");
+        }
+        catch (const std::exception &error)
+        {
+            estimator_valid_ = 0.0;
+            RCLCPP_ERROR(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                         "Arm disturbance EKF failed at completed step %.0f (dt=%.9g s, lock_alpha=%.9g): %s",
+                         sim_step_, completed_dt, estimator_completed_lock_alpha_, error.what());
+            return hardware_interface::return_type::ERROR;
+        }
+        arm_x_est_ = posterior[0];
+        arm_P_est_ = posterior[1];
+        for (int i = 0; i < 4; ++i)
+        {
+            auto &state = hw_joint_struct_[i].current_state_;
+            state.filtered_position = double(arm_x_est_(i));
+            state.filtered_velocity = double(arm_x_est_(4 + i));
+            state.estimated_acceleration = dense_vector_value(posterior[4], i);
+            state.acceleration = state.estimated_acceleration;
+            estimated_disturbance_[i] = double(arm_x_est_(8 + i));
+            estimator_joint_locked_[i] = double(estimator_completed_lock_mask_(i));
+            estimator_joint_at_limit_[i] = double(estimator_completed_contact_(i));
+            estimator_disturbance_observable_[i] = double(posterior[5](i));
+            disturbance_variance_[i] = double(arm_P_est_(8 + i, 8 + i));
+            for (int j=0;j<4;++j)
+                disturbance_covariance_[4*i+j]=double(arm_P_est_(8+i,8+j));
+        }
+        estimator_step_ = sim_step_;
+        estimator_valid_ = 1.0;
+        casadi::DM dt_dm(completed_dt);
 
         // The gripper has a separate scalar model and retains its existing filter.
         for (std::size_t i = 4; i < get_hardware_info().joints.size(); ++i)
@@ -1024,6 +1098,11 @@ namespace ros2_control_blue_reach_5
             control_power_ = 0.0;
         }
 
+        if (disturbance_receiver_) disturbance_receiver_->paused(dynamics_paused_);
+        if (dynamics_paused_)
+        {
+            return hardware_interface::return_type::OK;
+        }
         arm_state.clear();
         arm_state.reserve(10);
 

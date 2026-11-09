@@ -161,6 +161,10 @@ class SimResetCoordinator(Node):
         response: ResetSimUvms.Response,
     ) -> ResetSimUvms.Response:
         self.get_logger().info(f"[{prefix}] combined state reset requested")
+        if request.pause_dynamics and not request.hold_commands:
+            response.success = False
+            response.message = 'pause_dynamics requires hold_commands'
+            return response
         messages = []
 
         if request.reset_manipulator:
