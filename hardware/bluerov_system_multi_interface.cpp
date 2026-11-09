@@ -1025,6 +1025,7 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_activate(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        identification_sample_.reset();
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Activating... please wait...");
 
@@ -1039,6 +1040,7 @@ namespace ros2_control_blue_reach_5
     hardware_interface::CallbackReturn BlueRovSystemMultiInterfaceHardware::on_deactivate(
         const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        identification_sample_.reset();
         RCLCPP_INFO(
             rclcpp::get_logger("BlueRovSystemMultiInterfaceHardware"), "Deactivating... please wait...");
 
@@ -1240,6 +1242,17 @@ namespace ros2_control_blue_reach_5
         }
         // Integrate the held actuator input over all control cycles, but publish
         // a new endpoint only when all three sensor streams have new data.
+        std::array<double,6> applied_wrench{};
+        for(int i=0;i<6;++i)applied_wrench[i]=double(estimator_applied_input_(i));
+        if(full_observation && identification_sample_.advance(delta_seconds,applied_wrench) && identification_ready) {
+            identification_sample_.observe(hw_vehicle_struct.depth_from_pressure2,
+                {hw_vehicle_struct.imu_state.roll_unwrap,
+                 -hw_vehicle_struct.imu_state.pitch_unwrap,-hw_vehicle_struct.imu_state.yaw_unwrap},
+                {hw_vehicle_struct.dvl_state.vx,hw_vehicle_struct.dvl_state.vy,hw_vehicle_struct.dvl_state.vz,
+                 hw_vehicle_struct.imu_state.angular_vel_x,-hw_vehicle_struct.imu_state.angular_vel_y,
+                 -hw_vehicle_struct.imu_state.angular_vel_z});
+            identification_received_ = {imu_received_, pressure_received_, dvl_received_};
+        }
         imu_lock.unlock();
         pressure_lock.unlock();
         dvl_lock.unlock();
