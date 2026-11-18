@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "VincentGu2000/u0env",
+    "revision": "3f4b8409a9942935df1521fac2d905b65a2d36e2",
+    "scenario": "ros_ws/src/stonefish_bluerov2/scenarios/template/bluerov2_ship_ancient.scn.template",
+    "data_root": "ros_ws/src/stonefish_bluerov2/data"
+  },
+  "source_frame": "NED",
+  "world_frame": "NWU",
+  "floor_z": -8.0,
+  "seabed_crop_local_xy": [
+    -25.549193000000002,
+    26.912285,
+    -25.0,
+    25.0
+  ],
+  "seabed_margin_m": 10,
+  "seabed_grid_half_extent_m": 25,
+  "objects": [
+    {
+      "name": "bathymetry_seabed_0",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -8.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_3bfed30138de.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_d00f84a97ff1.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_ship_1",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -7.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "ship/Mesh/shipwreck.obj",
+        "asset": "shipwreck_8de94ad05f98.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "ship/Mesh/shipwreck.obj",
+        "asset": "shipwreck_37c1a0618d85.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    }
+  ],
+  "upstream_assets": {
+    "ship/Mesh/shipwreck.obj": {
+      "sha256": "cdb8d22cb5785b3109195fac14052428f21a2cbc3e5e2e44b794c5da26a1b54e",
+      "bytes": 8792748
+    },
+    "flat.obj": {
+      "sha256": "5f87248486780270d7c3415ad81ae5498c7a1a0f96055aab81c85a8fbb51f7c6",
+      "bytes": 1301471
+    },
+    "SoilBeach0078_1_350.jpg": {
+      "sha256": "b41e69b068d17d513cd1112f97e929d23e2fdd4ee4cdcc7f011a38271fb4bf95",
+      "bytes": 8805
+    },
+    "ship/Textures/8_Poopdeck_albedo.png": {
+      "sha256": "b3f5597aef809338d1621199c1ee0e26ade59d0c41e4632f262efd79e68e7e32",
+      "bytes": 3582683
+    }
+  },
+  "adaptations": [
+    "Seabed clipped in local XY to (-25.549193000000002, 26.912285, -25.0, 25.0) mesh units: flat.obj",
+    "Planar UV coordinates generated (1 local metre repeat): flat.obj",
+    "Entire static scene translated upward by 12.5 m; seabed depth limited to 8 m; geometry sizes preserved"
+  ],
+  "excluded_includes": [
+    "$(find stonefish_bluerov2)/scenarios/robots/bluerov2.scn"
+  ],
+  "limitations": [
+    "Static geometry only; no Stonefish ocean/lighting/physics",
+    "Visual/collision surfaces share crop; no collision decimation",
+    "Camera texture sampling uses existing vertex-color renderer"
+  ],
+  "artifact_sha256": {
+    "LICENSE.upstream": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "NOTICE": "8832718a99b39c05524f92ccd05cfca2ba88350b89254a744d10dfc747fe1c14",
+    "assets/b3f5597aef809338.png": "b3f5597aef809338d1621199c1ee0e26ade59d0c41e4632f262efd79e68e7e32",
+    "assets/b41e69b068d17d51.jpg": "b41e69b068d17d513cd1112f97e929d23e2fdd4ee4cdcc7f011a38271fb4bf95",
+    "assets/flat_3bfed30138de.obj": "fa1bb1e3d5cc51a0cc80d93ce0e512b1a873e60bf7f8773f6049534f8544830e",
+    "assets/flat_d00f84a97ff1.mtl": "9eacc1481a862c6d3256f74923dc627864e4db326ff3d042ee757a1863ae0c26",
+    "assets/flat_d00f84a97ff1.obj": "7846e9fc43e69e2f6284b1bd10ddf434f51462dda9e46548d071e209eb506d46",
+    "assets/shipwreck_37c1a0618d85.mtl": "995ada9fe3e5149ff1d772f60698486d5b9b668e44b9e024932f946ab5d7111a",
+    "assets/shipwreck_37c1a0618d85.obj": "23ea3fcecb394261427e478120b66b1aec1cd5aa2e04304c8d3599578a839211",
+    "assets/shipwreck_8de94ad05f98.obj": "497a6cca3817bade2441ea194f3b4fc3f821685bde681340d39d4d4354beb655",
+    "source.scn.template": "a2a29175242c057671e088d10e2cbaa57451ca135aa0d20eab61f2d627c4a502",
+    "world.xacro": "8f6f5d7ac0dd552d79cfc15f6eca03d48e0a66f141eb5dad85367b2bc444c426"
+  },
+  "source_floor_z": -20.5,
+  "vertical_offset_m": 12.5,
+  "max_seabed_depth_m": 8.0
+}

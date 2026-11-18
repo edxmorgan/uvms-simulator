@@ -39,6 +39,23 @@
       <origin rpy="0 0 0" xyz="0.21 0 0.067" />
     </xacro:camera_urdf>
 
+    <xacro:include filename="$(find ros2_control_blue_reach_5)/blue/xacro/dvl/urdf.xacro" />
+    <xacro:dvl_urdf prefix="${prefix}" parent="${prefix}base_link">
+      <origin xyz="-0.060 0.000 -0.105" rpy="0 0 0" />
+    </xacro:dvl_urdf>
+
+    <!-- IMU is at base_link; MAVROS already delivers body-aligned vectors. -->
+    <xacro:include filename="$(find ros2_control_blue_reach_5)/blue/xacro/imu/urdf.xacro" />
+    <xacro:imu_urdf prefix="${prefix}" parent="${prefix}base_link">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:imu_urdf>
+    <!-- Pressure sensor: rear of top enclosure, approximately 10-15 cm.
+         XYZ is not measured yet; zero preserves the prior uncalibrated assumption. -->
+    <xacro:include filename="$(find ros2_control_blue_reach_5)/blue/xacro/pressure/urdf.xacro" />
+    <xacro:pressure_urdf prefix="${prefix}" parent="${prefix}base_link">
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </xacro:pressure_urdf>
+
     <!-- Import T200 macro -->
     <xacro:include filename="$(find ros2_control_blue_reach_5)/blue/xacro/t200/urdf.xacro" />
 

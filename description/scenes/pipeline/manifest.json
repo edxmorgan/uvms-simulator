@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "VincentGu2000/u0env",
+    "revision": "3f4b8409a9942935df1521fac2d905b65a2d36e2",
+    "scenario": "ros_ws/src/stonefish_bluerov2/scenarios/template/bluerov2_pipesea.scn.template",
+    "data_root": "ros_ws/src/stonefish_bluerov2/data"
+  },
+  "source_frame": "NED",
+  "world_frame": "NWU",
+  "floor_z": -8.0,
+  "seabed_crop_local_xy": [
+    -25.0,
+    25.0,
+    -26.00621984273367,
+    26.006224849097947
+  ],
+  "seabed_margin_m": 10,
+  "seabed_grid_half_extent_m": 25,
+  "objects": [
+    {
+      "name": "bathymetry_seabed_0",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -8.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_d0400a79f011.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_cd5e00fbb6e4.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_1",
+      "world_xyz_nwu": [
+        0.0,
+        -8.0,
+        -7.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "pipestri/pipestri.obj",
+        "asset": "pipestri_c924d749707e.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "pipestri/pipestri.obj",
+        "asset": "pipestri_972c75fd89ef.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_2",
+      "world_xyz_nwu": [
+        0.0,
+        8.0,
+        -7.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "pipestri/pipestri.obj",
+        "asset": "pipestri_c924d749707e.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "pipestri/pipestri.obj",
+        "asset": "pipestri_972c75fd89ef.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    }
+  ],
+  "upstream_assets": {
+    "pipestri/pipestri.obj": {
+      "sha256": "7adaf4d7aaa6285e15c5dd271e87a668dbfd058f76654b1a6c6ad0ad108cda52",
+      "bytes": 2104520
+    },
+    "flat.obj": {
+      "sha256": "5f87248486780270d7c3415ad81ae5498c7a1a0f96055aab81c85a8fbb51f7c6",
+      "bytes": 1301471
+    },
+    "SoilBeach0078_1_350.jpg": {
+      "sha256": "b41e69b068d17d513cd1112f97e929d23e2fdd4ee4cdcc7f011a38271fb4bf95",
+      "bytes": 8805
+    },
+    "pipestri/pipestri.png": {
+      "sha256": "80ec407b4c98a864bd9a645005927c1ffd235e9610ea93a8d5814104c4ce3286",
+      "bytes": 1575059
+    }
+  },
+  "adaptations": [
+    "Seabed clipped in local XY to (-25.0, 25.0, -26.00621984273367, 26.006224849097947) mesh units: flat.obj",
+    "Planar UV coordinates generated (1 local metre repeat): flat.obj",
+    "Entire static scene translated upward by 2.5 m; seabed depth limited to 8 m; geometry sizes preserved"
+  ],
+  "excluded_includes": [
+    "$(find stonefish_bluerov2)/scenarios/robots/bluerov2.scn"
+  ],
+  "limitations": [
+    "Static geometry only; no Stonefish ocean/lighting/physics",
+    "Visual/collision surfaces share crop; no collision decimation",
+    "Camera texture sampling uses existing vertex-color renderer"
+  ],
+  "artifact_sha256": {
+    "LICENSE.upstream": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "NOTICE": "6cacaee43d49fab405ae18840d5aa862c1f8401d0c7fe78fe903064e99791de1",
+    "assets/80ec407b4c98a864.png": "80ec407b4c98a864bd9a645005927c1ffd235e9610ea93a8d5814104c4ce3286",
+    "assets/b41e69b068d17d51.jpg": "b41e69b068d17d513cd1112f97e929d23e2fdd4ee4cdcc7f011a38271fb4bf95",
+    "assets/flat_cd5e00fbb6e4.mtl": "9eacc1481a862c6d3256f74923dc627864e4db326ff3d042ee757a1863ae0c26",
+    "assets/flat_cd5e00fbb6e4.obj": "1c9cafed0e21d217934aae8e5b287547d00e8eb3163b63480a755c526d7eaecf",
+    "assets/flat_d0400a79f011.obj": "84dd5eb2f3db67d7fff4c391ee13ebc476f79251b4a027707f664d7f87d98ec5",
+    "assets/pipestri_972c75fd89ef.mtl": "ab8d240170b0ef1b880a9808620b0cc018f4b0a575cc10a849149fbb51c1ffeb",
+    "assets/pipestri_972c75fd89ef.obj": "d68829a0644e5aed3955dd48db41f5b74994175fb1005f82fa7498fa91a757c5",
+    "assets/pipestri_c924d749707e.obj": "aa6a0c520ee93361a2f1ff8570cf543d506593b22228ab4b5f57bb0b012ad2ee",
+    "source.scn.template": "66eff8fc4a22ccac432c5393c47b908a787db225b147a273df5368eb1020727f",
+    "world.xacro": "38a716e05222cc488e8a6369e008723a85a74fe58d436f182d77dc7dbae6c06d"
+  },
+  "source_floor_z": -10.5,
+  "vertical_offset_m": 2.5,
+  "max_seabed_depth_m": 8.0
+}

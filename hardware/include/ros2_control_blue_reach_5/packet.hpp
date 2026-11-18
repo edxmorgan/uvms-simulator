@@ -22,6 +22,7 @@
 #ifndef ROS2_CONTROL_BLUE_REACH_5__PACKET_HPP_
 #define ROS2_CONTROL_BLUE_REACH_5__PACKET_HPP_
 
+#include <cstddef>
 #include <vector>
 
 #include "ros2_control_blue_reach_5/device_id.hpp"
@@ -33,6 +34,14 @@ namespace alpha::driver
 class Packet
 {
 public:
+  // Reach limits the decoded packet, including its four-byte footer, to 254 bytes.
+  static constexpr std::size_t kFooterSize = 4;
+  static constexpr std::size_t kMaxDecodedSize = 254;
+  static constexpr std::size_t kMaxPayloadSize = kMaxDecodedSize - kFooterSize;
+  // COBS block codes plus the terminating delimiter (including a trailing empty block).
+  static constexpr std::size_t kMaxEncodedSize =
+    kMaxDecodedSize + kMaxDecodedSize / 254 + 2;
+
   /**
    * @brief Create a new Packet.
    *

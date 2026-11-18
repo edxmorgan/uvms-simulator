@@ -13,7 +13,9 @@
   <xacro:arg name="description_package" default="ros2_control_blue_reach_5"/>
   <xacro:arg name="use_optitrack" default="false"/>
   <xacro:arg name="world_frame" default="world"/>
+  <xacro:arg name="environment_scene_file" default=""/>
   <xacro:arg name="use_dvl" default="false"/>
+  <xacro:arg name="sim_startup_pause" default="false"/>
   <xacro:arg name="manual_control" default="false"/>
   <xacro:arg name="dvl_host" default="192.168.2.95"/>
   <xacro:arg name="dvl_port" default="16171"/>
@@ -47,7 +49,7 @@
   <xacro:include filename="$(find ${description_package})/ros2_control/vehicle_system_multi_interface.ros2_control.xacro" />
 
   <!-- Instantiate the world -->
-  <xacro:sim_world world_frame="${world_frame}"/>
+  <xacro:sim_world world_frame="${world_frame}" scene_file="$(arg environment_scene_file)"/>
 
   <!-- Recursive Macro Definition -->
   <xacro:macro name="instantiate_robots" params="index count">
@@ -82,6 +84,7 @@
       serial_port="${serial_port}"
       state_update_frequency="${state_update_frequency}"
       use_hardware="false"
+      startup_pause="$(arg sim_startup_pause)"
       arm_joint_locks="$(arg arm_joint_locks)"/>
 
     <xacro:vehicle_system_multi_interface
@@ -93,6 +96,7 @@
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
+      startup_pause="$(arg sim_startup_pause)"
       same_initial_conditions="${same_initial_conditions}"
       use_pwm="${use_pwm}"
       use_dvl="${use_dvl}"
@@ -126,6 +130,7 @@
       serial_port="${serial_port}"
       state_update_frequency="${state_update_frequency}"
       use_hardware="${use_manipulator_hardware}"
+      startup_pause="$(arg sim_startup_pause)"
       arm_joint_locks="$(arg arm_joint_locks)"/>
 
     <xacro:vehicle_system_multi_interface
@@ -138,6 +143,7 @@
       world_frame_id="base_link"
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
+      startup_pause="$(arg sim_startup_pause)"
       same_initial_conditions="${same_initial_conditions}"
       use_pwm="${use_pwm}"
       use_dvl="${use_dvl}"

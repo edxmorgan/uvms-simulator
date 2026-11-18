@@ -1,384 +1,168 @@
 Sensors and Perception
 ======================
 
-The stack exposes navigation sensor state, camera data, and visualization
-streams through ROS topics. Some streams are physical sensor feeds from hardware
-interfaces. Others are state-derived simulator outputs or visualization aids.
-
-Sensor Topic Overview
----------------------
-
-Core sensor topics:
-
-- ``/dynamic_joint_states``: central robot state stream. In simulation this is
-  produced by the simulated hardware interfaces. In hardware or mixed launches,
-  entries come from the active hardware and simulator interfaces.
-- ``/dvl/twist``: DVL velocity output from the vehicle hardware interface. The
-  linear velocity is expressed in ``<robot_prefix>dvl_link``. That frame is
-  statically attached to the vehicle body frame with identity rotation.
-- ``/alpha/image_raw`` and ``/alpha/camera_info``: selected camera feed used
-  by RViz and perception-facing consumers. The selected feed can come from the
-  simulated renderer or the real GStreamer camera node.
-
-Vehicle navigation sensor state is also exported through
-``/dynamic_joint_states``:
-
-- IMU attitude: ``imu_roll``, ``imu_pitch``, ``imu_yaw`` and unwrap variants.
-  These are roll/pitch/yaw angles derived from the exported IMU quaternion. In
-  hardware they follow the incoming IMU message convention; in simulation they
-  are generated from the vehicle attitude state using the simulator IMU
-  convention.
-- IMU quaternion: ``imu_orientation_w/x/y/z``. This is the exported IMU
-  attitude quaternion.
-- IMU angular velocity: ``imu_angular_vel_x/y/z``. In hardware these are copied
-  from the incoming IMU message, so the component frame follows that IMU source.
-- IMU linear acceleration: ``imu_linear_acceleration_x/y/z``. In hardware these
-  are copied from the incoming IMU message, so the component frame follows that
-  IMU source.
-- Pressure-derived depth: ``depth_from_pressure2``. This is depth along the
-  stack's depth convention; in hardware it is computed from pressure relative
-  to standard atmospheric pressure and is positive with increasing pressure.
-- DVL attitude: ``dvl_gyro_roll``, ``dvl_gyro_pitch``, ``dvl_gyro_yaw``. These
-  are roll/pitch/yaw angles copied from the DVL position-local message and
-  follow the DVL sensor convention.
-- DVL velocity: ``dvl_speed_x``, ``dvl_speed_y``, ``dvl_speed_z``. These
-  components are copied from the DVL velocity message and match ``/dvl/twist``
-  in ``<robot_prefix>dvl_link``.
-
-The vehicle state convention used by SimLab is NED position/orientation with
-body-frame velocity and acceleration.
-
-Simulated Sensors
------------------
-
-Simulation exposes sensor-like streams through ``ros2_control`` state
-interfaces and broadcaster topics:
-
-- Vehicle pose, body velocity, body acceleration, IMU state, DVL speed, and
-  pressure-derived depth are available through ``/dynamic_joint_states``.
-- Manipulator joint position, velocity, acceleration, and effort are available
-  through ``/dynamic_joint_states``.
-- Camera simulation is available through the simulator camera renderer. It
-  renders the URDF visual scene from each simulated robot camera frame and
-  publishes ROS image topics.
-- Environment, workspace, and vehicle-base pointcloud topics are visualization
-  streams, not physical sensor models.
-
-The simulated camera is useful for operator view, image transport, RViz display,
-and downstream perception-node checks. It renders the bathymetry, vehicle,
-manipulator, thrusters, other simulated robots, and a water surface at the world
-waterline. A lightweight underwater tint/haze effect is enabled by default below
-the water surface. It is still not a calibrated underwater optical model; lens
-distortion, camera dynamics, and physically accurate turbidity are not modeled.
-
-Launch Behavior
----------------
-
-The main launch file controls camera ownership with ``camera_source``:
-
-- ``camera_source:=auto``: default. Uses the simulated renderer when simulated
-  robot cameras exist, the real GStreamer camera when only real vehicle
-  hardware owns the camera, and mixed selection when real vehicle hardware and
-  simulated robots are launched together. A custom ``camera_pipeline`` also
-  selects the real camera path.
-- ``camera_source:=sim``: force the simulated renderer to own ``/alpha``.
-- ``camera_source:=real``: force the GStreamer camera node to own ``/alpha``.
-  If ``camera_pipeline`` is empty, the node uses its built-in UDP H264 camera
-  pipeline.
-
-Camera launch is controlled separately:
-
-- ``launch_camera:=true``: default. Start the selected camera path.
-- ``launch_camera:=false``: disable camera nodes.
-- ``launch_camera:=auto``: start the selected camera path when the resolved
-  source is ``sim``, ``real``, or mixed.
-
-Additional arguments:
-
-- ``camera_pipeline:=""``: optional custom GStreamer pipeline. If provided, it
-  must end with ``appsink name=camera_sink``.
-- ``sim_camera_width:=480``: rendered simulated camera image width.
-- ``sim_camera_height:=360``: rendered simulated camera image height.
-- ``sim_camera_rate:=5.0``: rendered simulated camera frame rate in Hz.
-- ``sim_camera_renderer_backend:=pyvista``: default simulated renderer backend.
-  Use ``open3d`` for comparison or fallback.
-- ``sim_camera_max_mesh_triangles:=12000``: per-visual triangle cap used while
-  loading visual meshes. Lower values start and render faster with less detail.
-- ``sim_camera_render_all_cameras:=true``: render every simulated robot camera.
-  Set to ``false`` to render only the selected ``/alpha`` feed when performance
-  matters.
-- ``sim_camera_underwater_effect:=true``: apply tint/haze post-processing below
-  the water surface. Above the water surface the raw render is used.
-- ``sim_camera_underwater_haze:=0.35``,
-  ``sim_camera_underwater_tint:=0.55``,
-  ``sim_camera_underwater_blur:=0.0``,
-  ``sim_camera_underwater_noise:=0.0``, and
-  ``sim_camera_underwater_vignette:=0.0``: tune the underwater profile.
-  These parameters are dynamically updateable on
-  ``/sim_camera_renderer_node``. The simulator also exposes
-  ``/sim_camera_renderer_node/set_sim_camera_dynamics`` for typed profile
-  updates through ``ros2_control_blue_reach_5/srv/SetSimCameraDynamics``.
-
-Camera Output
+Sensor topics
 -------------
 
-The selected camera feed publishes:
+- ``/dynamic_joint_states``: vehicle and joint measurements, estimated states,
+  applied efforts and estimator status. See :doc:`services_and_interfaces`.
+- ``/dvl/twist``: hardware DVL velocity in ``<prefix>dvl_link``.
+- ``/alpha/image_raw`` and ``/alpha/camera_info``: selected camera image and
+  calibration. Per-robot feeds use ``/robot_N/camera/`` or ``/robot_real/camera/``.
 
-.. code-block:: text
+Vehicle feedback uses NED pose and body-FRD velocity/acceleration. Raw sensor
+fields retain their source conventions. ``depth_from_pressure2`` is positive
+with increasing pressure relative to ``surface_pressure_pa``.
 
-   /alpha/image_raw    sensor_msgs/msg/Image
-   /alpha/camera_info  sensor_msgs/msg/CameraInfo
-
-Simulated per-robot feeds publish:
-
-.. code-block:: text
-
-   /robot_1/camera/image_raw
-   /robot_1/camera/camera_info
-   /robot_2/camera/image_raw
-   /robot_2/camera/camera_info
-
-The simulated renderer creates these topics for each simulated robot. By
-default every simulated camera is rendered. For lower load, launch with
-``sim_camera_render_all_cameras:=false``; then only the selected camera feed is
-rendered and mirrored to ``/alpha``.
-
-Camera Calibration and TF
--------------------------
-
-Camera intrinsics are published with each camera image on the matching
-``sensor_msgs/msg/CameraInfo`` topic:
-
-.. code-block:: text
-
-   /alpha/camera_info
-   /robot_1/camera/camera_info
-   /robot_2/camera/camera_info
-
-``CameraInfo`` carries image size, the intrinsic matrix ``K``, projection matrix
-``P``, rectification matrix ``R``, distortion model, and distortion coefficients
-``D``. The simulated camera currently publishes a pinhole camera model with zero
-distortion.
-
-Camera extrinsics are provided through TF, not duplicated on a separate topic.
-Use TF to query the camera pose relative to the world or the robot:
-
-.. code-block:: shell
-
-   ros2 run tf2_ros tf2_echo world robot_1_camera_link
-   ros2 run tf2_ros tf2_echo robot_1_base_link robot_1_camera_link
-
-The selected feed frame id follows the active source:
-
-- ``robot_real_camera_link`` when the selected feed is the real camera.
-- ``robot_N_camera_link`` when the selected feed is a simulated robot camera.
-
-RViz automatically enables a ``video feed`` image display when camera launch is
-enabled. In interactive mode, selecting a robot updates the selected ``/alpha``
-feed. In mixed real/sim launches, selecting ``robot_real_`` shows the real
-camera, while selecting a simulated robot shows that robot's rendered simulated
-camera.
-
-Hardware Camera
----------------
-
-When ``use_vehicle_hardware:=true`` without simulated robots,
-``camera_source:=auto`` selects the real GStreamer camera:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_vehicle_hardware:=true
-
-To force the camera on without using the vehicle hardware interface:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_vehicle_hardware:=false \
-       launch_camera:=true \
-       camera_source:=real
-
-Use this when you want to validate the camera node by itself or with a different
-hardware/simulation combination. The default GStreamer pipeline is used unless
-``camera_pipeline`` is provided.
-
-Mixed Real/Sim Camera
----------------------
-
-When real vehicle hardware and simulated robots are launched together,
-``camera_source:=auto`` resolves to mixed mode:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_manipulator_hardware:=true \
-       use_vehicle_hardware:=true \
-       sim_robot_count:=1 \
-       task:=interactive
-
-The real camera publishes on ``/robot_real/camera/image_raw`` and simulated
-robots publish on their own ``/robot_N/camera/image_raw`` topics. RViz consumes
-the selected ``/alpha/image_raw`` feed. The interactive robot selection menu
-updates which per-robot camera is mirrored to ``/alpha``.
-
-For a simulated vehicle with a real manipulator and a real camera:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_vehicle_hardware:=false \
-       use_manipulator_hardware:=true \
-       sim_robot_count:=1 \
-       task:=interactive \
-       camera_source:=real
-
-Simulated Camera
+Camera selection
 ----------------
 
-Pure simulation uses the simulated camera renderer by default:
+Append these options to the launch command in :doc:`userdoc`:
 
-.. code-block:: shell
+- ``launch_camera:=false``: disable cameras; the default is ``true``.
+- ``camera_source:=auto``: select simulated, real or mixed feeds from the
+  launched robots. Selecting a robot in RViz selects its ``/alpha`` feed.
+- ``camera_source:=sim`` or ``real``: force the source.
+- ``camera_pipeline:="... appsink name=camera_sink"``: custom real-camera pipeline.
 
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_vehicle_hardware:=false \
-       sim_robot_count:=1 \
-       task:=interactive
+With a real camera, ``camera_auto_destination:=true`` registers this computer
+with BlueOS. Set it to ``false`` when managing destinations manually.
+``camera_blueos_url`` defaults to ``http://192.168.2.2:6020``;
+``camera_stream_name`` selects a named stream when multiple cameras exist.
+Registration preserves other viewers but briefly restarts the selected stream.
+Previous settings are saved under ``~/.ros/camera_destination_backups/``.
 
-Select a renderer backend:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_vehicle_hardware:=false \
-       sim_robot_count:=3 \
-       task:=interactive \
-       sim_camera_renderer_backend:=pyvista
-
-Use ``sim_camera_renderer_backend:=open3d`` to compare against the Open3D
-offscreen renderer. The installed executable name remains
-``sim_camera_renderer_node`` regardless of backend.
-
-Disable the underwater look for raw geometry/debug views:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_vehicle_hardware:=false \
-       sim_robot_count:=1 \
-       task:=interactive \
-       sim_camera_underwater_effect:=false
-
-Force the simulated renderer explicitly:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       camera_source:=sim
-
-Verify image transport:
-
-.. code-block:: shell
-
-   ros2 topic hz /alpha/image_raw
-
-Standalone Real Camera Node
----------------------------
-
-Run the default camera pipeline directly:
-
-.. code-block:: shell
+To run only the real-camera receiver::
 
    ros2 run ros2_control_blue_reach_5 gstreamer_camera_node --ros-args \
-       -p image_topic:=/alpha/image_raw \
-       -p frame_id:=camera_link
+     -p image_topic:=/alpha/image_raw -p frame_id:=camera_link
 
-Camera Mount and Lights
------------------------
+Check incoming images with ``ros2 topic hz /alpha/image_raw``.
 
-The vehicle hardware interface listens for camera mount pitch commands:
+Simulated camera settings
+-------------------------
 
-.. code-block:: text
+- ``sim_camera_renderer_backend:=pyvista``: default; ``open3d`` is also supported.
+- ``sim_camera_width:=480``, ``sim_camera_height:=360``: image dimensions.
+- ``sim_camera_rate:=5.0``: frame rate in Hz.
+- ``sim_camera_max_mesh_triangles:=12000``: per-visual mesh cap; lower is faster.
+- ``sim_camera_render_all_cameras:=false``: render only the selected feed;
+  the default renders all simulated cameras.
+- ``sim_camera_underwater_effect:=false``: disable underwater post-processing.
 
-   /alpha/cameraMountPitch
+Underwater settings can also be changed at runtime::
 
-In PS4 ``Options`` mode:
+   ros2 param set /sim_camera_renderer_node sim_camera_underwater_haze 0.35
 
-- D-pad up/down publishes camera mount pitch commands.
-- D-pad left/right publishes light commands.
+Runtime parameter names have the ``sim_camera_`` prefix. Settings are ``underwater_effect``, ``underwater_haze``, ``underwater_tint``,
+``underwater_blur``, ``underwater_noise`` and ``underwater_vignette``.
+For typed profile updates, see ``SetSimCameraDynamics`` in
+:doc:`services_and_interfaces`. The effect is an appearance model, not calibrated
+underwater optics.
 
-The hardware interface clamps the camera mount PWM to the configured safe
-range.
+Camera frames and calibration
+-----------------------------
 
-Optional disturbance process-noise adaptation
--------------------------------------------------
+``CameraInfo`` accompanies images. Simulation uses pinhole intrinsics and zero
+distortion. Image frame IDs identify ``robot_N_camera_link`` or
+``robot_real_camera_link``.
 
-``ekf_adapt_wrench_process_noise`` is a read-only vehicle topics-interface
-parameter, disabled by default for both simulation and hardware. Enabling it
-loads the source-exported ``disturbance_ekf_smoothing_full_moment`` helper and runs a
-bounded background worker. It uses a past two-second window with approximately
-half-second updates to match the full 6x6 disturbance-increment second moment,
-including force/moment correlations. This remains experimental and opt-in.
-The prior has weight 0.1 and updates have damping 0.5. This is approximate causal
-covariance matching, not exact full-state EM or calibrated confidence.
+Normal TF reports the estimated pose::
 
-The operational EKF continues its current-time prediction and correction; only
-its subsequent process intensities change. The worker has no actuator or truth
-access. Inputs include the actual integrated transition, prior, posterior and
-interval duration. Sensor availability gates learning, while intentional
-multirate masks do not count as sensor dropouts. Resets, model replacement and
-availability loss invalidate pending fits and restore configured intensities.
-Positive configured diagonal intensities initialize the learner. Learned
-correlations are retained; only numerical-roundoff negative eigenvalues in
-accumulated moments are projected to zero, while materially indefinite moments
-are rejected. Positive diagonal intensities are required when enabled. Combining adaptation
-with ``ekf_wrench_process_covariance`` is rejected rather than discarding its
-correlations. Hardware remains opt-in and requires independent real-sensor
-validation; simulation results are not a hardware accuracy guarantee.
+   ros2 run tf2_ros tf2_echo world robot_1_camera_link
 
-The standard dynamic joint-state/MCAP pipeline exposes
-``estimator_noise.intensity.0`` through ``.5`` (force in N^2/s, torque in
-(N m)^2/s), ``enabled``, ``applied_fit_count``, ``dropped``, ``failed``,
-``fit_seconds`` and ``endpoint_step`` under ``estimator_noise``. Fit duration is
-worker computation time, not end-to-end result age. A stored valid fit applies
-before a later prediction; the endpoint identifies its last observation.
+Use ``/simulation_truth/tf`` for physical camera-pose evaluation.
 
-Live simulation sensor-noise toggle
-----------------------------------------
+Camera-mount pitch commands use ``/alpha/cameraMountPitch``. Joystick mount/light
+controls are listed in :doc:`controls_and_menus`.
 
-In the interactive marker menu, select **Robot Control → Sensor noise (sim) →
-On / Off** for the selected robot. The checkmark follows confirmed simulator
-telemetry. This affects vehicle depth, attitude, DVL, gyro and accelerometer
-noise only; sample rates and EKF tuning remain unchanged. Arm encoders are not
-affected. Noise is enabled by default; select Off for ideal simulated measurements.
+Vehicle measurements and EKF
+----------------------------
 
-The per-robot ``/<prefix>set_sensor_noise`` SetBool service queues the change
-for the next completed simulation step. While dynamics are paused, the change
-remains pending. The ``sensor_noise_enabled`` GPIO state in
-``dynamic_joint_states`` reports the applied setting and is captured by the
-standard recorder. Hardware does not expose this service.
+Use ``sim_vehicle_sensor_config:=/absolute/path/sensors.yaml`` for startup settings::
 
-The initial value can be configured with the read-only
-``sim_sensor_noise_enabled`` parameter on the simulated vehicle interface node.
-Runtime changes do not rewrite that initial parameter or reset the estimator.
-Random draws continue while noise is disabled, preserving the seeded sampling
-sequence. Held measurements become ideal at their next sensor sample.
+   /robot_1_BlueSystemMultiInterface_topics_interface:
+     ros__parameters:
+       sim_sensor_noise_enabled: true
+       sim_sensor_noise_seed: 42
+       sim_sensor_rates_hz: [10.0, 200.0, 10.0]
+       sim_sensor_noise_std: [0.001, 0.001, 0.001, 0.001, 0.001, 0.001, 0.001]
+       sim_raw_imu_noise_std: [0.001, 0.001, 0.001, 0.01, 0.01, 0.01]
 
-Submerged vehicle dynamics
-----------------------------------------
+``sim_sensor_noise_std`` is depth (m), roll/pitch/yaw (rad), then body-FRD
+velocity (m/s). ``sim_raw_imu_noise_std`` is gyro (rad/s), then specific force
+(m/s²). Optional ``sim_dvl_covariance`` supplies a row-major 3×3 velocity
+covariance. These are example white-noise settings, not calibrated Navigator,
+Bar30 or A50 noise models; drift, latency and bottom-lock loss are not simulated.
 
-Vehicle dynamics and EKF sensor/prediction models assume full immersion.
-Buoyancy is the configured displaced-volume force at every depth; depth zero
-does not switch buoyancy or provide artificial support. This avoids a false
-external-wrench estimate when noisy depth crosses the coordinate origin.
-Floating, emergence and partial immersion are outside this model.
+In the menu, use **Robot Control → Sensor noise (sim) → On / Off**.
+The ``/<prefix>set_sensor_noise`` SetBool service changes the same setting.
+``sensor_noise_enabled`` telemetry confirms application at the next completed
+step. This changes vehicle measurements only; it does not reset or retune the
+EKF. Arm encoders are unaffected.
 
-With the default weight 105 N and buoyancy 97.8296453 N, zero actuator effort
-does not hold depth. Controllers compensate the net weight using the same
-exported submerged restoring model. Sensor noise and estimator tuning are
-independent of this physical-model correction.
+EKF measurement uncertainty is configured independently:
 
-Vehicle artifacts are generated together using export_vehicle in
-diff_uv/usage/code_generation.ipynb. Restart consumers after installing a
-consistent artifact set. Do not mix an older surface-dependent plant with a
-submerged EKF or controller.
+- ``depth_attitude_measurement_variances``: depth and roll/pitch/yaw variances.
+- ``dvl_measurement_covariance``: row-major 3×3 body-FRD velocity covariance.
+- ``raw_imu_measurement_variances``: gyro and specific-force variances.
+
+Sensor mounts are read once from the robot URDF at driver initialization.
+The IMU, DVL and pressure offsets feed the compiled measurement model and its
+analytic Jacobian. DVL measurements include ``omega x r``; pressure measures
+the depth of its sensor origin. The IMU model includes tangential and
+centripetal acceleration at its origin. Simulation generates the same sensor
+quantities from plant state before adding noise.
+
+URDF frames use ROS FLU; the driver converts mounting geometry to the dynamics'
+FRD convention once. MAVROS IMU measurements are already body-aligned and are
+accepted only with a body-frame header. Their mounting rotation is not applied
+again. A50 velocity and covariance are rotated together from the installation's
+sensor-FRD convention to body FRD. The ROS ``/dvl/twist`` output is expressed in
+its declared sensor-FLU frame.
+
+Hardware and simulation DVL state interfaces both contain sensor-FRD velocity;
+the estimator rotates these measurements into body FRD. Invalid hardware DVL
+packets are excluded from both estimator updates and ROS twist publication.
+After a simulation reset, pressure and DVL telemetry includes the mounting
+offsets immediately. Accelerometer telemetry is unavailable (NaN) until the
+first completed physical IMU sample; its EKF measurement mask remains cleared.
+
+The IMU is located at base_link. The pressure sensor is at the rear of the top
+enclosure (roughly 10–15 cm, exact XYZ unmeasured); its zero-offset value remains
+an explicit uncalibrated assumption. Set their fixed-joint origins in
+the selected vehicle Xacro when calibration is available. There is no separate
+runtime IMU-offset parameter.
+
+The EKF does not read the simulator's noise settings or estimate sensor noise
+online. ``ekf_navigation_process_intensities`` and
+``ekf_wrench_process_intensities`` configure process uncertainty. Optional
+``ekf_wrench_process_covariance`` replaces the diagonal wrench block with a
+row-major 6×6 continuous covariance in [force xyz, torque xyz] order.
+``ekf_adapt_wrench_process_noise`` enables experimental process-noise adaptation;
+it is off by default and cannot be combined with the full covariance option.
+
+Hardware sensor configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``hardware_vehicle_sensor_config:=/absolute/path/sensors.yaml`` for hardware.
+Set ``surface_pressure_pa`` from a surface measurement for Bar30 depth conversion;
+startup does not auto-zero a potentially submerged robot. Configure attitude,
+gyro and accelerometer variances from calibration data.
+
+A50 velocity uses its reported full covariance. The installation assumes
+body-FRD-aligned DVL axes; a different mounting needs both velocity and covariance
+transformed. Invalid covariance or missing bottom lock excludes that observation.
+IMU attitude comes from ``/mavros/imu/data``; fresh raw gyro and accelerometer
+samples come from ``/mavros/imu/data_raw``. Missing channels are not fused as zero.
+Full estimator validity requires fresh IMU, pressure and DVL streams.
+
+Arm disturbance estimation
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Arm disturbance estimates cover joints e, d, c and b; the gripper is excluded.
+Locked or limit-constrained joints cannot reliably reveal an external load;
+check the published observability flags as well as estimator validity.
+``arm_joint_locks:=false`` disables artificial locks in simulation, but retains
+joint limits, friction and actuator limits. Hardware estimation is observation-only;
+see :doc:`hil_setup` before interpreting physical torque estimates.

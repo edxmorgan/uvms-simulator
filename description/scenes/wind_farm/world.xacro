@@ -1,0 +1,144 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="scene_environment" params="world_frame asset_directory">
+    <link name="bathymetry_seabed_0">
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/flat_401ba3765cae.obj" scale="2 2 2" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/flat_5c224e0d117a.obj" scale="2 2 2" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_seabed_0_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_seabed_0" />
+      <origin xyz="0 0 -8" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_turbine2_base_1">
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_base_cb92d9255c0c.obj" scale="1 1 1" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_base_16955758109a.obj" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_turbine2_base_1_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_turbine2_base_1" />
+      <origin xyz="100 -250 -8" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_turbine2_main_2">
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 1.2" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_main_8989297c2b97.obj" scale="1 1 1" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 1.2" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_main_90b0323dc178.obj" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_turbine2_main_2_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_turbine2_main_2" />
+      <origin xyz="100 -250 -8" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_turbine2_base_3">
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_base_cb92d9255c0c.obj" scale="1 1 1" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_base_16955758109a.obj" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_turbine2_base_3_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_turbine2_base_3" />
+      <origin xyz="100 0 -8" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_turbine2_main_4">
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 1.2" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_main_8989297c2b97.obj" scale="1 1 1" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 1.2" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_main_90b0323dc178.obj" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_turbine2_main_4_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_turbine2_main_4" />
+      <origin xyz="100 0 -8" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_turbine2_base_5">
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_base_cb92d9255c0c.obj" scale="1 1 1" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_base_16955758109a.obj" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_turbine2_base_5_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_turbine2_base_5" />
+      <origin xyz="100 250 -8" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_turbine2_main_6">
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 1.2" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_main_8989297c2b97.obj" scale="1 1 1" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 1.2" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/turbine2_main_90b0323dc178.obj" scale="1 1 1" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_turbine2_main_6_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_turbine2_main_6" />
+      <origin xyz="100 250 -8" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="world_bottom" />
+    <joint name="world_bottom_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="world_bottom" />
+      <origin xyz="0 0 -8" rpy="0 0 0" />
+    </joint>
+  </xacro:macro>
+</robot>

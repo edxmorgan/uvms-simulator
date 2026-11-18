@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:macro name="pressure_urdf" params="prefix parent *origin">
+    <link name="${prefix}pressure_link" />
+    <joint name="${prefix}pressure_joint" type="fixed">
+      <xacro:insert_block name="origin" />
+      <parent link="${parent}" />
+      <child link="${prefix}pressure_link" />
+    </joint>
+  </xacro:macro>
+</robot>

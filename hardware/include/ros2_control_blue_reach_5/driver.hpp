@@ -44,6 +44,10 @@ public:
    * @brief Construct a new Driver object.
    */
   Driver();
+  ~Driver();
+  std::string serial_diagnostics() const { return client_.diagnostics(); }
+  bool read_failed() const { return client_.read_failed(); }
+  bool write_failed() const { return client_.write_failed(); }
 
   /**
    * @brief Start the driver.

@@ -50,4 +50,26 @@ struct JointFeedbackClock
     return true;
   }
 };
+
+// Receipt identity, not numeric value, determines whether a measurement is new.
+// Position and velocity packets can arrive independently; current is not an
+// observation of the controller-facing kinematic filter.
+struct JointMeasurementCursor
+{
+  std::array<JointFeedbackClock::Clock::time_point, 2> consumed{};
+  std::array<bool, 2> seen{false, false};
+  std::array<double, 2> take(const JointFeedbackClock &clock)
+  {
+    std::array<double, 2> result{};
+    for (std::size_t field = 0; field < result.size(); ++field) {
+      if (clock.seen[field] && (!seen[field] || clock.received[field] > consumed[field])) {
+        result[field] = 1.;
+        consumed[field] = clock.received[field];
+        seen[field] = true;
+      }
+    }
+    return result;
+  }
+};
+
 }

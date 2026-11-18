@@ -17,6 +17,9 @@
 #define ROS2_CONTROL_BLUE_REACH_5__SIM_REACH_SYSTEM_MULTI_INTERFACE_HPP_
 
 #include <array>
+#include "ros2_control_blue_reach_5/arm_identification_sample.hpp"
+#include "ros2_control_blue_reach_5/identified_arm_model.hpp"
+#include "ros2_control_blue_reach_5/msg/arm_identification.hpp"
 #include "ros2_control_blue_reach_5/disturbance_receiver.hpp"
 #include <chrono>
 #include <condition_variable>
@@ -115,6 +118,23 @@ namespace ros2_control_blue_reach_5
 
     private:
         friend struct ArmEstimatorTestAccess;
+        uvms::arm_identification::Sample identification_sample_;
+        using ArmIdentification=ros2_control_blue_reach_5::msg::ArmIdentification;
+        void receive_identified_model(const ArmIdentification &message);
+        void apply_identified_models();
+        void clear_identified_model(int subsystem);
+        void reset_identified_models();
+        std::array<std::optional<ArmIdentification>,2> pending_identified_models_;
+        std::array<rclcpp::Subscription<ArmIdentification>::SharedPtr,2> identification_subscriptions_;
+        std::array<std::chrono::steady_clock::time_point,2> identified_model_received_{};
+        std::array<double,6> identification_ack_{0,-1,-1,0,-1,-1};
+        std::array<double,3> gripper_model_readback_{300,400,0};
+        std::array<uint64_t,2> identification_epoch_seen_{};
+        std::array<int64_t,2> identification_stamp_seen_{};
+        rclcpp::Time identified_model_reset_stamp_{0,0,RCL_ROS_TIME};
+        uvms::arm_identification::GripperObserver gripper_observer_;
+        double gripper_applied_input_=0;
+
         void reset_joint_simulation_state();
         void reset_joint_simulation_state(
             const ros2_control_blue_reach_5::srv::ResetSimUvms::Request &request);
@@ -122,6 +142,7 @@ namespace ros2_control_blue_reach_5
         void seed_joint_estimator_from_state(std::size_t index, const Joint::State &state);
         void apply_pending_reset_request();
         void stop_ros_interfaces() noexcept;
+        void publishRealtimeTransforms();
 
         double payload_mass = 0;
         double payload_Ixx = 0;
@@ -188,6 +209,7 @@ namespace ros2_control_blue_reach_5
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>> realtime_frame_transform_publisher_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::ResetSimUvms>::SharedPtr reset_service_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
+        rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr pause_service_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::GetSimDynamics>::SharedPtr dynamics_readback_service_;
 

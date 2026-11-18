@@ -16,7 +16,9 @@
 #ifndef ROS2_CONTROL_BLUE_REACH_5__SIM_VEHICLE_SYSTEM_MULTI_INTERFACE_HPP_
 #define ROS2_CONTROL_BLUE_REACH_5__SIM_VEHICLE_SYSTEM_MULTI_INTERFACE_HPP_
 
+#include "ros2_control_blue_reach_5/vehicle_sensor_mounts.hpp"
 #include "ros2_control_blue_reach_5/vehicle_disturbance_noise_adaptation.hpp"
+#include "ros2_control_blue_reach_5/identification_sample.hpp"
 #include "ros2_control_blue_reach_5/disturbance_receiver.hpp"
 #include <chrono>
 #include <array>
@@ -153,11 +155,12 @@ namespace ros2_control_blue_reach_5
 
         using tf = tf2_msgs::msg::TFMessage;
 
-        tf2::Quaternion q_orig, q_rot, q_new, q_rot_dvl, q_rot_mocap;
+        tf2::Quaternion q_orig, q_rot, q_new;
 
         std::shared_ptr<rclcpp::Publisher<tf>> transform_publisher_;
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>>
             realtime_transform_publisher_;
+        std::shared_ptr<realtime_tools::RealtimePublisher<tf>> physical_transform_publisher_;
 
         void publishRealtimePoseTransform();
         void publishStaticPoseTransform();
@@ -183,6 +186,7 @@ namespace ros2_control_blue_reach_5
         std::string reset_failure_message_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::ResetSimUvms>::SharedPtr reset_service_;
         rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr release_service_;
+        rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr pause_service_;
         rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr sensor_noise_service_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
         rclcpp::Service<ros2_control_blue_reach_5::srv::GetSimDynamics>::SharedPtr dynamics_readback_service_;
@@ -205,7 +209,8 @@ namespace ros2_control_blue_reach_5
         casadi::DM sensor_R_ = casadi::DM::eye(13);
         std::array<double, 6> raw_imu_std_{.001,.001,.001,.01,.01,.01};
         std::array<double, 6> raw_imu_measurement_{}, raw_imu_new_{};
-        casadi::DM imu_offset_ = casadi::DM::zeros(3,1);
+        VehicleSensorMounts sensor_mounts_;
+        casadi::DM sensor_offsets_ = casadi::DM::zeros(9,1);
         double sensor_gravity_ = 9.80665;
         std::array<double, 3> sensor_rates_{10.0, 200.0, 10.0}; // depth, attitude, DVL Hz
         std::array<double, 3> sensor_next_sample_{}, sensor_sample_time_{};
@@ -213,6 +218,7 @@ namespace ros2_control_blue_reach_5
         double sensor_elapsed_{0.0}; // completed dynamics time since reset
         std::array<double, 9> sensor_dvl_factor_{}; // lower factor of body-FRD covariance
         std::array<double, 7> sensor_noise_std_{};
+        uvms::identification::HardwareSample identification_sample_;
         std::atomic<bool> sensor_noise_requested_{true};
         double sensor_noise_enabled_{1.0}; // Applied on the completed-step sampling boundary.
         double apply_sensor_noise(double value) const { return sensor_noise_enabled_ ? value : 0.0; }
@@ -233,6 +239,7 @@ namespace ros2_control_blue_reach_5
         bool estimator_model_net_weight_only_ = false;
         casadi::DM estimator_applied_input_ = casadi::DM::zeros(6, 1);
         double estimator_step_ = 0.0;
+        double estimator_completed_dt_ = 0.0;
         double estimator_valid_ = 0.0;
         std::array<double, 6> estimated_disturbance_{};
         

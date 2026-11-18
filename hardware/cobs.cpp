@@ -76,31 +76,23 @@ std::vector<unsigned char> cobsEncode(const std::vector<unsigned char> & data)
 
 std::vector<unsigned char> cobsDecode(const std::vector<unsigned char> & data)
 {
+  if (data.empty() || data.back() != 0x00) {
+    throw std::runtime_error("COBS packet is missing its delimiter.");
+  }
   std::vector<unsigned char> decoded_data;
-  std::vector<unsigned char>::size_type encoded_data_pos = 0;
-
-  while (encoded_data_pos < data.size()) {
-    const int block_size = data[encoded_data_pos] - 1;
-    encoded_data_pos++;
-
-    for (int i = 0; i < block_size; ++i) {
-      const unsigned char byte = data[encoded_data_pos];
-
-      if (byte == 0x00) {
-        throw std::runtime_error("Failed to decode the encoded data.");
-      }
-
-      decoded_data.push_back(data[encoded_data_pos]);
-      encoded_data_pos++;
+  const auto end = data.size() - 1;
+  std::size_t pos = 0;
+  while (pos < end) {
+    const auto code = data[pos++];
+    if (code == 0 || static_cast<std::size_t>(code - 1) > end - pos) {
+      throw std::runtime_error("Invalid COBS block length.");
     }
-
-    if (data[encoded_data_pos] == 0x00) {
-      break;
+    for (unsigned i = 1; i < code; ++i) {
+      const auto byte = data[pos++];
+      if (byte == 0) throw std::runtime_error("Unexpected COBS delimiter.");
+      decoded_data.push_back(byte);
     }
-
-    if (block_size < 0xFE) {
-      decoded_data.push_back(0x00);
-    }
+    if (code != 0xff && pos < end) decoded_data.push_back(0);
   }
 
   return decoded_data;

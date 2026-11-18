@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id same_initial_conditions use_pwm use_dvl dvl_host dvl_port manual_control:=false">
+  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id same_initial_conditions use_pwm use_dvl dvl_host dvl_port manual_control:=false startup_pause:=false">
 
     <ros2_control name="${name}" type="system">
 
@@ -26,6 +26,7 @@
 
         <xacro:unless value="${use_hardware}">
           <plugin>ros2_control_blue_reach_5/SimVehicleSystemMultiInterfaceHardware</plugin>
+          <param name="startup_pause">${startup_pause}</param>
           <param name="prefix">${prefix}</param>
           <param name="world_frame_id">${world_frame_id}</param>
           <param name="body_frame_id">${body_frame_id}</param>
@@ -161,6 +162,10 @@
         <state_interface name="sim_time"/>
         <state_interface name="sim_period"/>
         <command_interface name="pwm"/>
+      </joint>
+
+      <joint name="${prefix}camera_mount_joint">
+        <state_interface name="position"/>
       </joint>
 
       <gpio name="${prefix}IOs">
@@ -359,7 +364,6 @@
           <state_interface name="estimator_noise.failed"/>
           <state_interface name="estimator_noise.fit_seconds"/>
           <state_interface name="estimator_noise.endpoint_step"/>
-        <xacro:if value="${use_hardware}">
           <state_interface name="identification.valid"/>
           <state_interface name="identification.generation"/>
           <state_interface name="identification.step"/>
@@ -381,7 +385,6 @@
           <state_interface name="identification.wrench.3"/>
           <state_interface name="identification.wrench.4"/>
           <state_interface name="identification.wrench.5"/>
-        </xacro:if>
           <state_interface name="estimator_nominal_parameter.0"/>
           <state_interface name="estimator_nominal_parameter.1"/>
           <state_interface name="estimator_nominal_parameter.2"/>
@@ -453,6 +456,12 @@
         <state_interface name="estimated_disturbance.covariance.5.3"/>
         <state_interface name="estimated_disturbance.covariance.5.4"/>
         <state_interface name="estimated_disturbance.covariance.5.5"/>
+        <state_interface name="linear_acceleration_estimate.x"/>
+        <state_interface name="linear_acceleration_estimate.y"/>
+        <state_interface name="linear_acceleration_estimate.z"/>
+        <state_interface name="angular_acceleration_estimate.x"/>
+        <state_interface name="angular_acceleration_estimate.y"/>
+        <state_interface name="angular_acceleration_estimate.z"/>
       </gpio>
 
     </ros2_control>

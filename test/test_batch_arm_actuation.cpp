@@ -52,3 +52,36 @@ TEST(BatchArmIntegration, SharedIntervalPolicyAndRejection)
   EXPECT_EQ(core.observations(), before);
   EXPECT_EQ(core.sim_time(), 0.);
 }
+
+
+#include "ros2_control_blue_reach_5/batch_sim_uvms_system_hardware.hpp"
+
+TEST(BatchArmIntegration, NativeWrapperRejectsInvalidPeriodBeforeAccessingState)
+{
+  ros2_control_blue_reach_5::BatchSimUvmsSystemHardware hardware;
+  for (double dt : {0.0, -0.005, 5.01}) {
+    EXPECT_EQ(hardware.write(rclcpp::Time(0), rclcpp::Duration::from_seconds(dt)),
+              hardware_interface::return_type::ERROR);
+  }
+}
+
+TEST(BatchArmIntegration, InvalidPeriodDoesNotChangeActiveOrHeldCore)
+{
+  for (bool held : {true, false}) {
+    BatchUvmsCore core;
+    core.configure(2);
+    core.reset(held);
+    const auto observations = core.observations();
+    const auto actions = core.actions();
+    for (double dt : {0.0, -0.005, 5.01, std::numeric_limits<double>::infinity(),
+                      std::numeric_limits<double>::quiet_NaN()}) {
+      EXPECT_THROW(core.step(dt), std::runtime_error);
+      EXPECT_EQ(core.observations(), observations);
+      EXPECT_EQ(core.actions(), actions);
+      EXPECT_EQ(core.sim_time(), 0.0);
+      EXPECT_EQ(core.tick_id(), 0U);
+      EXPECT_EQ(core.step_count(), 0.0);
+      EXPECT_EQ(core.commands_held(), held);
+    }
+  }
+}

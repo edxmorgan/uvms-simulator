@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "ros2_control_blue_reach_5/packet.hpp"
+#include "ros2_control_blue_reach_5/serial_trace.hpp"
 #include "ros2_control_blue_reach_5/packet_id.hpp"
 
 namespace alpha::driver
@@ -39,6 +40,7 @@ namespace alpha::driver
 class SerialClient
 {
 public:
+  ~SerialClient();
   /**
    * @brief Attempt to establish a connection with the Alpha manipulator.
    *
@@ -83,14 +85,12 @@ public:
    * @return True if the serial client is active, false otherwise.
    */
   bool active() const;
+  // A failed packet write remains visible until a new connection is established.
+  bool write_failed() const { return write_failed_.load(std::memory_order_relaxed); }
+  bool read_failed() const { return read_failed_.load(std::memory_order_relaxed); }
+  std::string diagnostics() const;
 
 private:
-  enum class PortState
-  {
-    kOpen,   // The serial port is currently open
-    kClosed  // The serial port is currently closed
-  };
-
   /**
    * @brief Poll the serial line for incoming data.
    *
@@ -98,7 +98,7 @@ private:
    * a blocking method that runs indefinitely. The main loop is terminated by
    * the atomic @ref running_ flag.
    */
-  void poll() const;
+  void poll();
 
   /**
    * @brief Map used to store the callback functions for messages.
@@ -107,12 +107,16 @@ private:
    * when a message the respective packet ID is received.
    */
   std::unordered_map<PacketId, std::vector<std::function<void(Packet)>>> callbacks_;
+  mutable std::mutex callbacks_mutex_;
 
   // Serial port poller
-  int handle_;
+  int handle_{-1};
+  mutable SerialTrace trace_;
+  mutable std::atomic<std::uint64_t> received_bytes_{0}, rejected_frames_{0}, read_errors_{0}, write_errors_{0};
   mutable std::mutex tx_mutex_;
+  mutable std::atomic<bool> write_failed_{false};
+  mutable std::atomic<bool> read_failed_{false};
   std::atomic<bool> running_{false};
-  PortState port_status_ = PortState::kClosed;
   std::thread rx_worker_;
 };
 

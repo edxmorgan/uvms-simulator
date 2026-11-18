@@ -5,15 +5,34 @@
 #include <cmath>
 #include <stdexcept>
 #include <vector>
+#if defined(__SSE2__)
+#include <xmmintrin.h>
+#endif
 
 namespace ros2_control_blue_reach_5::arm_time_integration {
 using arm_integration_policy::intervals;
+// Locked-state exponential decay eventually reaches IEEE subnormals. Avoid
+// slow floating-point assists only during integration; no physical deadband.
+class ScopedNormalArithmetic {
+ public:
+#if defined(__SSE2__)
+  ScopedNormalArithmetic() : previous_(_mm_getcsr()) {
+    _mm_setcsr(previous_ | (1u << 15) | (1u << 6)); // FTZ and DAZ
+  }
+  ~ScopedNormalArithmetic() { _mm_setcsr(previous_); }
+ private:
+  unsigned previous_;
+#else
+  ScopedNormalArithmetic() = default;
+#endif
+};
 inline void require_finite(const casadi::DM &a) {
   for (double v:a.nonzeros())
     if (!std::isfinite(v)) throw std::runtime_error("nonfinite arm integration result");
 }
 inline std::vector<casadi::DM> plant(const casadi::Function &flow,
                                     std::vector<casadi::DM> args) {
+  const ScopedNormalArithmetic arithmetic;
   const double dt=double(args.at(2));
   const int count=intervals(dt,double(args.at(8)));
   args[2]=dt/count;

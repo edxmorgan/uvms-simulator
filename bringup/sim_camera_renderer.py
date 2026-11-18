@@ -4,6 +4,7 @@
 import copy
 import math
 import os
+import time
 import xml.etree.ElementTree as ET
 
 import numpy as np
@@ -24,10 +25,16 @@ from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSReliabilityPolic
 from rclpy.time import Time
 from ros2_control_blue_reach_5.msg import DynamicObstacle, DynamicObstacleArray
 from sensor_msgs.msg import CameraInfo, Image
-from tf2_ros import Buffer, TransformException, TransformListener
+from tf2_ros import Buffer, TransformException
+from tf2_msgs.msg import TFMessage
 from ros2_control_blue_reach_5.srv import SetSimCameraDynamics
 
 WATER_SURFACE_Z = 0.0
+# Dimensionless display settings, not calibrated lamp photometry.
+LAMP_INTENSITY = 10.0
+LAMP_CONE_DEG = 67.5
+LAMP_EXPONENT = 5.0
+LAMP_ATTENUATION = (1.0, 0.1, 0.05)
 
 
 def camera_topic_base(prefix):
@@ -113,12 +120,15 @@ def read_triangle_mesh(path, max_triangles, preserve_materials=False):
         parts = list(loaded.dump())
         for part in parts:
             if part.visual.kind == 'texture':
-                if part.visual.uv is None:
-                    part.visual = trimesh.visual.ColorVisuals(
-                        mesh=part, vertex_colors=np.tile(part.visual.material.main_color,
-                                                       (len(part.vertices), 1)))
-                else:
-                    part.visual = part.visual.to_color()
+                # Constant PBR materials return one RGBA vector even when UVs
+                # exist. Expand that color before creating per-vertex visuals.
+                colors = np.asarray(part.visual.material.main_color if part.visual.uv is None
+                                    else part.visual.material.to_color(part.visual.uv))
+                if colors.shape == (4,):
+                    colors = np.tile(colors, (len(part.vertices), 1))
+                if colors.shape != (len(part.vertices), 4):
+                    raise ValueError(f"Invalid material color array {colors.shape} in {path}")
+                part.visual = trimesh.visual.ColorVisuals(mesh=part, vertex_colors=colors)
         loaded = trimesh.util.concatenate(parts)
     if isinstance(loaded, trimesh.Scene):
         loaded = loaded.to_geometry()
@@ -169,6 +179,8 @@ class SimCameraRendererNode(Node):
         self.declare_parameter("height", 360)
         self.declare_parameter("render_rate", 5.0)
         self.declare_parameter("renderer_backend", "pyvista")
+        self.declare_parameter("physical_feedback_timeout", 0.5)
+        self.declare_parameter("obstacle_snapshot_timeout", 1.0)
         self.declare_parameter("sim_camera_max_mesh_triangles", 12000)
         self.declare_parameter("sim_camera_render_all_cameras", True)
         self.declare_parameter("sim_camera_underwater_effect", True)
@@ -181,7 +193,16 @@ class SimCameraRendererNode(Node):
         self.declare_parameter("selected_prefix", "")
         self.declare_parameter("publish_selected_output", True)
 
+        self.physical_feedback_timeout = float(self.get_parameter("physical_feedback_timeout").value)
+        self.obstacle_snapshot_timeout = float(self.get_parameter("obstacle_snapshot_timeout").value)
+        if not all(math.isfinite(v) and v > 0 for v in
+                   (self.physical_feedback_timeout, self.obstacle_snapshot_timeout)):
+            raise ValueError('Camera freshness timeouts must be finite and positive')
         self.robot_description = self.get_parameter("robot_description").value
+        from bringup.scene_runtime import robot_link_owners
+        self.robot_link_owners = robot_link_owners(self.robot_description)
+        self.obstacle_snapshot_received = None
+        self.obstacle_snapshot_age = 0.
         self.robot_prefixes = list(self.get_parameter("robots_prefix").value)
         self.camera_prefixes = [p for p in self.get_parameter("camera_prefixes").value if p]
         if not self.camera_prefixes:
@@ -211,7 +232,15 @@ class SimCameraRendererNode(Node):
         self.publish_selected_output = bool(self.get_parameter("publish_selected_output").value)
 
         self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        # Dynamic robot transforms must describe the plant, never the EKF.
+        self.physical_tf_sub = self.create_subscription(
+            TFMessage, "/simulation_truth/tf", self._physical_tf_callback, 100)
+        static_qos = QoSProfile(depth=100, durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
+        # Fixed map/environment/URDF transforms are common to both state trees.
+        self.static_tf_sub = self.create_subscription(
+            TFMessage, "/tf_static", self._static_tf_callback, static_qos)
+        self.physical_static_tf_sub = self.create_subscription(
+            TFMessage, "/simulation_truth/tf_static", self._static_tf_callback, static_qos)
         self.image_qos = QoSProfile(depth=1)
         self.info_qos = QoSProfile(depth=1)
         self.image_publishers = {}
@@ -265,6 +294,8 @@ class SimCameraRendererNode(Node):
             "~/set_sim_camera_dynamics",
             self._handle_set_sim_camera_dynamics,
         )
+        from bringup.scene_camera import attach_scene_camera
+        attach_scene_camera(self)
         self.timer = self.create_timer(1.0 / self.render_rate, self.render_all)
         self.get_logger().info(
             f"{self.renderer_backend} sim_camera_renderer_node render cameras={len(self.render_prefixes)} "
@@ -288,13 +319,38 @@ class SimCameraRendererNode(Node):
         self.material.base_color = [0.65, 0.65, 0.62, 1.0]
         self._load_open3d_urdf_visual_meshes()
         self._add_open3d_water_surface()
+        self.get_logger().warning(
+            'Open3D uses its backend lighting; robot proximity lamps are supported only by PyVista. '
+            'Camera images from these backends are not photometrically equivalent.')
 
     def _setup_pyvista_backend(self):
-        self.pyvista_plotter = pv.Plotter(off_screen=True, window_size=(self.width, self.height))
-        self.pyvista_plotter.set_background("#022032", top="#001018")
-        self.pyvista_plotter.enable_lightkit()
+        self.pyvista_plotter = pv.Plotter(off_screen=True, window_size=(self.width, self.height), lighting="none")
+        self.pyvista_plotter.set_background("#000000")
         self._load_pyvista_urdf_visual_meshes()
         self._add_pyvista_water_surface()
+
+        self._setup_robot_lights()
+
+    def _setup_robot_lights(self):
+        from bringup.scene_runtime import robot_link_owners
+        # Light poses belong to the robot description, just like visual poses.
+        # Recreate lights after scene replacement; never accumulate duplicates.
+        # VTK otherwise creates a camera headlight when every lamp is off,
+        # including startup before physical TF arrives.
+        self.pyvista_plotter.renderer.AutomaticLightCreationOff()
+        self.pyvista_plotter.remove_all_lights()
+        self.rov_lights = []
+        for frame, owner in robot_link_owners(self.robot_description).items():
+            if not frame.startswith(owner + 'lumen_') or not frame.endswith('_link'):
+                continue
+            light = pv.Light(color='white', light_type='scene light', positional=True,
+                             cone_angle=LAMP_CONE_DEG, intensity=LAMP_INTENSITY, exponent=LAMP_EXPONENT)
+            light.attenuation_values = LAMP_ATTENUATION
+            # Keep a zero-intensity light enabled: VTK's no-active-light path
+            # renders surfaces unlit instead of dark.
+            light.intensity = 0.0
+            self.pyvista_plotter.add_light(light)
+            self.rov_lights.append((light, frame))
 
     def _create_passthrough_subscribers(self):
         for prefix in self.camera_prefixes:
@@ -378,6 +434,8 @@ class SimCameraRendererNode(Node):
             self.get_logger().warning("robot_description is empty; no scene meshes loaded.")
             return
         root = ET.fromstring(self.robot_description)
+        materials = {m.attrib['name']: m.find('color') for m in root.findall('material')
+                     if 'name' in m.attrib}
         for link in root.findall("link"):
             frame = link.attrib.get("name", "")
             if not frame:
@@ -391,7 +449,17 @@ class SimCameraRendererNode(Node):
                 origin = visual.find("origin")
                 xyz = parse_vec3(origin.attrib.get("xyz") if origin is not None else None, [0.0, 0.0, 0.0])
                 rpy = parse_vec3(origin.attrib.get("rpy") if origin is not None else None, [0.0, 0.0, 0.0])
-                yield frame, mesh_path, scale, xyz, rpy
+                material = visual.find('material')
+                rgba = None
+                if material is not None:
+                    color = material.find('color')
+                    if color is None:
+                        color = materials.get(material.attrib.get('name'))
+                    if color is not None:
+                        rgba = np.asarray([float(v) for v in color.attrib['rgba'].split()])
+                        if rgba.shape != (4,) or not np.all(np.isfinite(rgba)) or np.any((rgba < 0) | (rgba > 1)):
+                            raise ValueError(f'Invalid visual material on {frame}')
+                yield frame, mesh_path, scale, xyz, rpy, rgba
 
     def _record_scene_bounds(self, points):
         if points.size == 0:
@@ -442,9 +510,10 @@ class SimCameraRendererNode(Node):
         )
         self.pyvista_plotter.add_mesh(
             water,
+            render=False,
             color="#2f9bbd",
             opacity=0.22,
-            ambient=0.65,
+            ambient=0.0,
             diffuse=0.25,
             specular=0.1,
         )
@@ -452,10 +521,11 @@ class SimCameraRendererNode(Node):
     def _load_open3d_urdf_visual_meshes(self):
         visual_index = 0
         loaded_triangles = 0
-        for frame, mesh_path, scale, xyz, rpy in self._visual_mesh_entries():
+        for frame, mesh_path, scale, xyz, rpy, rgba in self._visual_mesh_entries():
             cached_mesh = self.mesh_cache.get(mesh_path)
             if cached_mesh is None:
-                cached_mesh = read_triangle_mesh(mesh_path, self.max_mesh_triangles)
+                cached_mesh = read_triangle_mesh(mesh_path, self.max_mesh_triangles,
+                                                 preserve_materials=True)
                 self.mesh_cache[mesh_path] = cached_mesh
             mesh = copy.deepcopy(cached_mesh)
             if mesh.is_empty():
@@ -469,7 +539,18 @@ class SimCameraRendererNode(Node):
             mesh.compute_vertex_normals()
             name = f"visual_{visual_index}_{frame}"
             visual_index += 1
-            self.scene.add_geometry(name, mesh, self.material)
+            material = self.material
+            if rgba is not None:
+                mesh.vertex_colors = o3d.utility.Vector3dVector([])
+                material = o3d.visualization.rendering.MaterialRecord()
+                material.shader = 'defaultLitTransparency' if rgba[3] < 1. else 'defaultLit'
+                material.base_color = rgba.tolist()
+            elif mesh.has_vertex_colors():
+                material = o3d.visualization.rendering.MaterialRecord()
+                material.shader = "defaultLit"
+                material.base_color = [1., 1., 1., 1.]
+            self.scene.add_geometry(name, mesh, material)
+            self.scene.show_geometry(name, False)
             self.mesh_frames[name] = frame
             loaded_triangles += len(mesh.triangles)
         self.get_logger().info(
@@ -479,10 +560,11 @@ class SimCameraRendererNode(Node):
     def _load_pyvista_urdf_visual_meshes(self):
         visual_index = 0
         loaded_triangles = 0
-        for frame, mesh_path, scale, xyz, rpy in self._visual_mesh_entries():
+        for frame, mesh_path, scale, xyz, rpy, rgba in self._visual_mesh_entries():
             cached_poly = self.mesh_cache.get(mesh_path)
             if cached_poly is None:
-                cached_poly = open3d_to_polydata(read_triangle_mesh(mesh_path, self.max_mesh_triangles))
+                cached_poly = open3d_to_polydata(read_triangle_mesh(
+                    mesh_path, self.max_mesh_triangles, preserve_materials=True))
                 self.mesh_cache[mesh_path] = cached_poly
             poly = cached_poly.copy(deep=True)
             if poly.n_points == 0 or poly.n_cells == 0:
@@ -495,14 +577,19 @@ class SimCameraRendererNode(Node):
             poly.points = points
             actor = self.pyvista_plotter.add_mesh(
                 poly,
-                color="#c9b56d",
+                render=False,
+                **({"color": tuple(rgba[:3]), "opacity": float(rgba[3]), "scalars": None}
+                   if rgba is not None else
+                   {"scalars": "asset_rgb", "rgb": True} if "asset_rgb" in poly.point_data
+                   else {"color": "#c9b56d"}),
                 smooth_shading=True,
-                ambient=0.4,
-                diffuse=0.7,
-                specular=0.12,
+                ambient=0.0,
+                diffuse=0.25,
+                specular=0.1,
             )
             name = f"visual_{visual_index}_{frame}"
             visual_index += 1
+            actor.SetVisibility(False)
             self.mesh_frames[name] = (frame, actor)
             loaded_triangles += poly.n_cells
         self.get_logger().info(
@@ -510,7 +597,8 @@ class SimCameraRendererNode(Node):
         )
 
     def _dynamic_obstacles_callback(self, msg):
-        frame_id = msg.header.frame_id or self.world_frame
+        self.obstacle_snapshot_received = None
+        frame_id = msg.header.frame_id
         if frame_id != self.world_frame:
             self.get_logger().warning(
                 f"Ignoring dynamic obstacles in frame '{frame_id}'; expected '{self.world_frame}'.",
@@ -518,9 +606,22 @@ class SimCameraRendererNode(Node):
             )
             return
 
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        age = self.get_clock().now().nanoseconds * 1e-9 - stamp
+        if stamp <= 0 or age < 0 or age > self.obstacle_snapshot_timeout:
+            return
+        ids = [obstacle.id.strip() for obstacle in msg.obstacles]
+        if not all(ids) or len(ids) != len(set(ids)) or any(
+                obstacle.source not in ('robot', 'scripted') for obstacle in msg.obstacles):
+            self.get_logger().warning('Ignoring obstacle snapshot with invalid identity/source')
+            return
         desired_names = set()
-        for index, obstacle in enumerate(msg.obstacles):
-            obstacle_id = obstacle.id.strip() or f"obstacle_{index}"
+        for obstacle in msg.obstacles:
+            # Robot collision proxies share the scene snapshot but their visual
+            # representation is the articulated URDF rendered with physical TF.
+            if obstacle.source == 'robot':
+                continue
+            obstacle_id = obstacle.id.strip()
             name = f"dynamic_obstacle_{obstacle_id}"
             desired_names.add(name)
             signature = self._dynamic_obstacle_signature(obstacle)
@@ -537,6 +638,8 @@ class SimCameraRendererNode(Node):
         for name in list(self.dynamic_obstacle_entries):
             if name not in desired_names:
                 self._remove_dynamic_obstacle(name, self.dynamic_obstacle_entries.pop(name))
+        self.obstacle_snapshot_received = time.monotonic()
+        self.obstacle_snapshot_age = age
 
     def _dynamic_obstacle_signature(self, obstacle):
         visual_type, dimensions, resource = visual_geometry(obstacle)
@@ -553,8 +656,6 @@ class SimCameraRendererNode(Node):
 
     def _dynamic_obstacle_color(self, obstacle):
         color = obstacle.color
-        if color.a <= 0.0:
-            return (0.95, 0.42, 0.12, 0.75)
         return (
             float(np.clip(color.r, 0.0, 1.0)),
             float(np.clip(color.g, 0.0, 1.0)),
@@ -588,11 +689,12 @@ class SimCameraRendererNode(Node):
         if mesh is None:
             return None
         r, g, b, a = self._dynamic_obstacle_color(obstacle)
-        appearance = ({'scalars': 'asset_rgb', 'rgb': True, 'opacity': 1.}
+        appearance = ({'scalars': 'asset_rgb', 'rgb': True, 'opacity': a}
                       if 'asset_rgb' in mesh.point_data else {'color': (r, g, b), 'opacity': a})
         return self.pyvista_plotter.add_mesh(
             mesh,
             **appearance,
+            render=False,
             smooth_shading='asset_rgb' not in mesh.point_data,
             ambient=0.35,
             diffuse=0.65,
@@ -629,7 +731,7 @@ class SimCameraRendererNode(Node):
         mesh.compute_vertex_normals()
         r, g, b, a = self._dynamic_obstacle_color(obstacle)
         if mesh.has_vertex_colors():
-            r, g, b, a = 1., 1., 1., 1.
+            r, g, b = 1., 1., 1.
         material = o3d.visualization.rendering.MaterialRecord()
         material.shader = "defaultLitTransparency" if a < 1.0 else "defaultLit"
         material.base_color = [r, g, b, a]
@@ -663,29 +765,66 @@ class SimCameraRendererNode(Node):
         visual_type, dimensions, _ = visual_geometry(obstacle)
         return visual_type, dimensions
 
+    def _physical_tf_callback(self, message):
+        for transform in message.transforms:
+            self.tf_buffer.set_transform(transform, "simulated_plant")
+
+    def _static_tf_callback(self, message):
+        for transform in message.transforms:
+            self.tf_buffer.set_transform_static(transform, "scene_geometry")
+
     def _lookup_matrix(self, frame):
         try:
             transform = self.tf_buffer.lookup_transform(self.world_frame, frame, Time(), timeout=Duration(seconds=0.0))
-            return transform_to_matrix(transform)
+            stamp = transform.header.stamp.sec + transform.header.stamp.nanosec * 1e-9
+            if frame in self.robot_link_owners:
+                age = self.get_clock().now().nanoseconds * 1e-9 - stamp
+                if stamp <= 0 or age < 0 or age > self.physical_feedback_timeout:
+                    return None
+            matrix = transform_to_matrix(transform)
+            return matrix if np.all(np.isfinite(matrix)) else None
         except TransformException:
             return None
+
+    def _update_rov_lights(self):
+        if self.renderer_backend != "pyvista":
+            return
+
+        for light, frame in self.rov_lights:
+            pose = self._lookup_matrix(frame)
+            if pose is None:
+                light.intensity = 0.0
+                continue
+            light.position = tuple(pose[:3, 3])
+            light.focal_point = tuple(pose[:3, 3] + pose[:3, 0])
+            light.intensity = LAMP_INTENSITY
+
 
     def _update_scene_transforms(self):
         for name, frame_or_actor in self.mesh_frames.items():
             frame = frame_or_actor[0] if self.renderer_backend == "pyvista" else frame_or_actor
             matrix = self._lookup_matrix(frame)
-            if matrix is None:
-                continue
             if self.renderer_backend == "pyvista":
                 frame, actor = frame_or_actor
-                actor.user_matrix = matrix
+                actor.SetVisibility(matrix is not None)
+                if matrix is not None:
+                    actor.user_matrix = matrix
             else:
-                self.scene.set_geometry_transform(name, matrix)
+                self.scene.show_geometry(name, matrix is not None)
+                if matrix is not None:
+                    self.scene.set_geometry_transform(name, matrix)
+        fresh = (self.obstacle_snapshot_received is not None and
+                 self.obstacle_snapshot_age + time.monotonic() - self.obstacle_snapshot_received
+                 <= self.obstacle_snapshot_timeout)
         for name, entry in self.dynamic_obstacle_entries.items():
             if self.renderer_backend == "pyvista":
+                entry["actor"].SetVisibility(fresh)
                 entry["actor"].user_matrix = entry["matrix"]
             else:
+                self.scene.show_geometry(name, fresh)
                 self.scene.set_geometry_transform(name, entry["matrix"])
+        self._update_rov_lights()
+
 
     def camera_info(self, prefix, stamp):
         msg = CameraInfo()
@@ -794,6 +933,8 @@ class SimCameraRendererNode(Node):
         return msg
 
     def render_all(self):
+        if getattr(self, "scene_participant", None) is not None and self.scene_participant.held:
+            return
         stamp = self.get_clock().now().to_msg()
         prefixes = self.render_prefixes if self.render_all_cameras else [self.selected_prefix]
         active_prefixes = [prefix for prefix in prefixes if prefix in self.render_prefixes and self._should_render_prefix(prefix)]

@@ -273,6 +273,12 @@ hardware_interface::return_type BatchSimUvmsSystemHardware::read(
 hardware_interface::return_type BatchSimUvmsSystemHardware::write(
   const rclcpp::Time & time, const rclcpp::Duration & period)
 {
+  const double dt = period.seconds();
+  if (!std::isfinite(dt) || dt <= 0.0 || dt > 5.0) {
+    RCLCPP_ERROR(rclcpp::get_logger("BatchSimUvmsSystemHardware"),
+      "Invalid batch control period: %.9g s; no state advanced", dt);
+    return hardware_interface::return_type::ERROR;
+  }
   const auto t0 = std::chrono::steady_clock::now();
   {
     std::lock_guard<std::mutex> lock(buffer_mutex_);
@@ -304,7 +310,13 @@ hardware_interface::return_type BatchSimUvmsSystemHardware::write(
       gpio_command_interfaces_[kGpioCommandHold] = 0.0;
     }
 
-    core_.step(std::max(0.0, period.seconds()));
+    try {
+      core_.step(dt);
+    } catch (const std::exception & error) {
+      RCLCPP_ERROR(rclcpp::get_logger("BatchSimUvmsSystemHardware"),
+        "Batch integration failed: %s", error.what());
+      return hardware_interface::return_type::ERROR;
+    }
     update_selected_interfaces();
   }
   const auto t1 = std::chrono::steady_clock::now();

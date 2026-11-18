@@ -12,14 +12,7 @@ The operator-facing launch tasks are:
 Interactive Task
 ----------------
 
-The ``interactive`` task starts ``interactive_controller`` and exposes an RViz
-interactive-marker menu.
-
-Launch:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py task:=interactive
+Launch as described in :doc:`userdoc`.
 
 Select the active robot once from ``Robots``. Tool menus such as ``Path
 Planner``, ``Cmd Replay``, ``Grasper``, ``Waypoints``, and ``Plan & Execute``
@@ -29,6 +22,8 @@ Main menu groups:
 
 - ``Plan & Execute``: activate the currently selected feedback controller if it
   is inactive, then plan and execute the selected target or waypoint mission.
+- ``Stop Execution``: cancel execution and stop command output; already-running
+  simulation physics continues. Use a feedback hold when you want to maintain pose.
 - ``Robots``: select active robot when multiple simulated robots exist.
 - ``Waypoints``: add, delete, clear, or stop vehicle waypoint missions.
 - ``Path Planner``: select the active robot's planner backend, currently
@@ -47,30 +42,26 @@ Main menu groups:
   Requests for hardware namespaces are rejected with a log message.
 - ``Robot Control``: select controller, control space, and IK settings for the
   active robot.
+- ``Environment``: switch static scenes in simulation; see :doc:`environment_scenes`.
 
-Obstacle editing belongs to the separate source-owned obstacle menu, not the
-selected robot menu. Frontends supply pose, dimensions and geometry through
-``/dynamic_obstacle_sim_node/edit_dynamic_obstacles``. No active vehicle path is
-required. Obstacle behavior and dynamic replanning are separate selections.
+Use the obstacle marker's menu to edit obstacles. Scripts use
+``/dynamic_obstacle_sim_node/edit_dynamic_obstacles``; no active path is required.
 
 Feedback Control and Replay
 ---------------------------
 
-Feedback control and replay are separate operating modes:
+Select a feedback controller under **Robot Control**, then use **Plan & Execute**
+for targets and waypoints. Selecting a controller alone does not start motion.
 
-- ``PID`` and ``InvDyn`` are closed-loop feedback controllers.
-- ``CmdReplay`` is the CSV replay controller. A profile decides whether each
-  subsystem replays commands, tracks references, holds its initial state, or
-  publishes zero commands.
-- ``Plan & Execute`` belongs to feedback-controller operation.
-- Replay playback is started from ``Cmd Replay`` after selecting ``CmdReplay``
-  and a replay profile.
-- Grasper commands belong to feedback-controller operation.
+Task-space moves require a clear direct vehicle translation before execution.
+Use vehicle planning to move around obstacles.
+If a start is rejected because its planning sphere overlaps an obstacle, use
+**Reset Manager** to reset the simulation to a clear pose, then plan again.
+Changing the goal or planner does not repair an obstructed start.
 
-At startup the default PID controller is selected but inactive. It does not
-publish closed-loop commands until the user explicitly activates a behavior.
-Pressing ``Plan & Execute`` activates the selected feedback controller on
-demand.
+For CSV playback, select ``CmdReplay`` and a profile, then start from **Cmd Replay**.
+The profile selects command replay, reference tracking, hold or zero output for
+each subsystem. See :doc:`replay_and_experiments` for profile configuration.
 
 Controller notes:
 
@@ -82,6 +73,11 @@ Controller notes:
   to actuation, with feedback terms correcting model and state-estimation
   errors. The manipulator model comes from ``Floating-KinDyn-Graph``; the
   vehicle model comes from ``diff_uv``.
+
+``SMC`` is also available through the controller menu. Its current gains are
+for simulation. Configure gains through ``/backend/controller_configuration``;
+see :doc:`services_and_interfaces`. Switching feedback controllers preserves
+an active plan but can change commanded effort.
 
 Waypoint Menu
 -------------
@@ -103,6 +99,14 @@ matching ``/dev/input/jsN`` device exists.
 
 - direct joystick command publishing, and
 - the selected feedback controller.
+
+Mode changes clear raw and cached joystick commands and cancel outstanding
+motion ownership. Returning to interactive control captures measured vehicle
+and arm references but leaves output idle until an explicit execution request.
+Pending waypoint or replay preparation cannot reclaim control after a switch.
+Disconnecting a joystick only stops execution when that robot is in joystick
+mode. Joysticks remain assigned by robot index; selecting a robot in RViz does
+not reassign its joystick. Automatic joystick reconnection is not implemented.
 
 This is manual joystick command input inside the ``interactive`` task. It is
 separate from launching the standalone ``manual`` task.
@@ -172,3 +176,42 @@ Keyboard channel mapping:
 
 Neutral PWM is ``1500``. Pressed keys publish active PWM ``1700`` for the
 mapped channel. Releasing a key returns the channel to neutral.
+
+Obstacle editing
+----------------
+
+Use the cyan **New obstacle preview** marker. Set its pose, choose geometry under
+**Obstacle settings (preview)**, then **Add obstacle**. To change an existing
+object, use **Select obstacle**, edit the preview, then **Update selected obstacle**.
+The preview itself is not collision geometry until accepted.
+
+**Shape → Mesh catalog** selects a bundled rigid mesh. **Scene / source** holds
+world-profile, clear and reset actions; **Replanning** enables its supervisor.
+Source selection is a launch option, independent of planner selection.
+
+For custom assets, set ``obstacle_mesh_resource`` or load a catalog using the
+``obstacle_mesh_catalog`` parameter and **Mesh catalog → Reload catalog**.
+Catalog entries map names to local mesh resources and scales::
+
+   {
+     "My mesh": {
+       "collision_mesh_resource": "file:///absolute/path/mesh.stl",
+       "collision_mesh_scale": [1.0, 1.0, 1.0]
+     }
+   }
+
+Collision and overlay displays
+------------------------------
+
+``launch_collision_contact:=true`` enables contact/clearance markers.
+``launch_voxelviz:=true`` enables environment and dynamic-obstacle surface clouds.
+Each display cloud is limited to 250,000 sampled points; collision checks use the
+complete geometry. Set the voxel node's ``max_display_points`` parameter to 0
+at startup for the complete diagnostic cloud.
+Clouds may take time to build; they are visualization, not filled occupancy maps.
+Mesh collision checks use triangle surfaces; use primitive collision shapes for
+solid-volume behavior. Assets must exist on each machine performing queries.
+
+Text overlays are off by default; enable their displays in RViz. Effort arrows
+show vehicle commands and arm actuator effort. Disturbance indicators show valid
+estimates; locked/limit-constrained arm joints require checking their status.

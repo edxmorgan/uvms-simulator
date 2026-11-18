@@ -13,18 +13,22 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+import json
 import glob
 import os
+import math
 import re
 import signal
+import shlex
 import shutil
 import subprocess
 import tempfile
 import time
 import yaml
+import xml.etree.ElementTree as ET
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, RegisterEventHandler, ExecuteProcess, OpaqueFunction, GroupAction
+from launch.actions import DeclareLaunchArgument, RegisterEventHandler, ExecuteProcess, OpaqueFunction, GroupAction, SetEnvironmentVariable
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit, OnProcessStart
 from launch.substitutions import Command, FindExecutable, LaunchConfiguration, PathJoinSubstitution, TextSubstitution
@@ -35,8 +39,10 @@ from launch_ros.substitutions import FindPackageShare
 import launch.logging
 from bringup.utils.rviz_utils import rviz_file_configure
 from bringup.camera_destination import CameraDestination
+from bringup.simulation_lifecycle import simulated_components, startup_paused
+from bringup.environment_scene import resolve_environment_scene
 from bringup.utils.controller_config import modify_controller_config, controller_spawner_nodes
-from ament_index_python.packages import get_package_prefix, get_package_share_directory
+from ament_index_python.packages import PackageNotFoundError, get_package_prefix, get_package_share_directory
 
 # Create a logger for the launch file
 logger = launch.logging.get_logger('robot_system_multi_interface_launch')
@@ -50,21 +56,12 @@ def _plotjuggler_command(buffer_size: str) -> list[str]:
         logger.info("Launching PlotJuggler 4; set the streaming buffer in its Sources panel or layout")
         return [executable_v4]
     executable = shutil.which("plotjuggler")
-    snap_launcher = "/snap/bin/plotjuggler"
-    if executable and os.path.realpath(executable) != os.path.realpath(snap_launcher):
-        return [executable, "--buffer_size", buffer_size]
-
-    # The Snap wrapper replaces AMENT_PREFIX_PATH with its bundled ROS prefix,
-    # hiding workspace message definitions. Run the binary with the inherited
-    # ROS environment and explicitly select its ROS plugins instead.
-    snap_root = "/snap/plotjuggler/current"
-    binary = os.path.join(snap_root, "usr/local/bin/plotjuggler")
-    if os.path.isfile(binary) and os.access(binary, os.X_OK):
-        return [binary, "--plugin_folders",
-                os.path.join(snap_root, "opt/ros/snap/lib/plotjuggler_ros"),
-                "--buffer_size", buffer_size]
-    # Resolve at process execution time, so a disabled optional GUI does not
-    # prevent launching on machines without PlotJuggler.
+    # Keep the installed launcher intact. In particular, /snap/bin/plotjuggler
+    # sets up the Snap runtime and shared-library search paths. Running its
+    # internal ELF binary directly is not a supported substitute.
+    if not executable and os.access("/snap/bin/plotjuggler", os.X_OK):
+        executable = "/snap/bin/plotjuggler"
+    # Resolve at execution time so a disabled optional GUI does not require PJ.
     return [executable or "plotjuggler", "--buffer_size", buffer_size]
 
 
@@ -204,6 +201,9 @@ def _camera_topic_base(robot_prefix: str) -> str:
 def generate_launch_description():
     # Declare arguments
     declared_arguments = []
+    declared_arguments.append(DeclareLaunchArgument(
+        "mocap_origin", default_value="-0.170 0.000 0.200 0 0 0",
+        description="External mocap reference relative to each robot map: x y z roll pitch yaw; calibrate for the deployment."))
     declared_arguments.extend([
         DeclareLaunchArgument('dynamic_obstacle_source', default_value='scripted_motion'),
         DeclareLaunchArgument('obstacle_source_config', default_value='{}'),
@@ -250,6 +250,9 @@ def generate_launch_description():
     declared_arguments.append(DeclareLaunchArgument(
         "vehicle_identifier_config", default_value="",
         description="Native identifier ROS YAML, or 'off'. Blank selects the simulation or hardware file in interactive mode."))
+    declared_arguments.append(DeclareLaunchArgument(
+        "arm_identifier_config", default_value="",
+        description="Arm identification YAML, or 'off'. Blank enables simulation identification and validated EKF model updates in interactive mode."))
     declared_arguments.append(DeclareLaunchArgument(
         "arm_joint_locks", default_value="true", choices=["true", "false"],
         description="Enable artificial joint locks on simulated arms; false for unlocked disturbance tests."))
@@ -303,6 +306,9 @@ def generate_launch_description():
             description="Selected /alpha camera source: auto, sim, or real. auto uses sim for simulated vehicles and real for real vehicles or custom camera_pipeline.",
         )
     )
+    declared_arguments.append(DeclareLaunchArgument(
+        "environment_scene", default_value="default",
+        description="Static scene bundle name or absolute world.xacro path; default retains the existing terrain."))
     declared_arguments.append(
         DeclareLaunchArgument(
             "world_frame",
@@ -438,6 +444,8 @@ def generate_launch_description():
             description="Start all simulated UVMS instances with the same initial pose/orientation.",
         )
     )
+    declared_arguments.append(DeclareLaunchArgument("sim_startup_pause", default_value="auto",
+        description="Pause interactive simulation until an explicit valid motion action; false permits free drift."))
     declared_arguments.append(
         DeclareLaunchArgument(
             "gui",
@@ -531,7 +539,12 @@ def generate_launch_description():
         )
     )
 
-    return LaunchDescription(declared_arguments + [OpaqueFunction(function=launch_setup)])
+    # These processes mostly solve small control/estimation matrices. Large BLAS
+    # thread pools spin between callbacks and compete with the ROS executors.
+    # Configure children before numpy/scipy load; retain explicit user settings.
+    math_environment = [SetEnvironmentVariable(name, os.environ.get(name, '1'))
+                        for name in ('OPENBLAS_NUM_THREADS', 'MKL_NUM_THREADS', 'BLIS_NUM_THREADS')]
+    return LaunchDescription(declared_arguments + math_environment + [OpaqueFunction(function=launch_setup)])
 
 def launch_setup(context, *args, **kwargs):
 
@@ -546,6 +559,9 @@ def launch_setup(context, *args, **kwargs):
     launch_camera = LaunchConfiguration("launch_camera").perform(context)
     camera_source = LaunchConfiguration("camera_source").perform(context)
     world_frame = LaunchConfiguration("world_frame").perform(context)
+    environment_scene_file = resolve_environment_scene(
+        LaunchConfiguration("environment_scene").perform(context),
+        FindPackageShare("ros2_control_blue_reach_5").perform(context))
     camera_pipeline = LaunchConfiguration("camera_pipeline").perform(context)
     camera_auto_destination = _parse_bool_arg(
         "camera_auto_destination", LaunchConfiguration("camera_auto_destination").perform(context))
@@ -606,6 +622,9 @@ def launch_setup(context, *args, **kwargs):
             f"Unsupported task '{task}'. Expected one of: {', '.join(sorted(valid_tasks))}."
         )
 
+    startup_option = LaunchConfiguration("sim_startup_pause").perform(context).lower()
+    startup_pause = startup_paused(task, startup_option)
+
     # Define the robot description command
     robot_description_content = Command(
         [
@@ -652,12 +671,16 @@ def launch_setup(context, *args, **kwargs):
             "world_frame:=",
             world_frame,
             " ",
+            "environment_scene_file:=",
+            shlex.quote(environment_scene_file),
+            " ",
             "use_pwm:=",
             use_pwm,
             " ",
             "use_dvl:=",
             use_dvl,
             " ",
+            "sim_startup_pause:=", str(startup_pause).lower(), " ",
             "manual_control:=",
             str(task in {'manual', 'direct_thrusters'}).lower(),
             " ",
@@ -670,9 +693,10 @@ def launch_setup(context, *args, **kwargs):
             "robot_name:=",
             robot_name,
         ]
-    )
+    ).perform(context)
 
-    robot_description = {"robot_description": robot_description_content}
+    robot_description_parameter = ParameterValue(robot_description_content, value_type=str)
+    robot_description = {"robot_description": robot_description_parameter}
     robot_controllers_read = PathJoinSubstitution(
         [
             FindPackageShare("ros2_control_blue_reach_5"),
@@ -694,6 +718,20 @@ def launch_setup(context, *args, **kwargs):
                                                                                   robot_controllers_read_file,
                                                                                     robot_controllers_modified_file,
                                                                                       int(sim_robot_count))
+    # Explicit disjoint joint lists avoid native broadcaster alias collisions.
+    estimated_joints, auxiliary_joints = [], []
+    for joint in ET.fromstring(robot_description_content).findall('ros2_control/joint'):
+        interfaces = {item.attrib['name'] for item in joint.findall('state_interface')}
+        if {'filtered_position', 'filtered_velocity'} <= interfaces:
+            estimated_joints.append(joint.attrib['name'])
+        elif 'position' in interfaces:
+            auxiliary_joints.append(joint.attrib['name'])
+    with open(robot_controllers_modified_file) as stream:
+        controller_config = yaml.safe_load(stream)
+    controller_config['estimated_joint_state_broadcaster']['ros__parameters']['joints'] = estimated_joints
+    controller_config['auxiliary_joint_state_broadcaster']['ros__parameters']['joints'] = auxiliary_joints
+    with open(robot_controllers_modified_file, 'w') as stream:
+        yaml.safe_dump(controller_config, stream)
     has_real_robot = "robot_real_" in robot_prefixes
     sim_camera_prefixes = [
         prefix for prefix in robot_prefixes
@@ -773,6 +811,10 @@ def launch_setup(context, *args, **kwargs):
         world_frame=world_frame,
     )
 
+    simulation_components = simulated_components(robot_prefixes,
+        vehicle_hardware=use_vehicle_hardware_bool,
+        manipulator_hardware=use_manipulator_hardware_bool)
+
     reset_coordinator_proc = ExecuteProcess(
         cmd=[
             "python3",
@@ -780,6 +822,7 @@ def launch_setup(context, *args, **kwargs):
             "bringup.sim_reset_coordinator",
             "--robots-prefix",
             ",".join(robot_prefixes),
+            "--simulated-components", json.dumps(simulation_components),
         ],
         output="screen",
     )
@@ -798,21 +841,42 @@ def launch_setup(context, *args, **kwargs):
             " ",
             "world_frame:=",
             world_frame,
+            " ",
+            "environment_scene_file:=",
+            shlex.quote(environment_scene_file),
         ]
     )
+
+    mocap_origin = [float(v) for v in LaunchConfiguration("mocap_origin").perform(context).split()]
+    if len(mocap_origin) != 6 or not all(math.isfinite(v) for v in mocap_origin):
+        raise ValueError("mocap_origin requires six finite values: x y z roll pitch yaw")
+    mocap_frame_nodes = [Node(
+        package="tf2_ros", executable="static_transform_publisher",
+        name=f"{prefix}mocap_reference",
+        arguments=[item for flag, value in zip(
+            ("--x", "--y", "--z", "--roll", "--pitch", "--yaw"), mocap_origin)
+            for item in (flag, str(value))] + [
+                "--frame-id", prefix + "map", "--child-frame-id", prefix + "mocap_link"],
+    ) for prefix in robot_prefixes]
 
     robot_state_pub_nodes = [
         Node(
             package="robot_state_publisher",
             executable="robot_state_publisher",
-            name=f"robot_state_publisher_{robot_prefix.rstrip('_')}",
+            name=f"robot_state_publisher_{robot_prefix.rstrip('_')}" + ("_physical" if physical else ""),
             output="both",
             remappings=[
                 ("robot_description", f"{robot_prefix.rstrip('_')}/robot_description"),
-            ],
+            ] + ([
+                ("joint_states", "/joint_state_broadcaster/joint_states"),
+                ("/tf", "/simulation_truth/tf"),
+                ("/tf_static", "/simulation_truth/tf_static"),
+            ] if physical else []),
             parameters=[{
                 "publish_robot_description": False,
-                "robot_description": Command(
+                # Preserve the vehicle update cadence for camera articulation.
+                "publish_frequency": float(controller_config['controller_manager']['ros__parameters']['update_rate']),
+                "robot_description": ParameterValue(Command(
                     [
                         PathJoinSubstitution([FindExecutable(name="xacro")]),
                         " ",
@@ -830,10 +894,13 @@ def launch_setup(context, *args, **kwargs):
                         "robot_name:=",
                         robot_name,
                     ]
-                )
+                ), value_type=str)
             }],
         )
         for robot_prefix in robot_prefixes
+        for physical in (False, True)
+        if not physical or (launch_camera_bool and robot_prefix in sim_camera_prefixes) or (
+            task == "interactive" and not use_vehicle_hardware_bool and not use_manipulator_hardware_bool)
     ]
 
     # Nodes Definitions
@@ -847,16 +914,29 @@ def launch_setup(context, *args, **kwargs):
         ],
         parameters=[{
             "publish_robot_description": False,
-            "robot_description": world_state_description_content,
+            "robot_description": ParameterValue(world_state_description_content, value_type=str),
         }],
     )
+
+    scene_consumers = ["interactive_controller", "planner_action_server_node"]
+    if launch_camera_bool and has_simulated_camera_source:
+        scene_consumers.append("sim_camera_renderer_node")
+    if IfCondition(launch_collision_contact).evaluate(context):
+        scene_consumers.append("collision_contact_node")
+    if IfCondition(launch_voxelviz).evaluate(context):
+        scene_consumers.append("voxelviz_node")
 
     robot_description_pub_node = Node(
         package="ros2_control_blue_reach_5",
         executable="robot_description_publisher.py",
         name="robot_description_publisher",
         output="screen",
-        parameters=[robot_description],
+        parameters=[robot_description, {
+            "scene_switch_enabled": task == "interactive",
+            "scene_consumers": scene_consumers,
+            "environment_scene": LaunchConfiguration("environment_scene").perform(context),
+            "world_frame": world_frame,
+        }],
     )
 
     rviz_node = Node(
@@ -914,7 +994,7 @@ def launch_setup(context, *args, **kwargs):
         package="controller_manager",
         executable="ros2_control_node",
         parameters=control_parameters,
-        arguments=['--ros-args', '--log-level', 'controller_manager:=ERROR'],
+        arguments=['--ros-args', '--log-level', 'controller_manager:=WARN'],
         output="both",
     )
 
@@ -922,7 +1002,20 @@ def launch_setup(context, *args, **kwargs):
     joint_state_broadcaster_spawner = Node(
         package="controller_manager",
         executable="spawner",
-        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager"],
+        arguments=["joint_state_broadcaster", "--controller-manager", "/controller_manager",
+                   "--controller-ros-args=--remap /joint_state_broadcaster/dynamic_joint_states:=/dynamic_joint_states"],
+    )
+
+    estimated_joint_state_spawner = Node(
+        package="controller_manager", executable="spawner",
+        arguments=["estimated_joint_state_broadcaster", "--controller-manager", "/controller_manager",
+                   "--controller-ros-args=--remap /estimated_joint_state_broadcaster/joint_states:=/joint_states"],
+    )
+
+    auxiliary_joint_state_spawner = Node(
+        package="controller_manager", executable="spawner",
+        arguments=["auxiliary_joint_state_broadcaster", "--controller-manager", "/controller_manager",
+                   "--controller-ros-args=--remap /auxiliary_joint_state_broadcaster/joint_states:=/joint_states"],
     )
 
     # Spawner Nodes
@@ -956,14 +1049,22 @@ def launch_setup(context, *args, **kwargs):
         "camera_source": resolved_camera_source,
         "interactive_fcl_update_rate": float(interactive_fcl_update_rate),
         "world_frame": world_frame,
-        "robot_description": robot_description_content
+        "robot_description": robot_description_parameter,
+        "interactive_action_gate": task == "interactive",
+        "sim_startup_pause": startup_pause,
+        "simulated_components": ParameterValue(json.dumps(simulation_components), value_type=str),
+        "startup_paused_robot_prefixes": ParameterValue(
+            ",".join(p for p, parts in simulation_components.items() if startup_pause and parts),
+            value_type=str)
     }
 
     try:
         FindPackageShare("simlab").find("simlab")
-    except Exception as e:
+    except PackageNotFoundError as e:
         raise RuntimeError(
-            "uvms simlab package not found. If you intend to run the coverage example, interactive marker mode, or manual control via PS4 joystick, please install uvms_simlab from https://github.com/edxmorgan/uvms_simlab"
+            "ROS package 'simlab' is not available in the sourced environment. "
+            "If its source is in this workspace, run 'colcon build --packages-up-to simlab', "
+            "then 'source install/setup.bash' and launch again."
         ) from e
 
     vehicle_thruster_pwm_ctrl = [n.controller_name for n in thruster_pwm_spawner_nodes]
@@ -1060,7 +1161,7 @@ def launch_setup(context, *args, **kwargs):
             "robots_prefix": robot_prefixes,
             "camera_prefixes": mixed_camera_prefixes if selected_camera_is_mixed else sim_camera_prefixes,
             "render_prefixes": sim_camera_prefixes,
-            "robot_description": robot_description_content,
+            "robot_description": robot_description_parameter,
             "world_frame": world_frame,
             "width": int(sim_camera_width),
             "height": int(sim_camera_height),
@@ -1079,6 +1180,7 @@ def launch_setup(context, *args, **kwargs):
         }],
     )
 
+    from simlab.utils.geometry import robot_obstacle_radius
     dynamic_obstacle_sim_node = Node(
         package="simlab",
         executable="dynamic_obstacle_sim_node",
@@ -1087,6 +1189,7 @@ def launch_setup(context, *args, **kwargs):
         parameters=[{
             "world_frame": world_frame,
             "robot_base_frames": robot_base_links,
+            "robot_collision_radius": robot_obstacle_radius(),
             "dynamic_obstacle_source": LaunchConfiguration("dynamic_obstacle_source"),
             "source_config": ParameterValue(LaunchConfiguration("obstacle_source_config"), value_type=str),
             "experiment_seed": ParameterValue(LaunchConfiguration("obstacle_seed"), value_type=int),
@@ -1123,7 +1226,7 @@ def launch_setup(context, *args, **kwargs):
         name="collision_contact_node",
         output="screen",
         parameters=[{
-            "robot_description": robot_description_content,
+            "robot_description": robot_description_parameter,
             "world_frame": world_frame,
         }],
         condition=IfCondition(launch_collision_contact),
@@ -1135,7 +1238,7 @@ def launch_setup(context, *args, **kwargs):
         name="voxelviz_node",
         output="screen",
         parameters=[{
-            "robot_description": robot_description_content,
+            "robot_description": robot_description_parameter,
             "world_frame": world_frame,
         }],
         condition=IfCondition(launch_voxelviz),
@@ -1150,7 +1253,7 @@ def launch_setup(context, *args, **kwargs):
             name="planner_action_server_node",
             output="screen",
             parameters=[{
-                "robot_description": robot_description_content,
+                "robot_description": robot_description_parameter,
                 "world_frame": world_frame,
             }],
         )
@@ -1186,15 +1289,18 @@ def launch_setup(context, *args, **kwargs):
         OnProcessExit(target_action=switch_proc, on_exit=[rviz_node, overlay_text_node])
     )
     simulator_actions = [
+        *mocap_frame_nodes,
         reset_coordinator_proc,
         joint_state_broadcaster_spawner,
+        *([estimated_joint_state_spawner] if estimated_joints else []),
+        *([auxiliary_joint_state_spawner] if auxiliary_joints else []),
         robot_description_pub_node,
         control_node,
         mode,
         run_plotjuggler,
         Node(package='simlab', executable='effort_visualization',
              name='effort_visualization',
-             parameters=[{'robot_description': robot_description_content,
+             parameters=[{'robot_description': robot_description_parameter,
                           'robot_prefixes': robot_prefixes}],
              condition=IfCondition(TextSubstitution(text=launch_rviz_text))),
         world_state_pub_node,
@@ -1261,6 +1367,24 @@ def launch_setup(context, *args, **kwargs):
                         "hardware_measurements": use_vehicle_hardware_bool}]))
 
 
+    arm_identifier_config = LaunchConfiguration("arm_identifier_config").perform(context).strip()
+    if not arm_identifier_config and task == "interactive":
+        arm_identifier_config = os.path.join(get_package_share_directory("ros2_control_blue_reach_5"),
+                                            "config", "arm_identification.yaml")
+    if arm_identifier_config and arm_identifier_config.lower() != "off":
+        if not os.path.isfile(arm_identifier_config):
+            raise RuntimeError("arm_identifier_config must name an existing ROS parameter YAML")
+        executable = os.path.join(get_package_prefix("ros2_control_blue_reach_5"),
+                                  "lib", "ros2_control_blue_reach_5", "arm_identification_node")
+        if not os.path.isfile(executable):
+            logger.warning("Optional arm identifier is not built; continuing without arm identification")
+        else:
+            for prefix in robot_prefixes:
+                simulator_actions.append(Node(package="ros2_control_blue_reach_5",
+                    executable="arm_identification_node", name=prefix+"arm_identification",
+                    output="screen", parameters=[arm_identifier_config, {"joint": prefix+"_arm_IOs",
+                        "hardware_measurements": use_manipulator_hardware_bool and prefix == "robot_real_"}]))
+
     # if is_hardware_uvms:
     #     simulator_actions.append(clp_after_switch)
 
@@ -1285,6 +1409,7 @@ def launch_setup(context, *args, **kwargs):
             "[/]ros2_control_blue_reach_5[/]robot_description_publisher.py",
             "[/]robot_state_publisher[/]robot_state_publisher",
             "[/]simlab[/]interactive_controller",
+            "[/]simlab[/]effort_visualization",
             "[/]simlab[/]disturbance_injection_node",
             "[/]simlab[/]bag_recorder_node",
             "[/]simlab[/]planner_action_server_node",

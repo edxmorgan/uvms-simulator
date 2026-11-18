@@ -1,11 +1,8 @@
 Command Replay and Experiments
 ==============================
 
-Command replay runs repeatable CSV profiles. A profile can replay recorded
-vehicle/manipulator commands directly, hold one subsystem while exciting the
-other, or track recorded desired-state references through a feedback
-controller. Use it for payload identification probes, vehicle force tests, and
-whole-body experiments where the same profile should run across trials.
+Run CSV command sequences or track recorded references through a feedback
+controller. Each profile defines initial states, subsystem modes and repetitions.
 
 Workflow
 --------
@@ -19,9 +16,6 @@ In RViz:
   and start playback.
 - Use ``Cmd Replay > Stop`` to stop playback and publish zero replay
   effort/wrench commands.
-
-Selecting ``CmdReplay`` chooses the replay controller. Playback starts after a
-replay profile is selected and ``Reset Robot + Playback`` is requested.
 
 Replay Profile Layout
 ---------------------
@@ -38,11 +32,8 @@ Each replay profile contains:
 - ``replay.json``: metadata describing the CSV columns, reset state, dynamics
   profile, subsystem mode, repeat behavior, and optional replay CSV logging.
 
-Use descriptive names because replay profiles appear directly in the RViz
-``Cmd Replay`` menu. Examples:
-
-- ``arm_payload_0p38kg``
-- ``vehicle_fx_10n_20s``
+The folder name appears in the profile menu. Copy an installed profile when
+creating an experiment.
 
 Command CSV
 -----------
@@ -104,10 +95,6 @@ Each dynamics profile contains:
   ``underwater_haze``, ``underwater_tint``, ``underwater_blur``,
   ``underwater_noise``, and ``underwater_vignette``.
 
-A profile can contain robot dynamics sections, a camera section, or both.
-Camera settings use the simulator-owned ``SimCameraDynamics`` and
-``SetSimCameraDynamics`` interfaces, so the camera service can run without
-SimLab.
 
 For hardware namespaces, the vehicle parameter block is skipped. The
 manipulator parameter block is sent to the hardware-side dynamics path when the
@@ -181,18 +168,9 @@ Subsystem Mode
   state.
 - ``"zero_command"``: publish zero effort/wrench commands for that subsystem.
 
-Typical experiment modes:
-
-- Manipulator probe with vehicle station keeping:
-  ``vehicle = "hold_initial"``, ``manipulator = "replay_command"``.
-- Vehicle force test with manipulator hold:
-  ``vehicle = "replay_command"``, ``manipulator = "hold_initial"``.
-- Reference replay:
-  set the subsystem to ``"track_reference"`` and set
-  ``feedback_controller`` to the controller that should track the recorded
-  desired state.
-- Whole-body replay:
-  ``vehicle = "replay_command"``, ``manipulator = "replay_command"``.
+For an arm probe with vehicle station keeping, select vehicle ``hold_initial``
+and manipulator ``replay_command``. Reference tracking requires desired-state
+columns as well as ``feedback_controller``.
 
 Reset Behavior
 --------------
@@ -210,158 +188,46 @@ the payload being tested.
 Repeated Passes
 ---------------
 
-For finite repeated playback, the sequence is:
-
-.. code-block:: text
-
-   reset -> CSV pass 1 -> reset -> CSV pass 2 -> reset -> CSV pass 3
-
-Use ``repeats`` for identification experiments where each pass should begin
-from the configured initial state.
-
-Before each reference-tracking pass, the selected feedback controller's
-``reset_controller_state()`` hook clears controller memory and the performance
-accumulator is reset. An unavailable feedback controller rejects execution;
-replay does not substitute PID. Command-only replay does not require a feedback
-controller. Resetting controller memory does not change gains or model parameters.
+Set ``playback.repeats`` to the number of passes. Each pass resets the robot
+before playback. Reference tracking also clears controller memory and accumulated
+performance metrics; gains and model parameters are retained. Missing feedback
+controllers reject playback.
 
 Replay CSV Logging
 ------------------
 
-Replay session recording is controlled per replay profile:
+Set ``recording.enabled: true`` in ``replay.json`` to write per-pass CSV logs
+under ``~/ros_ws/recordings/replay_sessions``. Columns include joint state and
+effort, vehicle state and wrench, commands, and obstacle IDs. When obstacles are
+present, a ``*_dynamic_obstacles.json`` sidecar stores start/end snapshots.
 
-.. code-block:: json
-
-   "recording": {
-     "enabled": true
-   }
-
-Recorded rows cover the replay interval. Typical columns include:
-
-- Arm position: ``q_alpha_axis_e/d/c/b/a``.
-- Arm velocity: ``dq_alpha_axis_e/d/c/b/a``.
-- Arm acceleration: ``ddq_alpha_axis_e/d/c/b/a``.
-- Arm measured/applied effort: ``effort_alpha_axis_e/d/c/b/a``.
-- Arm command: ``cmd_tau_axis_e/d/c/b/a``.
-- Vehicle pose, body velocity, body acceleration, applied wrench, and command
-  wrench.
-- Dynamic obstacle summary: ``dynamic_obstacle_count`` and
-  ``dynamic_obstacle_ids``.
-
-Keep ``recording.enabled`` set to ``false`` for profiles where per-pass replay
-logs are unnecessary.
-
-This CSV logging belongs to CmdReplay. It records only the replay pass, not the
-full ROS graph. Replay CSV logs are saved under
-``~/ros_ws/recordings/replay_sessions``.
-
-When dynamic obstacles are present, CmdReplay also writes a sidecar JSON file
-next to the CSV using the same stem and the suffix
-``_dynamic_obstacles.json``. The sidecar stores the dynamic obstacle snapshot at
-the start and stop of the replay pass. Use MCAP recording when you need the full
-time-varying obstacle topic stream.
+Leave this option false when only the standard MCAP recording is needed.
+MCAP captures the time-varying ROS streams; CSV logging covers the replay pass.
 
 Plot Replay Sessions
 --------------------
 
-Replay-session CSV files can be plotted with the SimLab replay plotter. Use it
-after running a replay profile with ``recording.enabled`` set to ``true``.
+Plot a recorded pass::
 
-The command-line plotter is:
+   ros2 run simlab plot_replay_session session.csv --time sim_time_sec --only pose
+   ros2 run simlab plot_replay_session --only arm --arm e,d
 
-.. code-block:: bash
+Omitting the CSV path selects the newest file in ``recordings/replay_sessions``.
+Use ``--help`` for all selections. Time can be ``replay_time_sec`` (default),
+``sim_time_sec`` or ``wall_time_sec``.
 
-   ros2 run simlab plot_replay_session \
-       ~/ros_ws/recordings/replay_sessions/session.csv
-
-If the CSV path is omitted, the plotter uses the newest ``*.csv`` found in
-``~/ros_ws/recordings/replay_sessions``:
-
-.. code-block:: bash
-
-   ros2 run simlab plot_replay_session
-
-Command-line arguments:
-
-- ``csv``: optional replay-session CSV path. Defaults to the newest CSV in
-  ``~/ros_ws/recordings/replay_sessions``.
-- ``--time``: x-axis time column. Choices are ``replay_time_sec``,
-  ``sim_time_sec``, and ``wall_time_sec``. Default is ``replay_time_sec``.
-- ``--arm``: comma-separated arm axes to plot: ``e``, ``d``, ``c``, ``b``,
-  ``a``, ``axis_e``, ``axis_d``, ``axis_c``, ``axis_b``, ``axis_a``, or
-  ``all``. Default is ``all``.
-- ``--vehicle-pose``: comma-separated vehicle pose components to plot:
-  ``x``, ``y``, ``z``, ``yaw``, or ``all``. Default is ``all``.
-- ``--vehicle-wrench``: comma-separated vehicle wrench components to plot:
-  ``fx``, ``fy``, ``fz``, ``tx``, ``ty``, ``tz``, or ``all``. Default is
-  ``all``.
-- ``--only``: limit the plotted groups. Choices are ``all``, ``arm``,
-  ``vehicle``, ``q``, ``dq``, ``ddq``, ``effort``, ``wrench``, and ``pose``.
-  Default is ``all``.
-
-Examples:
-
-.. code-block:: bash
-
-   ros2 run simlab plot_replay_session -- --only arm --arm e,d
-   ros2 run simlab plot_replay_session -- --only vehicle --vehicle-wrench fx,fz
-   ros2 run simlab plot_replay_session -- session.csv --time sim_time_sec --only pose
-
-The same plotter is also available as a ROS node:
-
-.. code-block:: bash
+The ROS node accepts equivalent parameters (underscores replace hyphens)::
 
    ros2 run simlab replay_plot_node --ros-args \
-       -p csv:=~/ros_ws/recordings/replay_sessions/session.csv
-
-Node parameters:
-
-- ``csv``: replay-session CSV path. If empty, the newest CSV in
-  ``~/ros_ws/recordings/replay_sessions`` is used.
-- ``time``: x-axis time column. Use ``replay_time_sec``, ``sim_time_sec``, or
-  ``wall_time_sec``.
-- ``arm``: same selection syntax as ``--arm``.
-- ``vehicle_pose``: same selection syntax as ``--vehicle-pose``.
-- ``vehicle_wrench``: same selection syntax as ``--vehicle-wrench``.
-- ``only``: same selection syntax as ``--only``.
-
-For example:
-
-.. code-block:: bash
-
-   ros2 run simlab replay_plot_node --ros-args \
-       -p only:=arm \
-       -p arm:=e,d \
-       -p time:=replay_time_sec
+     -p csv:=/absolute/path/session.csv -p only:=arm -p arm:=e,d
 
 MCAP to Replay Profiles
 -----------------------
 
-Use the ``Data Recording`` RViz menu to start and stop an MCAP recording around
-the behavior you want to capture. The MCAP records ROS topics such as
-``dynamic_joint_states``, the selected camera feed, dynamic obstacle state, and
-per-robot experiment topics:
-
-- ``/alpha/image_raw``
-- ``/alpha/camera_info``
-- ``/dynamic_obstacles``
-- ``/dynamic_obstacle_markers``
-- ``/<prefix>/reference/targets``
-- ``/<prefix>/performance/controller``
-
-MCAP bags are saved under
-``~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS``.
-
-The dynamic obstacle topics are recorded with transient-local QoS so starting a
-recording after a static obstacle already exists still captures the latest
-obstacle snapshot. Replaying the MCAP can reproduce the obstacle state stream for
-visualization and offline debugging.
-
-The reference topic uses ``simlab/msg/ReferenceTargets`` and
-contains the world target, vehicle NED/body target, and manipulator reference in
-one timestamped message. The performance topic uses
-``simlab/msg/ControllerPerformance`` and records normalized tracking,
-control-effort, energy, and time-to-tolerance metrics for the active behavior.
+Record the experiment using **Data Recording** as described in :doc:`userdoc`.
+Include ``/<prefix>/reference/targets`` for reference tracking and
+``dynamic_joint_states`` for commands/state. Dynamic obstacle streams are
+recorded for visualization; they are not commands to the simulator.
 
 Convert one robot from that bag into a CmdReplay profile with:
 
@@ -397,12 +263,7 @@ mode. It uses the desired-state columns when a subsystem is in
 Run the command from ``~/ros_ws`` to use that default output location. Use
 ``--output-root`` to write profiles somewhere else.
 
-For multi-robot recordings, run the converter once per robot prefix:
-
-.. code-block:: bash
-
-   ros2 run simlab mcap_to_replay_profile bag_dir robot_1_profile --robot-prefix robot_1_
-   ros2 run simlab mcap_to_replay_profile bag_dir robot_2_profile --robot-prefix robot_2_
+For multi-robot bags, run the converter separately for each robot prefix.
 
 Converter options:
 
@@ -415,3 +276,71 @@ Converter options:
   ``track_reference`` and ``hold_initial`` modes.
 - ``--arm-interface effort``: read the recorded joint effort interface into the
   manipulator command columns.
+
+Disturbance injection
+---------------------
+
+The simulation launch starts one idle disturbance node per robot. Apply a finite
+load with::
+
+   ros2 run simlab disturbance_run --robot-prefix robot_1_ \
+     --dof surge yaw --amplitude 3 0.1 --waveform sine triangle \
+     --frequency 0.1 --cycles 3 --phase 0 -90 --delay 0 2
+
+Generalized DOFs are ``surge sway heave`` (N), ``roll pitch yaw`` and
+``arm_e arm_d arm_c arm_b`` (Nm). Supply an amplitude per DOF. Waveform, phase
+(degrees) and delay (seconds) accept one value or one per DOF.
+
+Waveforms are ``sine``, ``step``, ``square``, ``triangle``, ``chirp``, ``gaussian``
+and ``correlated_gaussian``. Chirp accepts ``--end-frequency``. Step and noise
+support delay but not phase. Positive phase leads; delay postpones the start.
+
+For time-correlated Gaussian loads::
+
+   ros2 run simlab disturbance_run --robot-prefix robot_1_ \
+     --dof surge roll --amplitude 1 0.1 --waveform correlated_gaussian \
+     --correlation-time 2 --frequency 0.1 --cycles 7 --seed 42
+
+For both Gaussian forms, amplitude is standard deviation, not a peak bound.
+``cycles / frequency`` sets duration; frequency does not set noise bandwidth.
+``correlation-time`` is the OU decay time in seconds.
+
+Runs have a 2-second zero baseline and 3-second zero tail. Waveforms are sampled
+at 20 Hz on completed simulation time; pause freezes waveform time. Reset aborts
+the run. Injection is simulation-only.
+
+Task-space loads
+~~~~~~~~~~~~~~~~
+
+Apply a wrench at the IK tool origin::
+
+   ros2 run simlab disturbance_run --robot-prefix robot_1_ \
+     --space task --wrench-frame tool --dof fx tz --amplitude 1 0.1 \
+     --waveform sine --frequency 0.1 --cycles 3
+
+Task DOFs are ``fx fy fz tx ty tz``. ``--wrench-frame`` selects tool axes,
+vehicle-body FLU axes (``body``), or world NWU axes (``world``). All torques are
+about the tool origin. Injection does not unlock joints.
+
+Live plots and recording
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The viewer compares applied load and EKF estimate. Shading is the estimate's
+model-based ±2σ uncertainty, not the injected noise amplitude. Constrained or
+invalid estimates are marked unavailable. Task plots show equivalent wrench in
+tool axes; a valid estimate alone does not establish tool contact.
+
+Repeated runs for the same robot reuse the window. ``--no-plot`` skips it;
+``--close-on-finish`` closes it on completion. Closing the window does not stop
+injection. Ctrl+C in the run client cancels, or call::
+
+   ros2 service call /robot_1_/disturbance/stop std_srvs/srv/Trigger '{}'
+
+Start standard MCAP recording before injection. The recorder includes disturbance
+command, applied vehicle/arm state, status/configuration and task-wrench topics,
+alongside ``dynamic_joint_states``. Injection does not start recording or write
+separate CSV/JSON files. CmdReplay and the MCAP converter do not reapply recorded
+disturbance tracks.
+
+For an independent live observer, run ``ros2 run simlab disturbance_plot --help``.
+Custom waveform registration is covered in :doc:`developer_guide`.

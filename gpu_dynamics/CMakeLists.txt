@@ -64,21 +64,6 @@ target_include_directories(${UVMS_GPU_DYNAMICS_LIB} PUBLIC
 target_link_libraries(${UVMS_GPU_DYNAMICS_LIB} PUBLIC CUDA::cudart)
 target_link_options(${UVMS_GPU_DYNAMICS_LIB} PRIVATE -fno-lto)
 
-add_executable(uvms_gpu_dynamics_benchmark
-  benchmark/uvms_gpu_dynamics_benchmark.cpp
-)
-target_compile_features(uvms_gpu_dynamics_benchmark PRIVATE cxx_std_17)
-target_include_directories(uvms_gpu_dynamics_benchmark PRIVATE
-  ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${CMAKE_CURRENT_SOURCE_DIR}/test
-  ${PROJECT_SOURCE_DIR}/cpu_dynamics/include
-)
-target_link_libraries(uvms_gpu_dynamics_benchmark PRIVATE
-  ${UVMS_GPU_DYNAMICS_LIB}
-  ${PROJECT_NAME}_uvms_cpu_dynamics
-  CUDA::cudart
-)
-
 add_executable(uvms_gpu_dynamics_correctness
   test/uvms_gpu_dynamics_correctness.cpp
 )
@@ -99,10 +84,6 @@ install(TARGETS ${UVMS_GPU_DYNAMICS_LIB}
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
-)
-
-install(TARGETS uvms_gpu_dynamics_benchmark
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 
 install(TARGETS uvms_gpu_dynamics_correctness

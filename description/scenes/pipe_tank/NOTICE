@@ -1,0 +1,7 @@
+Scene assets adapted from https://github.com/VincentGu2000/u0env
+Commit: 3f4b8409a9942935df1521fac2d905b65a2d36e2
+Retain upstream LICENSE.upstream.
+Modifications: NED-to-NWU placement; reconstructed materials; seabed covers the 50 m RViz grid and structures with 10 m margin.
+Undefined look sand on bathymetry_seabed_0: explicit fallback RGB 0.76000000000000001 0.65000000000000002 0.40000000000000002
+Seabed clipped in local XY to (-110.0796009642568, 110.0796009642568, -110.0796009642568, 110.0796009642568) mesh units: flat.obj
+Removed standalone plane above water (Wavetank_floor, z=1 m); tank support surfaces retained.

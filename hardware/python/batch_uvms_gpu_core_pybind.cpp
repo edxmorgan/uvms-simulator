@@ -68,8 +68,8 @@ py::array_t<std::uint8_t> make_uint8_array(
 std::vector<double> default_vehicle_params()
 {
   return {
-    3.72028553e+01, 2.21828075e+01, 6.61734807e+01, 3.38909801e+00,
-    6.41362046e-01, 6.41362034e-01, 3.38909800e+00, 1.39646394e+00,
+    3.72028553e+01, 2.21828075e+01, 6.61734807e+01, 3.389098005e+00,
+    6.41362040e-01, 6.41362040e-01, 3.389098005e+00, 1.39646394e+00,
     4.98032205e-01, 2.53118738e+00, 1.05000000e+02, 9.78296453e+01,
     8.27479545e-01, 1.36822559e-01, 4.25841171e+00, -7.36416666e+01,
     -3.36082112e+01, -8.94055107e+01, -2.98736214e+00, -1.57921531e+00,
@@ -248,23 +248,24 @@ public:
   void reset(bool hold_commands, py::object observations)
   {
     const bool has_observations = !observations.is_none();
-    observations_host_.assign(robot_count_ * BatchUvmsCore::kObservationDim, 0.0);
-    actions_host_.assign(robot_count_ * BatchUvmsCore::kActionDim, 0.0);
-    vehicle_wrench_host_.assign(robot_count_ * BatchUvmsCore::kVehicleActionDim, 0.0);
-    rewards_.assign(robot_count_, 0.0);
-    dones_.assign(robot_count_, 0U);
-
+    std::vector<double> next_observations(robot_count_ * BatchUvmsCore::kObservationDim, 0.0);
     if (has_observations) {
       const auto array = py::array_t<double, py::array::c_style | py::array::forcecast>::ensure(observations);
       if (!array) {
         throw std::invalid_argument("observations must be convertible to a float64 array");
       }
-      observations_host_ = flatten_double_array(array);
-      if (observations_host_.size() != robot_count_ * BatchUvmsCore::kObservationDim) {
+      next_observations = flatten_double_array(array);
+      if (next_observations.size() != robot_count_ * BatchUvmsCore::kObservationDim) {
         throw std::invalid_argument("observations must have shape [robot_count, observation_dim] or flat matching size");
       }
     }
 
+    // Reject malformed reset input before altering either host or device state.
+    observations_host_ = std::move(next_observations);
+    actions_host_.assign(robot_count_ * BatchUvmsCore::kActionDim, 0.0);
+    vehicle_wrench_host_.assign(robot_count_ * BatchUvmsCore::kVehicleActionDim, 0.0);
+    rewards_.assign(robot_count_, 0.0);
+    dones_.assign(robot_count_, 0U);
     std::vector<double> vehicle_host;
     std::vector<double> arm_host;
     split_observations(observations_host_, robot_count_, vehicle_host, arm_host);
@@ -290,11 +291,12 @@ public:
 
   void set_actions(py::array_t<double, py::array::c_style | py::array::forcecast> actions, std::uint64_t tick_id)
   {
-    actions_host_ = flatten_double_array(actions);
-    if (actions_host_.size() != robot_count_ * BatchUvmsCore::kActionDim) {
+    const auto next_actions = flatten_double_array(actions);
+    if (next_actions.size() != robot_count_ * BatchUvmsCore::kActionDim) {
       throw std::invalid_argument("actions must have shape [robot_count, action_dim] or flat matching size");
     }
 
+    actions_host_ = next_actions;
     actions_device_.copy_from_host(actions_host_);
     split_device_actions();
     actions_dirty_ = false;
@@ -321,11 +323,12 @@ public:
 
   void set_observations(py::array_t<double, py::array::c_style | py::array::forcecast> observations)
   {
-    observations_host_ = flatten_double_array(observations);
-    if (observations_host_.size() != robot_count_ * BatchUvmsCore::kObservationDim) {
+    const auto next_observations = flatten_double_array(observations);
+    if (next_observations.size() != robot_count_ * BatchUvmsCore::kObservationDim) {
       throw std::invalid_argument("observations must have shape [robot_count, observation_dim] or flat matching size");
     }
 
+    observations_host_ = next_observations;
     std::vector<double> vehicle_host;
     std::vector<double> arm_host;
     split_observations(observations_host_, robot_count_, vehicle_host, arm_host);
@@ -390,7 +393,9 @@ public:
         arm_next_.data()};
 
       {
-        py::gil_scoped_release release;
+        // This synchronous object exposes mutable device buffers to its other
+        // Python methods. Retain the GIL until kernels complete, as the CPU
+        // backend does, so reset/actions cannot race an in-flight step.
         uvms_gpu::launch_vehicle_step(vehicle_ptrs, static_cast<int>(robot_count_), 256, 0, false);
         uvms_gpu::launch_prepare_arm_step(
           arm_state_.data(), arm_torque_.data(), lock_mask_.data(), static_cast<int>(robot_count_),

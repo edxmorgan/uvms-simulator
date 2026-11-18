@@ -1,0 +1,10 @@
+# Coordinator: switch/status (select a scene again to retry). Consumers: hold/prepare/commit/verify/release.
+# revision prevents late requests from changing a newer transaction.
+string command
+string scene
+uint64 revision
+string robot_description
+---
+bool success
+string message
+uint64 revision

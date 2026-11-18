@@ -16,6 +16,7 @@
 #ifndef ROS2_CONTROL_BLUE_REACH_5__BLUEROV_SYSTEM_MULTI_INTERFACE_HPP_
 #define ROS2_CONTROL_BLUE_REACH_5__BLUEROV_SYSTEM_MULTI_INTERFACE_HPP_
 
+#include "ros2_control_blue_reach_5/vehicle_sensor_mounts.hpp"
 #include "ros2_control_blue_reach_5/vehicle_disturbance_noise_adaptation.hpp"
 #include <chrono>
 #include "ros2_control_blue_reach_5/identification_sample.hpp"
@@ -154,7 +155,8 @@ namespace ros2_control_blue_reach_5
         void receive_raw_imu(const sensor_msgs::msg::Imu &message);
         casadi::Function sensor_correct_, sensor_model_;
         casadi::DM sensor_R_ = casadi::DM::eye(13);
-        casadi::DM imu_offset_ = casadi::DM::zeros(3,1);
+        VehicleSensorMounts sensor_mounts_;
+        casadi::DM sensor_offsets_ = casadi::DM::zeros(9,1);
         std::array<double,6> raw_imu_measurement_{}, raw_imu_new_{}, raw_imu_bias_{};
         std::array<double,6> raw_imu_variance_{1e-6,1e-6,1e-6,1e-4,1e-4,1e-4};
         casadi::DM wrench_covariance_=casadi::DM::eye(6)*7e-4;
@@ -179,7 +181,7 @@ namespace ros2_control_blue_reach_5
 
         using tf = tf2_msgs::msg::TFMessage;
 
-        tf2::Quaternion q_orig, q_rot, q_new, q_rot_dvl, q_rot_mocap;
+        tf2::Quaternion q_orig, q_rot, q_new;
 
         std::shared_ptr<rclcpp::Publisher<tf>> transform_publisher_;
         std::shared_ptr<realtime_tools::RealtimePublisher<tf>>
@@ -196,9 +198,9 @@ namespace ros2_control_blue_reach_5
 
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
 
-        void stop_thrusters();
+        bool stop_thrusters();
         void publishDVLVelocity(const rclcpp::Time &time);
-        std::array<double, 36> convert3x3To6x6Covariance(const blue::dynamics::Covariance &linear_cov);
+        std::array<double, 36> dvl_ros_covariance(const blue::dynamics::Covariance &linear_cov);
 
         double delta_seconds;
         double time_seconds;

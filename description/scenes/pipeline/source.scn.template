@@ -1,0 +1,136 @@
+<?xml version="1.0"?>
+<scenario>
+	<environment>
+		<ned latitude="56.136459" longitude="-2.706819"/>
+		<ocean>
+			<water density="1031.0" jerlov="0.033"/>
+			<waves height="0.0"/>
+			<particles enabled="true"/>
+			<current type="uniform">
+				<velocity xyz="0.0 0.0 0.0"/>
+			</current>
+			<current type="jet">
+				<center xyz="0.0 0.0 0.0"/>
+				<outlet radius="100.0"/>
+				<velocity xyz="0.0 0.0 0.0"/>
+			</current>
+		</ocean>
+		<atmosphere>
+			<sun azimuth="45.0" elevation="90.0"/>
+		</atmosphere>
+	</environment>
+
+	<materials>
+		<material name="Neutral" density="1000.0" restitution="0.1"/>
+		<material name="Rock" density="3000.0" restitution="0.8"/>
+		<material name="Fiberglass" density="1500.0" restitution="0.3"/>
+		<material name="Aluminium" density="2710.0" restitution="0.5"/>
+		<material name="Steel" density="7850.0" restitution="0.5"/>
+		<material name="Target_obj" density="1200.0" restitution="0.5"/>
+		<friction_table>
+			<friction material1="Neutral" material2="Neutral" static="0.5" dynamic="0.2"/>
+			<friction material1="Neutral" material2="Rock" static="0.2" dynamic="0.1"/>
+			<friction material1="Neutral" material2="Fiberglass" static="0.5" dynamic="0.2"/>
+			<friction material1="Neutral" material2="Aluminium" static="0.1" dynamic="0.02"/>
+			<friction material1="Rock" material2="Rock" static="0.9" dynamic="0.7"/>
+			<friction material1="Rock" material2="Fiberglass" static="0.6" dynamic="0.4"/>
+			<friction material1="Rock" material2="Aluminium" static="0.6" dynamic="0.3"/>
+			<friction material1="Rock" material2="Steel" static="0.6" dynamic="0.3"/>
+			<friction material1="Target_obj" material2="Steel" static="0.9" dynamic="0.7"/>
+			<friction material1="Target_obj" material2="Rock" static="0.9" dynamic="0.7"/>
+			<friction material1="Fiberglass" material2="Fiberglass" static="0.5" dynamic="0.2"/>
+			<friction material1="Fiberglass" material2="Aluminium" static="0.5" dynamic="0.2"/>
+			<friction material1="Aluminium" material2="Aluminium" static="0.8" dynamic="0.5"/>
+		</friction_table>
+	</materials>
+
+	<looks>
+		<look name="black" gray="0.05" roughness="0.2"/>
+		<look name="yellow" rgb="1.0 0.9 0.0" roughness="0.3"/>
+		<look name="gray" gray="0.5" roughness="0.4" metalness="0.5"/>
+		<look name="ltgray" gray="0.75" roughness="1.0" metalness="0.0"/>
+		<look name="tank" rgb="0.9 0.9 0.9" roughness="0.9"/>
+		<look name="sand" gray="1.0" roughness="0.7" metalness="0.3" texture="SoilBeach0078_1_350.jpg"/>
+    </looks>
+
+	<static name="Seabed" type="model">
+		<physical>
+			<mesh filename="flat.obj" scale="1.0"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Rock"/>
+		<dimensions scalex="1" scaley="1" height="0.01"/>
+		<look name="sand"/>
+		<world_transform rpy="0.0 0.0 0.0" xyz="0.0 0.0 10.5"/>
+	</static>
+
+
+    <!-- 机器人 -->
+    <include file="$(find stonefish_bluerov2)/scenarios/robots/bluerov2.scn">
+		<arg name="vehicle_name" value="bluerov2"/>
+		<arg name="position" value="0.0 1.5 1.307"/>
+		<arg name="orientation" value="0.000 0.000 1.57"/>
+	</include>
+
+	<!-- 抓取物体 -->
+    <looks>
+        <look name="red_box" rgb="1.0 0.0 0.0" roughness="0.9"/>
+		<look name="blue_box" rgb="0.0 0.0 1.0" roughness="0.9"/>
+    </looks>
+
+	<!-- <dynamic name="Box_red" type="box" physics="submerged" buoyant="true">
+		<dimensions xyz="0.05 0.05 0.05"/>
+		<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		<material name="Target_obj"/>
+		<look name="red_box"/>
+		<world_transform xyz="1.8 2.0 2.5" rpy="0.0 0.0 0.0"/>
+	</dynamic>
+
+	<dynamic name="Box_blue" type="box" physics="submerged" buoyant="true">
+		<dimensions xyz="0.05 0.05 0.05"/>
+		<origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+		<material name="Target_obj"/>
+		<look name="blue_box"/>
+		<world_transform xyz="2.2 2.0 2.5" rpy="0.0 0.0 0.0"/>
+	</dynamic> -->
+
+    <!-- <dynamic name="Cyl" type="cylinder" physics="submerged">
+		<dimensions radius="0.0075" height="0.08"/>
+		<origin xyz="0.0 0.0 0.0" rpy="0.0 1.57 0.0"/>
+		<material name="Target_obj"/>
+		<look name="red_box"/>
+		<world_transform xyz="-0.5 0.0 2.8" rpy="0.0 0.0 0.0"/>
+		<sensor name="odometry_box" type="odometry" rate="10.0">
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+			<ros_publisher topic="/box/odometry"/>
+		</sensor>
+	</dynamic> -->
+
+    <!-- 环境物体 -->
+    <looks>
+  		<look name="pipestri_surface" rgb="0.7 0.7 0.7" roughness="0.6" metalness="0.3" texture="pipestri/pipestri.png"/>
+    </looks>
+    <static name="Pipe" type="model">
+        <physical>
+            <mesh filename="pipestri/pipestri.obj" scale="1.0"/>
+            <origin rpy="3.14 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        </physical>
+        <material name="Rock"/>
+        <look name="pipestri_surface"/>
+        <world_transform rpy="0.0 0.0 0.0" xyz="0.0 8.0 9.5"/>
+    </static>
+
+    <looks>
+  		<look name="pipestri_surface" rgb="0.7 0.7 0.7" roughness="0.6" metalness="0.3" texture="pipestri/pipestri.png"/>
+    </looks>
+    <static name="Pipe" type="model">
+        <physical>
+            <mesh filename="pipestri/pipestri.obj" scale="1.0"/>
+            <origin rpy="3.14 0.0 0.0" xyz="0.0 0.0 0.0"/>
+        </physical>
+        <material name="Rock"/>
+        <look name="pipestri_surface"/>
+        <world_transform rpy="0.0 0.0 0.0" xyz="0.0 -8.0 9.5"/>
+    </static>
+
+</scenario>

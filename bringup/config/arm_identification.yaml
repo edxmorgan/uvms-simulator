@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    auto_start: true
+    integration_seconds: 2.0
+    max_gap: 0.15
+    min_sliding_speed: 0.005  # rad/s; exclude unresolved Coulomb sticking
+    arm_horizon: 1200
+    gripper_horizon: 300
+    arm_residual_scale: 0.03
+    gripper_residual_scale: 0.1
+    min_information: 0.00001
+    validation_seconds: 5.0
+    budget_seconds: 1.0

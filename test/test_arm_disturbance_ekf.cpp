@@ -303,6 +303,41 @@ struct ArmEstimatorTestAccess {
     h.sim_step_+=1;
     ASSERT_EQ(h.read(now,read_period),hardware_interface::return_type::OK);
     for(double available:h.estimator_disturbance_observable_)EXPECT_EQ(available,1.);
+    // A pause can arrive after a completed plant write but before its read.
+    // Exercise both read-during-pause and release-before-the-next-read orderings.
+    h.node_frames_interface_ = std::make_shared<rclcpp::Node>("arm_pause_contract_test");
+    for (bool read_while_paused : {true, false}) {
+      h.sim_step_ += 1.; // completed plant observation, as in the loop above
+      const double completed_step = h.sim_step_;
+      h.estimator_completed_dt_ = dt;
+      h.commands_held_ = h.dynamics_paused_ = true;
+      ASSERT_EQ(h.write(now, rclcpp::Duration::from_seconds(.2)), hardware_interface::return_type::OK);
+      EXPECT_DOUBLE_EQ(h.sim_step_, completed_step);
+      EXPECT_DOUBLE_EQ(h.estimator_completed_dt_, dt);
+      if (read_while_paused) {
+        ASSERT_EQ(h.read(now, read_period), hardware_interface::return_type::OK);
+        EXPECT_DOUBLE_EQ(h.estimator_step_, completed_step);
+      }
+      h.commands_held_ = h.dynamics_paused_ = false;
+      if (!read_while_paused) {
+        // Releasing between read/write cannot overwrite an unconsumed step.
+        ASSERT_EQ(h.write(now, read_period), hardware_interface::return_type::OK);
+        EXPECT_DOUBLE_EQ(h.sim_step_, completed_step);
+      }
+      ASSERT_EQ(h.read(now, read_period), hardware_interface::return_type::OK);
+      EXPECT_DOUBLE_EQ(h.estimator_step_, completed_step);
+      EXPECT_DOUBLE_EQ(h.estimator_valid_, 1.);
+    }
+    for (double invalid_dt : {0., -.005}) {
+      const auto step = h.sim_step_;
+      const auto position = h.hw_joint_struct_[0].current_state_.position;
+      const auto energy = h.control_energy_;
+      EXPECT_EQ(h.write(now, rclcpp::Duration::from_seconds(invalid_dt)),
+                hardware_interface::return_type::ERROR);
+      EXPECT_EQ(h.sim_step_, step);
+      EXPECT_EQ(h.hw_joint_struct_[0].current_state_.position, position);
+      EXPECT_EQ(h.control_energy_, energy);
+    }
     const DM state = h.arm_x_est_, covariance = h.arm_P_est_;
     EXPECT_EQ(h.read(now, read_period), hardware_interface::return_type::OK);
     EXPECT_EQ(double(DM::norm_inf(h.arm_x_est_-state)), 0.);
@@ -401,5 +436,29 @@ TEST(ArmDisturbanceEKF, ReducedPlantPreservesOriginalRK4AndGripper) {
     z(4)=.006;z(9)=.001;
     std::vector<DM> args={z,DM(std::vector<double>{.1,-.05,.07,-.02,.5}),dt,model,300.,400.,2.,mask,200.};
     EXPECT_LT(double(DM::norm_inf(original(args)[0]-reduced(args)[0])),1e-10);
+  }
+}
+
+TEST(ArmDisturbanceEKF, SubnormalIntegrationPreservesNormalMotionAndArithmeticMode) {
+  using namespace ros2_control_blue_reach_5;
+  using casadi::DM;
+  auto flow=casadi::external("arm_plant_next",TEST_CASADI_DIR "/libmDisturbanceEKF_next.so");
+  auto model=DM::vertcat(pack_manipulator_dynamics(default_manipulator_dynamics()));
+  for (double velocity : {0.,1e-12,1e-300,1e-310}) {
+    for (int bits : {0,5,15}) {
+      DM state=DM::zeros(10), mask=DM::zeros(4);
+      for (int j=0;j<5;++j) { state(j)=j<4?.5+.3*j:.006; state(j+5)=velocity; }
+      for (int j=0;j<4;++j) mask(j)=(bits>>j)&1;
+      std::vector<DM> args={state,DM::zeros(5),.005,model,300.,400.,0.,mask,200.};
+      auto expected=flow(args)[0];
+#if defined(__SSE2__)
+      const auto before=_mm_getcsr();
+#endif
+      auto actual=arm_time_integration::plant(flow,args)[0];
+#if defined(__SSE2__)
+      EXPECT_EQ(_mm_getcsr(),before);
+#endif
+      EXPECT_LT(double(DM::norm_inf(actual-expected)),1e-300);
+    }
   }
 }

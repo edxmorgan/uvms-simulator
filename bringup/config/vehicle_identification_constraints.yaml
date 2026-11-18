@@ -10,10 +10,11 @@
     # Set false to disable automatic observation, or launch with
     # vehicle_identifier_config:=off to omit the optional node entirely.
     auto_start: true
-    horizon: 4200
+    horizon: 300
+    integration_seconds: 4.0
     fit_period: 1.0
     budget_seconds: 0.5
-    max_gap: 0.05
+    max_gap: 0.25
     # Fixed engineering scales, not plant truth or a calibrated noise covariance.
     retention_parameter_scales: [50.0, 50.0, 100.0, 5.0, 2.0, 2.0, 5.0, 2.0, 2.0, 5.0, 100.0, 100.0, 1.0, 1.0, 5.0, 100.0, 50.0, 100.0, 5.0, 5.0, 5.0, 10.0, 10.0, 100.0, 1.0, 1.0, 5.0]
     # Per-axis validation RMS scales: force in N, torque in Nm.

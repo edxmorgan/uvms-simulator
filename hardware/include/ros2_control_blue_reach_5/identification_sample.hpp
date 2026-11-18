@@ -3,8 +3,9 @@
 #include <cmath>
 
 namespace uvms::identification {
-// Hardware observation packet. Inputs are body-NED measurements and the modeled
-// wrench of the last transmitted PWM, never EKF motion or requested effort.
+// Shared observation packet: body-NED sensor measurements and applied wrench.
+// Hardware uses calibrated transmitted PWM; simulation uses the plant input.
+// Accumulate before transport, never from EKF motion or controller references.
 struct HardwareSample {
   double generation=0, step=0, time=0, period=0, valid=0, depth=0;
   std::array<double,3> attitude{};

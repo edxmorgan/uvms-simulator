@@ -210,6 +210,7 @@ namespace ros2_control_blue_reach_5
         estimated_disturbance_.fill(0.0);
         estimator_applied_input_ = casadi::DM::zeros(6, 1);
         estimator_step_ = 0.0;
+        estimator_completed_dt_ = 0.0;
         estimator_valid_ = 0.0;
         for (std::size_t i = 0; i < 18; ++i)
         {
@@ -312,7 +313,8 @@ namespace ros2_control_blue_reach_5
     void SimVehicleSystemMultiInterfaceHardware::seed_vehicle_sensor_state_from_state(
         const blue::dynamics::Vehicle::Pose_vel &state)
     {
-        hw_vehicle_struct.depth_from_pressure2 = state.position_z;
+        hw_vehicle_struct.depth_from_pressure2 = state.position_z +
+            sensor_mounts_.pressure_depth_offset(Eigen::Vector3d(state.roll, state.pitch, state.yaw));
 
         hw_vehicle_struct.imu_state.setEuler(state.roll, -state.pitch, -state.yaw);
         hw_vehicle_struct.imu_state.roll_unwrap = state.roll;
@@ -321,19 +323,26 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.imu_state.angular_vel_x = state.p;
         hw_vehicle_struct.imu_state.angular_vel_y = -state.q;
         hw_vehicle_struct.imu_state.angular_vel_z = -state.r;
-        hw_vehicle_struct.imu_state.linear_acceleration_x = state.du;
-        hw_vehicle_struct.imu_state.linear_acceleration_y = state.dv;
-        hw_vehicle_struct.imu_state.linear_acceleration_z = state.dw;
+        // Reset has no completed physical acceleration sample. Body velocity
+        // derivatives are not accelerometer specific force; expose unavailable
+        // readings until write() produces the first physical IMU observation.
+        hw_vehicle_struct.imu_state.linear_acceleration_x = std::numeric_limits<double>::quiet_NaN();
+        hw_vehicle_struct.imu_state.linear_acceleration_y = std::numeric_limits<double>::quiet_NaN();
+        hw_vehicle_struct.imu_state.linear_acceleration_z = std::numeric_limits<double>::quiet_NaN();
 
-        hw_vehicle_struct.dvl_state.vx = state.u;
-        hw_vehicle_struct.dvl_state.vy = state.v;
-        hw_vehicle_struct.dvl_state.vz = state.w;
+        const Eigen::Vector3d sensor_velocity = sensor_mounts_.dvl_to_body.transpose() *
+            (Eigen::Vector3d(state.u, state.v, state.w) +
+             sensor_mounts_.dvl_lever_velocity(Eigen::Vector3d(state.p, state.q, state.r)));
+        hw_vehicle_struct.dvl_state.vx = sensor_velocity[0];
+        hw_vehicle_struct.dvl_state.vy = sensor_velocity[1];
+        hw_vehicle_struct.dvl_state.vz = sensor_velocity[2];
     }
 
     void SimVehicleSystemMultiInterfaceHardware::reset_vehicle_simulation_state()
     {
         sim_step_ = 0.0;
         sim_generation_ += 1.0;
+        identification_sample_.reset();
         sensor_elapsed_ = 0.0;
         sensor_next_sample_.fill(0.0);
         sensor_sample_time_.fill(0.0);
@@ -654,10 +663,30 @@ namespace ros2_control_blue_reach_5
 
         hw_vehicle_struct.set_vehicle_name("blue ROV heavy 0", initial_state);
 
-        hw_vehicle_struct.thrustSizeAllocation(get_hardware_info().joints.size());
+        if (get_hardware_info().joints.size() != 9 ||
+            get_hardware_info().joints.back().name != hw_vehicle_struct.robot_prefix + "camera_mount_joint") {
+            RCLCPP_ERROR(rclcpp::get_logger("VehicleHardware"), "Expected eight thrusters followed by the camera mount joint");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        try {
+            sensor_mounts_ = VehicleSensorMounts::from_urdf(
+                get_hardware_info().original_xml, hw_vehicle_struct.robot_prefix);
+            sensor_offsets_ = casadi::DM(std::vector<double>(
+                sensor_mounts_.offsets.begin(), sensor_mounts_.offsets.end()));
+        } catch (const std::exception &e) {
+            RCLCPP_ERROR(rclcpp::get_logger("VehicleHardware"), "%s", e.what());
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+        hw_vehicle_struct.thrustSizeAllocation(get_hardware_info().joints.size() - 1);
 
         for (const hardware_interface::ComponentInfo &joint : get_hardware_info().joints)
         {
+            if (joint.name == hw_vehicle_struct.robot_prefix + "camera_mount_joint") {
+                if (joint.state_interfaces.size() != 1 ||
+                    joint.state_interfaces.front().name != "position" || !joint.command_interfaces.empty())
+                    return hardware_interface::CallbackReturn::ERROR;
+                continue;
+            }
             Thruster::State defaultState{};
             hw_vehicle_struct.hw_thrust_structs_.emplace_back(joint.name, defaultState);
             // SimVehicleSystemMultiInterfaceHardware has exactly 6 joint state interfaces
@@ -682,11 +711,11 @@ namespace ros2_control_blue_reach_5
         for (const hardware_interface::ComponentInfo &gpio : get_hardware_info().gpios)
         {
             // Includes simulation step metadata and disturbance estimator diagnostics.
-            if (gpio.state_interfaces.size() != 200)
+            if (gpio.state_interfaces.size() != 227)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
-                    "GPIO '%s'has %zu state interfaces. 200 expected.", gpio.name.c_str(),
+                    "GPIO '%s'has %zu state interfaces. 227 expected.", gpio.name.c_str(),
                     gpio.state_interfaces.size());
                 return hardware_interface::CallbackReturn::ERROR;
             }
@@ -748,7 +777,11 @@ namespace ros2_control_blue_reach_5
                     transform_publisher_);
 
             auto &transform_message = realtime_transform_publisher_->msg_;
-            transform_message.transforms.resize(2);
+            transform_message.transforms.resize(1);
+            physical_transform_publisher_ = std::make_shared<realtime_tools::RealtimePublisher<tf>>(
+                rclcpp::create_publisher<tf>(node_topics_interface_, "/simulation_truth/tf",
+                                           rclcpp::SystemDefaultsQoS()));
+            physical_transform_publisher_->msg_.transforms.resize(1);
 
             disturbance_receiver_ = std::make_shared<DisturbanceReceiver>(
                 node_topics_interface_, hw_vehicle_struct.robot_prefix, "vehicle");
@@ -847,6 +880,17 @@ namespace ros2_control_blue_reach_5
         reset_service_ = node_topics_interface_->create_service<ros2_control_blue_reach_5::srv::ResetSimUvms>(
             "/" + hw_vehicle_struct.robot_prefix + "reset_sim_vehicle",
             reset_state_callback);
+
+        pause_service_ = node_topics_interface_->create_service<std_srvs::srv::Trigger>(
+            "/" + hw_vehicle_struct.robot_prefix + "pause_sim_vehicle",
+            [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                   std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                commands_held_ = true;
+                dynamics_paused_ = true;
+                response->success = true;
+                response->message = "Simulation paused; plant state preserved";
+            });
 
         release_service_ = node_topics_interface_->create_service<std_srvs::srv::Trigger>(
             "/" + hw_vehicle_struct.robot_prefix + "release_sim_vehicle",
@@ -962,7 +1006,9 @@ namespace ros2_control_blue_reach_5
     SimVehicleSystemMultiInterfaceHardware::export_state_interfaces()
     {
         std::vector<hardware_interface::StateInterface> state_interfaces;
-        for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
+        state_interfaces.emplace_back(hw_vehicle_struct.robot_prefix + "camera_mount_joint",
+            hardware_interface::HW_IF_POSITION, &hw_vehicle_struct.camera_mount_pitch_position);
+        for (std::size_t i = 0; i + 1 < get_hardware_info().joints.size(); i++)
         {
             state_interfaces.emplace_back(hardware_interface::StateInterface(
                 get_hardware_info().joints[i].name, hardware_interface::HW_IF_POSITION, &hw_vehicle_struct.hw_thrust_structs_[i].current_state_.position));
@@ -1211,6 +1257,22 @@ namespace ros2_control_blue_reach_5
         for (std::size_t i=0; i<6; ++i)
             state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
                 "sensor_new." + std::to_string(7+i), &raw_imu_new_[i]);
+        auto identification_interface = [&](const std::string &name,double &value) {
+            state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+                "identification."+name,&value);
+        };
+        identification_interface("valid",identification_sample_.valid);
+        identification_interface("generation",identification_sample_.generation);
+        identification_interface("step",identification_sample_.step);
+        identification_interface("time",identification_sample_.time);
+        identification_interface("period",identification_sample_.period);
+        identification_interface("depth",identification_sample_.depth);
+        for(int i=0;i<3;++i)
+            identification_interface("attitude."+std::to_string(i),identification_sample_.attitude[i]);
+        for(int i=0;i<6;++i) {
+            identification_interface("velocity."+std::to_string(i),identification_sample_.velocity[i]);
+            identification_interface("wrench."+std::to_string(i),identification_sample_.wrench[i]);
+        }
         const std::array<std::string, 6> wrench_axes = {
             "force.x", "force.y", "force.z", "torque.x", "torque.y", "torque.z"};
         for (std::size_t i = 0; i < estimator_model_readback_.size(); ++i)
@@ -1243,6 +1305,19 @@ namespace ros2_control_blue_reach_5
                 &disturbance_covariance_[6*i+j]);
         state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
             "sensor_noise_enabled", &sensor_noise_enabled_);
+        // Posterior model acceleration; keep physical/raw acceleration separately.
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "linear_acceleration_estimate.x", &hw_vehicle_struct.estimate_state_.du);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "linear_acceleration_estimate.y", &hw_vehicle_struct.estimate_state_.dv);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "linear_acceleration_estimate.z", &hw_vehicle_struct.estimate_state_.dw);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "angular_acceleration_estimate.x", &hw_vehicle_struct.estimate_state_.dp);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "angular_acceleration_estimate.y", &hw_vehicle_struct.estimate_state_.dq);
+        state_interfaces.emplace_back(get_hardware_info().gpios[0].name,
+            "angular_acceleration_estimate.z", &hw_vehicle_struct.estimate_state_.dr);
         return state_interfaces;
     }
 
@@ -1348,7 +1423,9 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         reset_vehicle_simulation_state();
         commands_held_ = false;
-        dynamics_paused_ = false;
+        const auto startup = get_hardware_info().hardware_parameters.find("startup_pause");
+        dynamics_paused_ = startup != get_hardware_info().hardware_parameters.end() &&
+            (startup->second == "true" || startup->second == "True" || startup->second == "1");
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "Activating... please wait...");
 
@@ -1472,11 +1549,6 @@ namespace ros2_control_blue_reach_5
             [](double v){return !std::isfinite(v)||v<0.||!std::isfinite(v*v);}))
             throw std::invalid_argument("sim_raw_imu_noise_std requires six finite nonnegative values");
         std::copy(raw_std.begin(),raw_std.end(),raw_imu_std_.begin());
-        const auto offset=node_topics_interface_->declare_parameter<std::vector<double>>(
-            "imu_offset_body", {0.,0.,0.}, descriptor);
-        if(offset.size()!=3 || std::any_of(offset.begin(),offset.end(),[](double v){return !std::isfinite(v);}))
-            throw std::invalid_argument("imu_offset_body requires three finite FRD coordinates");
-        imu_offset_=casadi::DM(offset);
         sensor_gravity_=node_topics_interface_->declare_parameter<double>("sensor_gravity",9.80665,descriptor);
         if(!std::isfinite(sensor_gravity_)||sensor_gravity_<=0.)
             throw std::invalid_argument("sensor_gravity must be positive");
@@ -1498,6 +1570,11 @@ namespace ros2_control_blue_reach_5
         sensor_noise_enabled_ = sensor_noise_requested_.load() ? 1.0 : 0.0;
         sensor_elapsed_ += dt;
         sensor_new_.fill(0.0);
+        // Generate sensor-origin measurements in the same body axes as hardware.
+        const double depth_offset = sensor_mounts_.pressure_depth_offset(
+            Eigen::Vector3d(state.at(3),state.at(4),state.at(5)));
+        const Eigen::Vector3d dvl_offset = sensor_mounts_.dvl_lever_velocity(
+            Eigen::Vector3d(state.at(9),state.at(10),state.at(11)));
         constexpr std::array<int, 4> offsets{0, 1, 4, 7};
         for (std::size_t group=0; group<3; ++group) {
             const double rate = sensor_rates_[group];
@@ -1514,7 +1591,7 @@ namespace ros2_control_blue_reach_5
                 if (group==2) {
                     for (int j=0;j<3;++j) noise+=sensor_dvl_factor_[3*(i-4)+j]*dvl_noise[j];
                 } else noise=sensor_noise_std_[i]*sensor_normal_(sensor_noise_rng_);
-                sensor_measurement_[i] = state.at(i+2) + apply_sensor_noise(noise);
+                sensor_measurement_[i] = state.at(i+2) + (i == 0 ? depth_offset : (i >= 4 ? dvl_offset[i-4] : 0.0)) + apply_sensor_noise(noise);
                 sensor_new_[i] = 1.0;
             }
             sensor_sample_time_[group] = sensor_elapsed_;
@@ -1533,7 +1610,9 @@ namespace ros2_control_blue_reach_5
         delta_seconds = period.seconds();
         apply_pending_reset_request();
         // Each measurement belongs to the last completed write, not this read period.
-        if (dynamics_paused_ || sim_step_ == estimator_step_)
+        // Consume any completed plant step during a dynamics or scene pause.
+        // Otherwise a pause between write/read can strand that step on resume.
+        if (sim_step_ == estimator_step_)
         {
             return hardware_interface::return_type::OK;
         }
@@ -1543,12 +1622,12 @@ namespace ros2_control_blue_reach_5
             y_k(1) = hw_vehicle_struct.imu_state.roll_unwrap;
             y_k(2) = -hw_vehicle_struct.imu_state.pitch_unwrap;
             y_k(3) = -hw_vehicle_struct.imu_state.yaw_unwrap;
-            y_k(4) = hw_vehicle_struct.dvl_state.vx;
-            y_k(5) = hw_vehicle_struct.dvl_state.vy;
-            y_k(6) = hw_vehicle_struct.dvl_state.vz;
+            const Eigen::Vector3d velocity = sensor_mounts_.dvl_to_body * Eigen::Vector3d(
+                hw_vehicle_struct.dvl_state.vx, hw_vehicle_struct.dvl_state.vy, hw_vehicle_struct.dvl_state.vz);
+            for (int i=0; i<3; ++i) y_k(4+i) = velocity[i];
         };
 
-        const double completed_dt = hw_vehicle_struct.sim_period;
+        const double completed_dt = estimator_completed_dt_;
         if (sim_step_ != estimator_step_ + 1.0 ||
             !std::isfinite(completed_dt) || completed_dt <= 0.0)
         {
@@ -1579,12 +1658,12 @@ namespace ros2_control_blue_reach_5
             ekf_inputs[6] = prediction[3];
             const auto corrected = sensor_correct_(std::vector<casadi::DM>{
                 prediction[0], prior_P, estimator_applied_input_, estimator_nominal_parameters_,
-                y_sensor, sensor_R_, sensor_mask, 1.0, imu_offset_, sensor_gravity_});
+                y_sensor, sensor_R_, sensor_mask, 1.0, sensor_offsets_, sensor_gravity_});
             // Evaluate the nominal acceleration directly; do not run a second
             // zero-duration Kalman correction just to obtain this output.
             const auto model = physical_sensor_model_(std::vector<casadi::DM>{
                 corrected[0], estimator_applied_input_, estimator_nominal_parameters_,
-                imu_offset_, sensor_gravity_});
+                sensor_offsets_, sensor_gravity_});
             state_est = {corrected[0],corrected[1],corrected[2],corrected[3],model[2]};
             for (const auto &output : state_est)
                 for (const double value : output.nonzeros())
@@ -1616,16 +1695,15 @@ namespace ros2_control_blue_reach_5
             for (const auto &value : vehicle_parameters_new) append(value);
             trace.data.insert(trace.data.end(), {hw_vehicle_struct.imu_state.angular_vel_x, hw_vehicle_struct.imu_state.angular_vel_y, hw_vehicle_struct.imu_state.angular_vel_z});
             for (double value : arm_base_f_ext) trace.data.push_back(value);
-            // Schema 4 stores integrated Qd; 13 measurements/R/innovations and explicit mask.
-            // Suffix: mask(13), sample times(3), clock(1), IMU offset(3), gravity(1).
-            // Consumers of schema 1 must not replay held observations as fresh data.
-            trace.layout.dim.resize(1);
-            trace.layout.dim[0].label = "vehicle_ekf_trace_v4_integrated_process_noise";
+            // Schema 5 adds the URDF-derived sensor offsets to integrated Qd and masked measurements.
+            // Suffix: mask(13), sample times(3), clock(1), IMU/DVL/pressure offsets(9), gravity(1).
+                        trace.layout.dim.resize(1);
+            trace.layout.dim[0].label = "vehicle_ekf_trace_v5_sensor_mounts";
             trace.data.insert(trace.data.end(), sensor_new_.begin(), sensor_new_.end());
             trace.data.insert(trace.data.end(), raw_imu_new_.begin(), raw_imu_new_.end());
             trace.data.insert(trace.data.end(), sensor_sample_time_.begin(), sensor_sample_time_.end());
             trace.data.push_back(sensor_elapsed_);
-            append(imu_offset_);trace.data.push_back(sensor_gravity_);
+            append(sensor_offsets_);trace.data.push_back(sensor_gravity_);
             trace.layout.dim[0].size = trace.layout.dim[0].stride = trace.data.size();
             evaluation_trace_pub_->publish(trace);
         }
@@ -1701,8 +1779,31 @@ namespace ros2_control_blue_reach_5
         if (disturbance_receiver_) disturbance_receiver_->paused(dynamics_paused_);
         if (dynamics_paused_)
         {
+            // Execution time advances independently of this component's physics.
+            // Arm-only replay must not inherit a frozen vehicle clock.
+            hw_vehicle_struct.sim_time = time_seconds;
+            hw_vehicle_struct.sim_period = delta_seconds;
+            for (auto &thruster : hw_vehicle_struct.hw_thrust_structs_)
+            {
+                thruster.current_state_.sim_time = time_seconds;
+                thruster.current_state_.sim_period = delta_seconds;
+            }
+            // Keep pose stamps fresh without a physics/measurement/EKF step.
+            publishRealtimePoseTransform();
             return hardware_interface::return_type::OK;
         }
+        // Do not overwrite completed-step evidence if release falls between
+        // read and write. The next read must drain the pending observation.
+        if (sim_step_ != estimator_step_)
+            return hardware_interface::return_type::OK;
+
+        if (!std::isfinite(delta_seconds) || delta_seconds <= 0.0)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                         "Plant integration requires a finite positive period");
+            return hardware_interface::return_type::ERROR;
+        }
+
         const DM thrust_config = thrust_configuration_dm(thrust_configuration_matrix_);
 
         if (hw_vehicle_struct.use_pwm)
@@ -1795,7 +1896,7 @@ namespace ros2_control_blue_reach_5
         std::vector<DM> thruster_rads_outputs = utils_service.thrust2rads(thrust2rads_args);
         std::vector<double> thrusts_rads_double = dense_vector(thruster_rads_outputs.at(0), 8);
 
-        for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
+        for (std::size_t i = 0; i + 1 < get_hardware_info().joints.size(); i++)
         {
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.sim_time = time_seconds;
             hw_vehicle_struct.hw_thrust_structs_[i].current_state_.sim_period = delta_seconds;
@@ -1809,19 +1910,6 @@ namespace ros2_control_blue_reach_5
             std::lock_guard<std::mutex> lock(contact_wrench_mutex_);
             wrench_copy = contact_wrench_body_;
         }
-
-        //         // Debug print the external wrench that would be applied to dynamics
-        // RCLCPP_INFO(
-        //     rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
-        //     "contact wrench body frame Fx=%.3f Fy=%.3f Fz=%.3f Tx=%.3f Ty=%.3f Tz=%.3f  dt=%.4f",
-        //     wrench_copy[0],
-        //     wrench_copy[1],
-        //     wrench_copy[2],
-        //     wrench_copy[3],
-        //     wrench_copy[4],
-        //     wrench_copy[5],
-        //     delta_seconds
-        // );
 
         const auto contact_only = wrench_copy;
         // Independent injection input: never overwrites physical contact.
@@ -1838,7 +1926,6 @@ namespace ros2_control_blue_reach_5
         arm_base_f_ext.push_back(wrench_copy[4]); // Ty body
         arm_base_f_ext.push_back(wrench_copy[5]); // Tz body
 
-        // arm_base_f_ext = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
         vehicle_simulate_argument = {uv_state, uv_input, vehicle_parameters_new, delta_seconds, arm_base_f_ext};
         vehicle_sim = utils_service.vehicle_dynamics(vehicle_simulate_argument);
         vehicle_next_states = dense_vector(vehicle_sim.at(0), 12);
@@ -1876,7 +1963,7 @@ namespace ros2_control_blue_reach_5
         const auto physical = physical_sensor_model_(std::vector<casadi::DM>{
             casadi::DM::vertcat({casadi::DM(vehicle_next_states),casadi::DM(arm_base_f_ext)}),
             casadi::DM::vertcat(uv_input),casadi::DM::vertcat(vehicle_parameters_new),
-            imu_offset_,sensor_gravity_});
+            sensor_offsets_,sensor_gravity_});
         const auto physical_acceleration=dense_vector(physical[2],6);
         hw_vehicle_struct.current_state_.du=physical_acceleration[0];
         hw_vehicle_struct.current_state_.dv=physical_acceleration[1];
@@ -1897,9 +1984,13 @@ namespace ros2_control_blue_reach_5
             hw_vehicle_struct.imu_state.linear_acceleration_z=-raw_imu_measurement_[5];
         }
 
-        hw_vehicle_struct.dvl_state.vx = measurement[4];
-        hw_vehicle_struct.dvl_state.vy = measurement[5];
-        hw_vehicle_struct.dvl_state.vz = measurement[6];
+        // Match real hardware's exported sensor-FRD channels. Sampling and its
+        // covariance are body-aligned; rotate back only for sensor telemetry.
+        const Eigen::Vector3d sensor_velocity = sensor_mounts_.dvl_to_body.transpose() *
+            Eigen::Vector3d(measurement[4], measurement[5], measurement[6]);
+        hw_vehicle_struct.dvl_state.vx = sensor_velocity[0];
+        hw_vehicle_struct.dvl_state.vy = sensor_velocity[1];
+        hw_vehicle_struct.dvl_state.vz = sensor_velocity[2];
 
         hw_vehicle_struct.current_state_.Fx = hw_vehicle_struct.command_state_.Fx;
         hw_vehicle_struct.current_state_.Fy = hw_vehicle_struct.command_state_.Fy;
@@ -1908,9 +1999,27 @@ namespace ros2_control_blue_reach_5
         hw_vehicle_struct.current_state_.Ty = hw_vehicle_struct.command_state_.Ty;
         hw_vehicle_struct.current_state_.Tz = hw_vehicle_struct.command_state_.Tz;
 
+        // Accumulate the applied input at physics rate, before ROS transport.
+        // Only measured sensor channels enter the observation packet.
+        const std::array<double,6> identification_wrench={
+            hw_vehicle_struct.current_state_.Fx, hw_vehicle_struct.current_state_.Fy,
+            hw_vehicle_struct.current_state_.Fz, hw_vehicle_struct.current_state_.Tx,
+            hw_vehicle_struct.current_state_.Ty, hw_vehicle_struct.current_state_.Tz};
+        if(identification_sample_.advance(delta_seconds,identification_wrench) &&
+           std::all_of(sensor_new_.begin(),sensor_new_.end(),[](double fresh){return fresh==1.;})) {
+            const Eigen::Vector3d omega(raw_imu_measurement_[0],raw_imu_measurement_[1],raw_imu_measurement_[2]);
+            const Eigen::Vector3d velocity = Eigen::Vector3d(measurement[4],measurement[5],measurement[6]) -
+                sensor_mounts_.dvl_lever_velocity(omega);
+            identification_sample_.observe(measurement[0] - sensor_mounts_.pressure_depth_offset(
+                Eigen::Vector3d(measurement[1],measurement[2],measurement[3])),
+                {measurement[1],measurement[2],measurement[3]},
+                {velocity[0],velocity[1],velocity[2],omega[0],omega[1],omega[2]});
+        }
+
         hw_vehicle_struct.sim_time = time_seconds;
         hw_vehicle_struct.sim_period = delta_seconds;
 
+        estimator_completed_dt_ = delta_seconds;
         sim_step_ += 1.0;
         auto cam_msg_ptr_ptr = camera_mount_pitch_msg_buffer_.readFromRT();
         if (cam_msg_ptr_ptr && *cam_msg_ptr_ptr)
@@ -1963,55 +2072,7 @@ namespace ros2_control_blue_reach_5
         // Publish the static transform
         static_tf_broadcaster_->sendTransform(static_map_transform);
 
-        // Create and send the static dvl transform
-        geometry_msgs::msg::TransformStamped static_dvl_transform;
 
-        static_dvl_transform.header.stamp = current_time;
-        static_dvl_transform.header.frame_id = hw_vehicle_struct.body_frame_id;
-        static_dvl_transform.child_frame_id = hw_vehicle_struct.robot_prefix + "dvl_link";
-
-        // Set translation based on current state
-        static_dvl_transform.transform.translation.x = -0.060;
-        static_dvl_transform.transform.translation.y = 0.000;
-        static_dvl_transform.transform.translation.z = -0.105;
-
-        // Rotate the pose about X UPRIGHT
-        q_rot_dvl.setRPY(0.0, 0.0, 0.0);
-
-        q_rot_dvl.normalize();
-
-        static_dvl_transform.transform.rotation.x = q_rot_dvl.x();
-        static_dvl_transform.transform.rotation.y = q_rot_dvl.y();
-        static_dvl_transform.transform.rotation.z = q_rot_dvl.z();
-        static_dvl_transform.transform.rotation.w = q_rot_dvl.w();
-
-        // Publish the static transform
-        static_tf_broadcaster_->sendTransform(static_dvl_transform);
-
-        // Create and send the static mocap markers transform
-        geometry_msgs::msg::TransformStamped static_mocap_transform;
-
-        static_mocap_transform.header.stamp = current_time;
-        static_mocap_transform.header.frame_id = hw_vehicle_struct.map_frame_id;
-        static_mocap_transform.child_frame_id = hw_vehicle_struct.robot_prefix + "mocap_link";
-
-        // Set translation based on current state
-        static_mocap_transform.transform.translation.x = -0.170;
-        static_mocap_transform.transform.translation.y = 0.000;
-        static_mocap_transform.transform.translation.z = 0.200;
-
-        // Rotate the pose about X UPRIGHT
-        q_rot_mocap.setRPY(0.0, 0.0, 0.0);
-
-        q_rot_mocap.normalize();
-
-        static_mocap_transform.transform.rotation.x = q_rot_mocap.x();
-        static_mocap_transform.transform.rotation.y = q_rot_mocap.y();
-        static_mocap_transform.transform.rotation.z = q_rot_mocap.z();
-        static_mocap_transform.transform.rotation.w = q_rot_mocap.w();
-
-        // Publish the static transform
-        static_tf_broadcaster_->sendTransform(static_mocap_transform);
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
             "Published static odom transform once during activation.");
@@ -2023,9 +2084,9 @@ namespace ros2_control_blue_reach_5
         if (realtime_transform_publisher_ && realtime_transform_publisher_->trylock())
         {
             auto &transforms = realtime_transform_publisher_->msg_.transforms;
-            if (transforms.size() < 2)
+            if (transforms.empty())
             {
-                transforms.resize(2);
+                transforms.resize(1);
             }
             auto &StateEstimateTransform = transforms.front();
             StateEstimateTransform.header.frame_id = hw_vehicle_struct.map_frame_id;
@@ -2060,24 +2121,24 @@ namespace ros2_control_blue_reach_5
             StateEstimateTransform.transform.rotation.z = q_fixed.z();
             StateEstimateTransform.transform.rotation.w = q_fixed.w();
 
-            auto &camera_mount_transform = transforms[1];
-            camera_mount_transform.header.frame_id = hw_vehicle_struct.body_frame_id;
-            camera_mount_transform.child_frame_id =
-                hw_vehicle_struct.robot_prefix + "camera_mount_link";
-            camera_mount_transform.header.stamp = current_time;
-            camera_mount_transform.transform.translation.x = 0.21;
-            camera_mount_transform.transform.translation.y = 0.0;
-            camera_mount_transform.transform.translation.z = 0.067;
-
-            tf2::Quaternion camera_mount_rotation;
-            camera_mount_rotation.setRPY(0.0, hw_vehicle_struct.camera_mount_pitch_position, 0.0);
-            camera_mount_rotation.normalize();
-            camera_mount_transform.transform.rotation.x = camera_mount_rotation.x();
-            camera_mount_transform.transform.rotation.y = camera_mount_rotation.y();
-            camera_mount_transform.transform.rotation.z = camera_mount_rotation.z();
-            camera_mount_transform.transform.rotation.w = camera_mount_rotation.w();
-
-            // Publish the TF
+            // Physical camera/scene TF is isolated from operational estimated TF.
+            if (physical_transform_publisher_ && physical_transform_publisher_->trylock())
+            {
+                auto &physical = physical_transform_publisher_->msg_;
+                physical.transforms = transforms;  // Local joints are published by robot_state_publisher.
+                auto &body = physical.transforms.front().transform;
+                body.translation.x = hw_vehicle_struct.current_state_.position_x;
+                body.translation.y = -hw_vehicle_struct.current_state_.position_y;
+                body.translation.z = -hw_vehicle_struct.current_state_.position_z;
+                tf2::Quaternion rotation;
+                rotation.setRPY(hw_vehicle_struct.current_state_.roll,
+                                -hw_vehicle_struct.current_state_.pitch,
+                                -hw_vehicle_struct.current_state_.yaw);
+                rotation.normalize();
+                body.rotation = tf2::toMsg(rotation);
+                physical_transform_publisher_->unlockAndPublish();
+            }
+            // Publish the operational estimated TF.
             realtime_transform_publisher_->unlockAndPublish();
         }
     }

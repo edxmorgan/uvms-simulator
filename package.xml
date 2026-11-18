@@ -22,6 +22,7 @@
   <build_depend>pybind11-dev</build_depend>
 
   <depend>hardware_interface</depend>
+  <depend>urdf</depend>
   <depend>pluginlib</depend>
   <depend>rclpy</depend>
   <depend>rclcpp</depend>

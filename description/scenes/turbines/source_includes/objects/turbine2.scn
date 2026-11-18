@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<scenario>
+	<static name="Turbine2_base" type="model">
+		<physical>
+			<mesh filename="turbines/turbine2_base.obj" scale="$(arg scale)"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Aluminium"/>
+		<look name="turbine_base"/>
+		<world_transform xyz="$(arg position)" rpy="$(arg orientation)"/>
+	</static>
+	<static name="Turbine2_main" type="model">
+		<physical>
+			<mesh filename="turbines/turbine2_main.obj" scale="$(arg scale)"/>
+			<origin rpy="0.0 0.0 1.2" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Aluminium"/>
+		<look name="turbine_main"/>
+		<world_transform xyz="$(arg position)" rpy="$(arg orientation)"/>
+	</static>
+</scenario>

@@ -36,6 +36,8 @@ extern "C" {
 #define casadi_f1 CASADI_PREFIX(f1)
 #define casadi_f2 CASADI_PREFIX(f2)
 #define casadi_f3 CASADI_PREFIX(f3)
+#define casadi_f4 CASADI_PREFIX(f4)
+#define casadi_f5 CASADI_PREFIX(f5)
 #define casadi_fabs CASADI_PREFIX(fabs)
 #define casadi_s0 CASADI_PREFIX(s0)
 #define casadi_s1 CASADI_PREFIX(s1)
@@ -510,6 +512,148 @@ CASADI_SYMBOL_EXPORT int integral_bias_work_bytes(casadi_int *sz_arg, casadi_int
   if (sz_res) *sz_res = 2*sizeof(casadi_real*);
   if (sz_iw) *sz_iw = 0*sizeof(casadi_int);
   if (sz_w) *sz_w = 247*sizeof(casadi_real);
+  return 0;
+}
+
+/* integral_bias_weights:(i0,i1,i2)->(o0[3]) */
+static int casadi_f5(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
+  casadi_real a0, a1, a2, a3, a4, a5, a6, a7, a8;
+  a0=arg[2]? arg[2][0] : 0;
+  a1=arg[1]? arg[1][0] : 0;
+  a2=arg[0]? arg[0][0] : 0;
+  a3=(2.*a2);
+  a3=(a1<=a3);
+  a4=(2.*a1);
+  a4=(a2<=a4);
+  a3=(a3&&a4);
+  a0=(a0&&a3);
+  a3=(2.*a2);
+  a3=(a3-a1);
+  a4=6.;
+  a5=(a4*a2);
+  a3=(a3/a5);
+  a3=(a0?a3:0);
+  a5=(!a0);
+  a6=(a2+a1);
+  a7=(2.*a6);
+  a8=(a2/a7);
+  a8=(a5?a8:0);
+  a3=(a3+a8);
+  if (res[0]!=0) res[0][0]=a3;
+  a6=casadi_sq(a6);
+  a3=(a4*a2);
+  a3=(a3*a1);
+  a6=(a6/a3);
+  a6=(a0?a6:0);
+  a3=5.0000000000000000e-01;
+  a3=(a5?a3:0);
+  a6=(a6+a3);
+  if (res[0]!=0) res[0][1]=a6;
+  a6=(2.*a1);
+  a6=(a6-a2);
+  a4=(a4*a1);
+  a6=(a6/a4);
+  a0=(a0?a6:0);
+  a1=(a1/a7);
+  a5=(a5?a1:0);
+  a0=(a0+a5);
+  if (res[0]!=0) res[0][2]=a0;
+  return 0;
+}
+
+/* integral_bias_weights:(i0,i1,i2)->(o0[3]) */
+static int casadi_f4(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
+  casadi_real **res1=res+1, w0, w1, w2, *w3=w+12;
+  const casadi_real **arg1=arg+3;
+  /* #0: @0 = input[0][0] */
+  w0 = arg[0] ? arg[0][0] : 0;
+  /* #1: @1 = input[1][0] */
+  w1 = arg[1] ? arg[1][0] : 0;
+  /* #2: @2 = input[2][0] */
+  w2 = arg[2] ? arg[2][0] : 0;
+  /* #3: @3 = integral_bias_weights(@0, @1, @2) */
+  arg1[0]=(&w0);
+  arg1[1]=(&w1);
+  arg1[2]=(&w2);
+  res1[0]=w3;
+  if (casadi_f5(arg1, res1, iw, w, 0)) return 1;
+  /* #4: output[0][0] = @3 */
+  casadi_copy(w3, 3, res[0]);
+  return 0;
+}
+
+CASADI_SYMBOL_EXPORT int integral_bias_weights(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem){
+  return casadi_f4(arg, res, iw, w, mem);
+}
+
+CASADI_SYMBOL_EXPORT int integral_bias_weights_checkout(void) {
+  return 0;
+}
+
+CASADI_SYMBOL_EXPORT void integral_bias_weights_release(int mem) {
+}
+
+CASADI_SYMBOL_EXPORT void integral_bias_weights_incref(void) {
+}
+
+CASADI_SYMBOL_EXPORT void integral_bias_weights_decref(void) {
+}
+
+CASADI_SYMBOL_EXPORT casadi_int integral_bias_weights_n_in(void) { return 3;}
+
+CASADI_SYMBOL_EXPORT casadi_int integral_bias_weights_n_out(void) { return 1;}
+
+CASADI_SYMBOL_EXPORT casadi_real integral_bias_weights_default_in(casadi_int i) {
+  switch (i) {
+    default: return 0;
+  }
+}
+
+CASADI_SYMBOL_EXPORT const char* integral_bias_weights_name_in(casadi_int i) {
+  switch (i) {
+    case 0: return "i0";
+    case 1: return "i1";
+    case 2: return "i2";
+    default: return 0;
+  }
+}
+
+CASADI_SYMBOL_EXPORT const char* integral_bias_weights_name_out(casadi_int i) {
+  switch (i) {
+    case 0: return "o0";
+    default: return 0;
+  }
+}
+
+CASADI_SYMBOL_EXPORT const casadi_int* integral_bias_weights_sparsity_in(casadi_int i) {
+  switch (i) {
+    case 0: return casadi_s4;
+    case 1: return casadi_s4;
+    case 2: return casadi_s4;
+    default: return 0;
+  }
+}
+
+CASADI_SYMBOL_EXPORT const casadi_int* integral_bias_weights_sparsity_out(casadi_int i) {
+  switch (i) {
+    case 0: return casadi_s5;
+    default: return 0;
+  }
+}
+
+CASADI_SYMBOL_EXPORT int integral_bias_weights_work(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
+  if (sz_arg) *sz_arg = 6;
+  if (sz_res) *sz_res = 2;
+  if (sz_iw) *sz_iw = 0;
+  if (sz_w) *sz_w = 15;
+  return 0;
+}
+
+CASADI_SYMBOL_EXPORT int integral_bias_weights_work_bytes(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
+  if (sz_arg) *sz_arg = 6*sizeof(const casadi_real*);
+  if (sz_res) *sz_res = 2*sizeof(casadi_real*);
+  if (sz_iw) *sz_iw = 0*sizeof(casadi_int);
+  if (sz_w) *sz_w = 15*sizeof(casadi_real);
   return 0;
 }
 

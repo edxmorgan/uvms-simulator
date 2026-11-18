@@ -13,6 +13,12 @@ def test_generated_pointcloud_displays_match_publishers(tmp_path):
         str(template), str(output), "interactive", world_frame="base_link",
     )
     config = yaml.safe_load(output.read_text())
+    displays = config['Visualization Manager']['Displays']
+    grid = next(d for d in displays if d['Name'] == 'Environment grid')
+    assert grid['Topic']['Value'] == '/environment_grid'
+    assert grid['Topic']['Durability Policy'] == 'Transient Local'
+    assert not any(d.get('Class') == 'rviz_default_plugins/Grid' for d in displays)
+
     marker_view = next(view for view in config['Visualization Manager']['Views']['Saved']
                        if view['Name'] == 'marker view')
     assert marker_view['Target Frame'] == 'selected_marker_view_frame'
@@ -32,8 +38,9 @@ def test_generated_pointcloud_displays_match_publishers(tmp_path):
         assert clouds[topic]["Topic"]["Reliability Policy"] == reliability
         assert clouds[topic]["Topic"]["Durability Policy"] == ("Transient Local" if is_voxel else "Volatile")
         if is_voxel:
-            assert clouds[topic]['Style'] == 'Flat Squares'
-            assert clouds[topic]['Size (m)'] == 0.01
+            assert clouds[topic]['Style'] == 'Points'
+            assert clouds[topic]['Size (Pixels)'] == 1
+            assert clouds[topic]['Selectable'] is False
 
 
 def test_planned_marker_burst_survives_rviz_subscription_queue():
@@ -113,3 +120,16 @@ def test_effort_displays_use_native_wrench_and_no_legacy_duplicate():
     assert displays[-1]['Topic']['Value'] == '/effort_visualization/status'
 
     assert displays[-1]['Topic']['Durability Policy'] == 'Volatile'
+
+
+def test_pointcloud_generation_removes_saved_nested_reliable_duplicates():
+    from bringup.utils.rviz_utils import rviz_point_cloud2
+    old = {'Class':'rviz_default_plugins/PointCloud2', 'Name':'old',
+           'Topic':{'Value':'base_pointcloud','Reliability Policy':'Reliable'}}
+    config={'Visualization Manager':{'Displays':[old.copy(),
+        {'Class':'rviz_common/Group','Displays':[old.copy()]}]}}
+    rviz_point_cloud2('base','/base_pointcloud',config,True)
+    displays=config['Visualization Manager']['Displays']
+    assert displays[0]['Displays'] == []
+    assert len(displays)==2
+    assert displays[1]['Topic']['Reliability Policy']=='Best Effort'

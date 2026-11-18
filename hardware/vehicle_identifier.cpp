@@ -29,11 +29,15 @@ Vector6 rms(const Eigen::VectorXd & residual) {
 }
 struct Identifier::Impl {
   double lower, upper, budget;
+  Vector6 residual_scales;
   Model::t model;
   Parameter::t scale, inverse_scale, factor, target;
   Variable::t coordinates;
   Eigen::MatrixXd basis;
-  Impl(double lo, double hi, double seconds): lower(lo), upper(hi), budget(seconds) {
+  Impl(double lo, double hi, double seconds, const Vector6 & scales)
+  : lower(lo), upper(hi), budget(seconds), residual_scales(scales) {
+    if (!scales.allFinite() || scales.minCoeff() <= 0)
+      throw std::invalid_argument("Identification residual scales must be finite and positive");
     if (!std::isfinite(lo) || !std::isfinite(hi) || lo<=0 || hi<lo ||
         !std::isfinite(seconds) || seconds<=0) throw std::invalid_argument("Invalid physical bounds/budget");
     model = new Model("vehicle_identification");
@@ -122,7 +126,8 @@ struct Identifier::Impl {
     return fit;
   }
 };
-Identifier::Identifier(double lo,double hi,double budget):impl_(new Impl(lo,hi,budget)){}
+Identifier::Identifier(double lo,double hi,double budget,const Vector6 & scales)
+:impl_(new Impl(lo,hi,budget,scales)){}
 void Identifier::preflight() {
   Parameters p=Parameters::Zero();
   p.head<3>().setConstant(15.);p.segment<3>(7).setConstant(2.);
@@ -136,11 +141,22 @@ void Identifier::preflight() {
   (void)impl_->solve(a,a*p,5.);
 }
 Identifier::~Identifier()=default;
-Fit Identifier::fit(const Eigen::MatrixXd & a,const Eigen::VectorXd & b,bool robust){
+Fit Identifier::fit(const Eigen::MatrixXd & design,const Eigen::VectorXd & wrench,bool robust){
   auto start=Clock::now();
+  Eigen::MatrixXd a=design;
+  Eigen::VectorXd b=wrench;
   if(a.cols()!=27 || a.rows()<30 || a.rows()%6 || b.size()!=a.rows() || !a.allFinite() || !b.allFinite())
     throw std::invalid_argument("Expected >=5 complete finite six-axis samples");
   auto remaining=[&](){double t=impl_->budget-elapsed(start);if(t<=0)throw std::runtime_error("Fit wall budget exceeded");return t;};
+  // Use dimensionless residuals: N and Nm must not compete in raw units.
+  for(Eigen::Index i=0;i<a.rows();++i) {
+    a.row(i)/=impl_->residual_scales[i%6];
+    b[i]/=impl_->residual_scales[i%6];
+  }
+  // A common scale leaves the minimizer unchanged while keeping conic
+  // objective magnitudes stable after per-axis normalization.
+  const double objective_scale=std::max(1.,b.norm()/std::sqrt(double(b.size())));
+  a/=objective_scale;b/=objective_scale;
   Fit fit=impl_->solve(a,b,remaining()); double solver=fit.solver_seconds;
   if(robust){
     Eigen::VectorXd residual=a*fit.parameters-b,threshold(b.size());
@@ -157,6 +173,9 @@ Fit Identifier::fit(const Eigen::MatrixXd & a,const Eigen::VectorXd & b,bool rob
       for(Eigen::Index i=0;i<r.size();++i)sum+=r[i]<=threshold[i]?.5*r[i]*r[i]:threshold[i]*(r[i]-.5*threshold[i]);
       return sum;
     };
+    // Relative objective change alone is undefined at an exact fit. Include
+    // a small data-scaled absolute tolerance for solver roundoff near zero.
+    const double absolute_tolerance=1e-12*std::max(1.,b.squaredNorm());
     double previous=objective(fit.parameters);bool converged=false;
     for(int iteration=1;iteration<=16;++iteration){
       remaining();residual=a*fit.parameters-b;
@@ -166,7 +185,7 @@ Fit Identifier::fit(const Eigen::MatrixXd & a,const Eigen::VectorXd & b,bool rob
       double denominator=std::max(previous,std::numeric_limits<double>::min());
       fit.relative_change=std::abs(current-previous)/denominator;fit.iterations=iteration;
       remaining();
-      if(iteration>=2 && fit.relative_change<1e-4 && (current-previous)/denominator<=1e-4){converged=true;break;}
+      if(iteration>=2 && std::abs(current-previous)<=absolute_tolerance+1e-4*previous){converged=true;break;}
       previous=current;
     }
     if(!converged)throw std::runtime_error("Huber IRLS did not converge");
@@ -175,7 +194,7 @@ Fit Identifier::fit(const Eigen::MatrixXd & a,const Eigen::VectorXd & b,bool rob
   Eigen::JacobiSVD<Eigen::MatrixXd> svd(reduced);
   double tolerance=std::numeric_limits<double>::epsilon()*std::max(reduced.rows(),reduced.cols())*svd.singularValues()[0];
   fit.rank=(svd.singularValues().array()>tolerance).count();
-  fit.residual_rms=rms(a*fit.parameters-b); fit.solver_seconds=solver;
+  fit.residual_rms=rms(design*fit.parameters-wrench); fit.solver_seconds=solver;
   remaining();fit.wall_seconds=elapsed(start);return fit;
 }
 }

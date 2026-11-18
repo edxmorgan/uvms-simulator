@@ -3,6 +3,7 @@
 
   <xacro:arg name="description_package" default="ros2_control_blue_reach_5"/>
   <xacro:arg name="world_frame" default="world"/>
+  <xacro:arg name="environment_scene_file" default=""/>
 
   <xacro:property name="description_package" value="$(arg description_package)"/>
   <xacro:property name="world_frame" value="$(arg world_frame)"/>
@@ -10,6 +11,6 @@
   <xacro:include filename="$(find ${description_package})/xacro/world.xacro"/>
 
   <!-- Environment/static world tree. Robot global base transforms are published by the vehicle interfaces. -->
-  <xacro:sim_world world_frame="${world_frame}"/>
+  <xacro:sim_world world_frame="${world_frame}" scene_file="$(arg environment_scene_file)"/>
 
 </robot>

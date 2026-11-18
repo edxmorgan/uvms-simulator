@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+  <xacro:macro name="dvl_urdf" params="prefix parent *origin">
+    <link name="${prefix}dvl_link" />
+    <joint name="${prefix}dvl_joint" type="fixed">
+      <xacro:insert_block name="origin" />
+      <parent link="${parent}" />
+      <child link="${prefix}dvl_link" />
+    </joint>
+  </xacro:macro>
+</robot>

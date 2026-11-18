@@ -1,0 +1,750 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "VincentGu2000/u0env",
+    "revision": "3f4b8409a9942935df1521fac2d905b65a2d36e2",
+    "scenario": "ros_ws/src/stonefish_bluerov2/scenarios/template/bluerov2_pipetank.scn.template",
+    "data_root": "ros_ws/src/stonefish_bluerov2/data"
+  },
+  "source_frame": "NED",
+  "world_frame": "NWU",
+  "floor_z": -6.0,
+  "seabed_crop_local_xy": [
+    -110.0796009642568,
+    110.0796009642568,
+    -110.0796009642568,
+    110.0796009642568
+  ],
+  "seabed_margin_m": 10,
+  "seabed_grid_half_extent_m": 25,
+  "objects": [
+    {
+      "name": "bathymetry_seabed_0",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -6.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_c11133b30700.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_8a2eba9d224e.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_wavetank_1",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -5.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        -1.57
+      ],
+      "collision": {
+        "source_mesh": "wavetank.obj",
+        "asset": "wavetank_e31b02c1e95f.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "wavetank.obj",
+        "asset": "wavetank_a776cc980700.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_container_3",
+      "world_xyz_nwu": [
+        3.0,
+        -3.0,
+        -3.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "container/container0.obj",
+        "asset": "container0_150c5e08f648.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "container/container0.obj",
+        "asset": "container0_5175692f29ff.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_container_4",
+      "world_xyz_nwu": [
+        -1.5,
+        4.5,
+        -3.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "container/container1.obj",
+        "asset": "container1_0d9e74165d41.obj",
+        "scale": 0.6,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "container/container1.obj",
+        "asset": "container1_8d3217f0e85c.obj",
+        "scale": 0.6,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_5",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -2.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "tower/pipe.obj",
+        "asset": "pipe_49057b1ba056.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "tower/pipe.obj",
+        "asset": "pipe_01a811450678.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_6",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -2.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "tower/tower0.obj",
+        "asset": "tower0_75038e22b4b4.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "tower/tower0.obj",
+        "asset": "tower0_76c5816df589.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_7",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -2.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "tower/tower1.obj",
+        "asset": "tower1_8efb87428882.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "tower/tower1.obj",
+        "asset": "tower1_240eef96c2b3.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_8",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -2.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "tower/tower2.obj",
+        "asset": "tower2_2d74a6bd4259.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "tower/tower2.obj",
+        "asset": "tower2_4fffd8d72da6.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_9",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -2.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "tower/tower3.obj",
+        "asset": "tower3_fdd36ce842d9.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "tower/tower3.obj",
+        "asset": "tower3_89da28ab52bc.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_10",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -2.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "tower/tower4.obj",
+        "asset": "tower4_7ec57c8888bf.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "tower/tower4.obj",
+        "asset": "tower4_7d3dd82a4dda.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_11",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -2.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "tower/tower5.obj",
+        "asset": "tower5_3152a4a69a50.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "tower/tower5.obj",
+        "asset": "tower5_c4c37016f99a.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_12",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -2.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "tower/tower6.obj",
+        "asset": "tower6_f84ab1d2ce38.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "tower/tower6.obj",
+        "asset": "tower6_b12fc7c0b8bd.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_13",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -2.5
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "tower/tower7.obj",
+        "asset": "tower7_70285dad5106.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "tower/tower7.obj",
+        "asset": "tower7_ca563abfb6ef.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    }
+  ],
+  "upstream_assets": {
+    "wavetank.obj": {
+      "sha256": "c809de2f77920033c3210a7c1d83f992e56143f47d9de3f1d3dd944607843709",
+      "bytes": 491832
+    },
+    "wavetank_floor.obj": {
+      "sha256": "c6f38b97b43d069b5be38b7030940f6a5ea6c90f82aecaed0cbaeeb7c9f08129",
+      "bytes": 506
+    },
+    "container/container0.obj": {
+      "sha256": "e628f3ea88e9fc0014b7d4397bf2aaeb6444a82ce243e9b6e972961431e4e7f5",
+      "bytes": 278477
+    },
+    "container/container1.obj": {
+      "sha256": "0b0a8e7d8ed726f093c47a8c607d1bb61062c88a2221641033d7972cda206614",
+      "bytes": 270256
+    },
+    "tower/pipe.obj": {
+      "sha256": "85e0d803331cb2149f6b9ffecc5f4553420f783b9b969def2ee3430764bf71fe",
+      "bytes": 4152476
+    },
+    "tower/tower0.obj": {
+      "sha256": "0e6c6e07c6807fe98b426937e86aed5a5ad128146ad87f23132415106eecb6e3",
+      "bytes": 332499
+    },
+    "tower/tower1.obj": {
+      "sha256": "d8c1ed25225e98d5f87d87a172b53e819c53bef57fdb5fbc81957135f77864f1",
+      "bytes": 16209
+    },
+    "tower/tower2.obj": {
+      "sha256": "c04a35f38103ee79cc8849618e5ebeffd80fbe84c2e13687228b4d003b142f60",
+      "bytes": 12382
+    },
+    "tower/tower3.obj": {
+      "sha256": "b7e1699b1781c2775a43df5c1a6bca6ef4613ec9a76c1b19cdd1383282d00153",
+      "bytes": 5866
+    },
+    "tower/tower4.obj": {
+      "sha256": "6414e619f5a3026f10b638c908909761b78cf3b08a6770512f4ed3812f115ae4",
+      "bytes": 9255
+    },
+    "tower/tower5.obj": {
+      "sha256": "f2f3c344f7cb259ab0d80f482b6f1b25065c6552a62eb8831d5f82db12478747",
+      "bytes": 45852
+    },
+    "tower/tower6.obj": {
+      "sha256": "d42d7357750723d4946c2024b640295880f45685d132e15b08cddfccd58fa1be",
+      "bytes": 104121
+    },
+    "tower/tower7.obj": {
+      "sha256": "b832ae30927d715383f325c83c1630184e3140cdba10a9c53c55c0a67c9afe8c",
+      "bytes": 38722
+    },
+    "flat.obj": {
+      "sha256": "5f87248486780270d7c3415ad81ae5498c7a1a0f96055aab81c85a8fbb51f7c6",
+      "bytes": 1301471
+    },
+    "container/container0.png": {
+      "sha256": "04e20c46a8170fcf090213a6f2596907bfe591ab23f74026263f30b5c2412df9",
+      "bytes": 2587271
+    },
+    "tower/pipe.png": {
+      "sha256": "80ec407b4c98a864bd9a645005927c1ffd235e9610ea93a8d5814104c4ce3286",
+      "bytes": 1575059
+    },
+    "tower/tower0.png": {
+      "sha256": "a9ace8d1a57647645f8922ed6df162f2d787dd610e4f728fc0d0aea322df176d",
+      "bytes": 1901797
+    },
+    "tower/tower1.png": {
+      "sha256": "80f10c7bc78f0998c769660e816b4f2234e193912b3ef87ad6e6db3e39aa86dd",
+      "bytes": 5647242
+    },
+    "tower/tower2.png": {
+      "sha256": "a0f09906dd8b310a685eda5132618e6a04ae978b8e7253bab77a838e5ac0bc51",
+      "bytes": 554933
+    },
+    "tower/tower3.png": {
+      "sha256": "57b43417d57b2b682aa8f8765eb1a765921d9238bcfcd792e56a5c588bc0d6aa",
+      "bytes": 387425
+    },
+    "tower/tower4.png": {
+      "sha256": "249766e9857f5b3bf9ecd8906789d259fb22e1e5cb9e734578dfee67501b75c8",
+      "bytes": 1408978
+    },
+    "tower/tower5.png": {
+      "sha256": "0e1bdff79abaea478d0180ca4756fd59d0e414245a64c29009a3f1babfb1f1b3",
+      "bytes": 212008
+    },
+    "tower/tower6.png": {
+      "sha256": "682923924236f5dc72de1bc3a9a136a2405f806996627f1cdd82c908324eb0d5",
+      "bytes": 405594
+    },
+    "tower/tower7.png": {
+      "sha256": "dcfe08c9160f1886fb92fc986e5e5112b96dcfbcecb02660e8fe4e2c95578eba",
+      "bytes": 3341963
+    }
+  },
+  "adaptations": [
+    "Undefined look sand on bathymetry_seabed_0: explicit fallback RGB 0.76000000000000001 0.65000000000000002 0.40000000000000002",
+    "Seabed clipped in local XY to (-110.0796009642568, 110.0796009642568, -110.0796009642568, 110.0796009642568) mesh units: flat.obj",
+    "Removed standalone plane above water (Wavetank_floor, z=1 m); tank support surfaces retained."
+  ],
+  "excluded_includes": [
+    "$(find stonefish_bluerov2)/scenarios/robots/bluerov2.scn"
+  ],
+  "limitations": [
+    "Static geometry only; no Stonefish ocean/lighting/physics",
+    "Visual/collision surfaces share crop; no collision decimation",
+    "Camera texture sampling uses existing vertex-color renderer"
+  ],
+  "artifact_sha256": {
+    "LICENSE.upstream": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "NOTICE": "1c584b8842e4941575b38c888dc6ee01d363d9c885e21b8b6bbb97d94b5ba6fd",
+    "assets/04e20c46a8170fcf.png": "04e20c46a8170fcf090213a6f2596907bfe591ab23f74026263f30b5c2412df9",
+    "assets/0e1bdff79abaea47.png": "0e1bdff79abaea478d0180ca4756fd59d0e414245a64c29009a3f1babfb1f1b3",
+    "assets/249766e9857f5b3b.png": "249766e9857f5b3bf9ecd8906789d259fb22e1e5cb9e734578dfee67501b75c8",
+    "assets/57b43417d57b2b68.png": "57b43417d57b2b682aa8f8765eb1a765921d9238bcfcd792e56a5c588bc0d6aa",
+    "assets/682923924236f5dc.png": "682923924236f5dc72de1bc3a9a136a2405f806996627f1cdd82c908324eb0d5",
+    "assets/80ec407b4c98a864.png": "80ec407b4c98a864bd9a645005927c1ffd235e9610ea93a8d5814104c4ce3286",
+    "assets/80f10c7bc78f0998.png": "80f10c7bc78f0998c769660e816b4f2234e193912b3ef87ad6e6db3e39aa86dd",
+    "assets/a0f09906dd8b310a.png": "a0f09906dd8b310a685eda5132618e6a04ae978b8e7253bab77a838e5ac0bc51",
+    "assets/a9ace8d1a5764764.png": "a9ace8d1a57647645f8922ed6df162f2d787dd610e4f728fc0d0aea322df176d",
+    "assets/container0_150c5e08f648.obj": "45de3da1c3dcb0ee0e46145458c020fa3aafc3942c218705d0434f7d32339a54",
+    "assets/container0_5175692f29ff.mtl": "57dd24d33d3109faba9f6dd96623d3581601f1e1aec01ef6b4fd64c975f19708",
+    "assets/container0_5175692f29ff.obj": "e6c949d2349566a39a24fb0fb0c164e723dd59bd5969c1671da4c0bb5ba9dbd4",
+    "assets/container1_0d9e74165d41.obj": "3ac3b153a61ced7539e18be44898476132040afb4bb5b87631ec38f40c4ce92b",
+    "assets/container1_8d3217f0e85c.mtl": "57dd24d33d3109faba9f6dd96623d3581601f1e1aec01ef6b4fd64c975f19708",
+    "assets/container1_8d3217f0e85c.obj": "11b3671b390e4276166d24c24fd18f6d0bcbf577f5ed63ba8a006605935739ef",
+    "assets/dcfe08c9160f1886.png": "dcfe08c9160f1886fb92fc986e5e5112b96dcfbcecb02660e8fe4e2c95578eba",
+    "assets/flat_8a2eba9d224e.mtl": "35620be2f7d66adc9628026a250b3380b866dc7c8fb10cfaa076d9ed331872e9",
+    "assets/flat_8a2eba9d224e.obj": "3421a40b24a008ea827b80a10002921187595223c29bd409eff996947d756edd",
+    "assets/flat_c11133b30700.obj": "88ff6958e1e57628cfd2ab273965a7c194c8efd728d77d28884ee6e88d9f8615",
+    "assets/pipe_01a811450678.mtl": "ab8d240170b0ef1b880a9808620b0cc018f4b0a575cc10a849149fbb51c1ffeb",
+    "assets/pipe_01a811450678.obj": "f9f49d4ef6c142698201191268a78635d6ea769abfaf2ffd853ac0b10daab09f",
+    "assets/pipe_49057b1ba056.obj": "9c15de0305bd1b4e7af0c8304d9eefa26dc7410cef15caed091c17671b5f0651",
+    "assets/tower0_75038e22b4b4.obj": "844c3cc7ca515cfa9b24dafbf2dd7120b63b826c2c7792ee258c0c2e1f58063e",
+    "assets/tower0_76c5816df589.mtl": "675036461f6808443655bbd91657c66111897b9b27af2b7e887a19b70cd8e49a",
+    "assets/tower0_76c5816df589.obj": "9f356b1bdf5adab56b253e73d4e1484693dedd9e30a7560d1bd259e2aad42aa8",
+    "assets/tower1_240eef96c2b3.mtl": "015ebc33c340e1d4d1e41f80cbd4f78f7780dd12ae32c3dae9b79d7836fdc91a",
+    "assets/tower1_240eef96c2b3.obj": "363b75d1013344d0a17ecb8eb4a87f8461faf659f0bd85003ceacad3d7dd41fb",
+    "assets/tower1_8efb87428882.obj": "f8bb4a6a98f172d82b9f71f53a59cf43c2a98a4f27b93fb5f8460cdd7b25c572",
+    "assets/tower2_2d74a6bd4259.obj": "a93be8cd9685e44c61160499fbb21f086625b5ac99c05d2501bdfd72512df21c",
+    "assets/tower2_4fffd8d72da6.mtl": "721f31d62ab9eee1ebbbf68d17df31425396411e9077d94d1368c028acc4da4a",
+    "assets/tower2_4fffd8d72da6.obj": "a7a4439082b14110df661bda87a1834e9211018cc5067fd0e203061eceeef824",
+    "assets/tower3_89da28ab52bc.mtl": "5be5f7591a9bd76932a00f76713d72ac95adb75910b3c615a362f9e141bb7bc7",
+    "assets/tower3_89da28ab52bc.obj": "58c0a31df25fba34559d6449ed360ef093dd8ab10d09c5b8dcaf1c7ae3a45043",
+    "assets/tower3_fdd36ce842d9.obj": "57f2dcf4813bc0aafdb5cac1e4173073b4f323d480d3d2bcbab7e289b6861fbc",
+    "assets/tower4_7d3dd82a4dda.mtl": "d8bd3315020c78cf438bcbd98b1426c2e41d6a3d03f976fc86fc068121c0f5cc",
+    "assets/tower4_7d3dd82a4dda.obj": "439e07c346357a90a66b8d14479ee08cf4372be0efc226548514d57c0686e5a6",
+    "assets/tower4_7ec57c8888bf.obj": "809dccd5bb987c9a3fac291cda1656f82b8fb19e09fb2a1eb9661e8b7b6ae9fe",
+    "assets/tower5_3152a4a69a50.obj": "f9ba0e04b1e72b34139e9d96d1f081f5a0623660aab67250e4cb99c838e3aa8a",
+    "assets/tower5_c4c37016f99a.mtl": "3acdab2af0586043dd97126c1f0e078ffddf4e2b1a7011663dfdb8f1c7f3c77c",
+    "assets/tower5_c4c37016f99a.obj": "cc5201dec1113fb9061fa95602971448b78f760357a6de397cae60f6b432cf4d",
+    "assets/tower6_b12fc7c0b8bd.mtl": "4c9a290b6c5bfaeffc3be212c642eb3d0c3b8dc4ddf7a7fef21db796ad612075",
+    "assets/tower6_b12fc7c0b8bd.obj": "7bbe8360bb5711e5e8265f3707f3f8b981d62852dd9bdc90f754671a6f379d4e",
+    "assets/tower6_f84ab1d2ce38.obj": "ad797cb8c9303320a4fd6dde539d7202196e229ca390ad40173ecd48ee8059de",
+    "assets/tower7_70285dad5106.obj": "6e664a5c1931977a407194ac09322b32fcaf83e0828cdc305e652899475dc433",
+    "assets/tower7_ca563abfb6ef.mtl": "35c63ed061f44ef7dbda7739dbd2d76f67311e65a846864c296a18a47c749f24",
+    "assets/tower7_ca563abfb6ef.obj": "ba9b618bfb00ed9d02f9fc91849e0ecc21ba44e18f282c245e347d39e5498539",
+    "assets/wavetank_a776cc980700.mtl": "2af73000055b0a978f6a09501c9d8e235572879ccdffaceb0045955a96d92b06",
+    "assets/wavetank_a776cc980700.obj": "054706368d02158f96c8c8ea8964ad255627fe55ebdfa9e51796f7597ccba414",
+    "assets/wavetank_e31b02c1e95f.obj": "c809de2f77920033c3210a7c1d83f992e56143f47d9de3f1d3dd944607843709",
+    "source.scn.template": "f42d1505ec6de8b302152a09e86ce08d6dfe0cc5517e8858c542683016377607",
+    "world.xacro": "4601d139f7aeb1982f1fe9bc99df59af684a5fde745db4bc063a1c103c3abeba"
+  },
+  "excluded_static_indices": [
+    2
+  ]
+}

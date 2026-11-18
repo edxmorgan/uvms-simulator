@@ -21,6 +21,7 @@
 #include <string>
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -62,11 +63,22 @@ namespace blue::dynamics
   {
     std::array<double, 9> data;
 
+    bool valid_velocity_covariance() const
+    {
+      const Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>> matrix(data.data());
+      if (!matrix.allFinite()) return false;
+      const double scale = matrix.cwiseAbs().maxCoeff();
+      if (scale <= 0.0 || (matrix-matrix.transpose()).cwiseAbs().maxCoeff() > 1e-6*scale)
+        return false;
+      const Eigen::Matrix3d symmetric = (matrix + matrix.transpose()) * 0.5;
+      return Eigen::LLT<Eigen::Matrix3d>(symmetric).info() == Eigen::Success;
+    }
+
     // Method to deserialize from JSON
     static Covariance from_json(const nlohmann::json &j)
     {
       Covariance cov;
-      if (j.size() != 3)
+      if (!j.is_array() || j.size() != 3)
       {
         throw std::invalid_argument("Covariance must have 3 rows.");
       }
@@ -103,6 +115,18 @@ namespace blue::dynamics
     double vy;
     double vz;
 
+    static long long timestamp_from_json(const nlohmann::json &value)
+    {
+      if (!value.is_number_integer() ||
+          (value.is_number_unsigned() && value.get<unsigned long long>() >
+           static_cast<unsigned long long>(std::numeric_limits<long long>::max())))
+        throw std::invalid_argument("DVL timestamps must be nonnegative signed-64-bit integers");
+      const auto timestamp = value.get<long long>();
+      if (timestamp < 0)
+        throw std::invalid_argument("DVL timestamps must be nonnegative");
+      return timestamp;
+    }
+
     // Method to deserialize from JSON
     static DVLVelocityMessage from_json(const nlohmann::json &j)
     {
@@ -113,8 +137,8 @@ namespace blue::dynamics
       msg.format = j.at("format").get<std::string>();
       msg.status = j.at("status").get<int>();
       msg.time = j.at("time").get<double>();
-      msg.time_of_transmission = j.at("time_of_transmission").get<long long>();
-      msg.time_of_validity = j.at("time_of_validity").get<long long>();
+      msg.time_of_transmission = timestamp_from_json(j.at("time_of_transmission"));
+      msg.time_of_validity = timestamp_from_json(j.at("time_of_validity"));
 
       // Deserialize transducers
       for (const auto &trans_j : j.at("transducers"))
@@ -127,6 +151,12 @@ namespace blue::dynamics
       msg.vx = j.at("vx").get<double>();
       msg.vy = j.at("vy").get<double>();
       msg.vz = j.at("vz").get<double>();
+      if (!std::isfinite(msg.vx) || !std::isfinite(msg.vy) || !std::isfinite(msg.vz) ||
+          !std::isfinite(msg.altitude) || !std::isfinite(msg.fom) || !std::isfinite(msg.time))
+        throw std::invalid_argument("DVL velocity sample contains nonfinite values");
+      // Invalid/bottom-lock-lost reports may legitimately have zero covariance.
+      if (msg.velocity_valid && !msg.covariance.valid_velocity_covariance())
+        throw std::invalid_argument("DVL velocity covariance must be finite symmetric positive definite");
       return msg;
     }
   };

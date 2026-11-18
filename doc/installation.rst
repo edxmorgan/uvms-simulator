@@ -1,20 +1,13 @@
 Installation and Build
 ======================
 
-Build the project as a ROS 2 workspace. A complete workspace normally contains:
-
-- ``uvms-simulator``: exported ROS package
-  ``ros2_control_blue_reach_5``.
-- ``uvms-simlab``: exported ROS package ``simlab`` with SimLab action,
-  message, and service interfaces.
-- Dependency repositories from ``uvms-simulator/dependency_repos.repos``.
-
 System Requirements
 -------------------
 
 - Ubuntu with ROS 2 Jazzy.
 - ``colcon``, ``rosdep``, and ``vcs``.
-- CasADi built from source and available at runtime.
+- CasADi C++ libraries available to CMake and the runtime linker.
+- Python CasADi 3.7.2 for the bundled serialized models.
 - Git LFS for large model/resource files.
 
 Install core apt dependencies:
@@ -45,17 +38,18 @@ Install core apt dependencies:
        libgstreamer1.0-dev \
        libgstreamer-plugins-base1.0-dev
 
-Install PlotJuggler from Snap for the newer MCAP and scripting support used by
-the launch workflow:
+PlotJuggler is optional. The launcher searches for ``plotjuggler4``, then
+``plotjuggler`` on PATH, then the Snap launcher. A native installation sourced
+with the workspace supports its custom ROS messages. Disable launch with
+``launch_plotjuggler:=false`` if it is not installed.
 
-.. code-block:: shell
-
-   sudo snap install plotjuggler
-
-The main launch file starts ``/snap/bin/plotjuggler`` when
-``launch_plotjuggler:=true``. If the ROS package
-``ros-$ROS_DISTRO-plotjuggler-ros`` is also installed, it can remain installed;
-the launch file does not use that older executable.
+The C++ CasADi dependency must be built with ``-DWITH_THREAD=ON`` and
+``-DWITH_THREADSAFE_SYMBOLICS=ON``. Observer workers and the control loop create
+matrix/sparsity objects concurrently; numeric evaluation support alone does not
+protect CasADi's shared caches. The package checks the exported compile options
+at configuration time. Rebuild and reinstall CasADi and then rebuild this
+workspace when changing these options. A Python wheel does not configure the
+separate C++ dependency.
 
 If CasADi is outside the system linker path:
 
@@ -68,13 +62,16 @@ Workspace Setup
 
 .. code-block:: shell
 
+   source /opt/ros/jazzy/setup.bash
+   git lfs install
    mkdir -p ~/ros_ws/src
    cd ~/ros_ws/src
 
    git clone https://github.com/edxmorgan/uvms-simulator.git
-   git clone https://github.com/edxmorgan/uvms-simlab.git
 
    vcs import < uvms-simulator/dependency_repos.repos
+   git -C uvms-simulator lfs pull
+   git -C uvms-simlab lfs pull
 
    cd ~/ros_ws
    rosdep install --from-paths src --ignore-src -r -y
@@ -87,15 +84,10 @@ Ruckig, and simulated camera rendering:
 
 .. code-block:: shell
 
-   python3 -m pip install pyPS4Controller pynput scipy casadi ruckig \
+   python3 -m pip install pyPS4Controller pynput scipy casadi==3.7.2 ruckig \
        python-fcl trimesh pycollada pyvista open3d
 
-Install the optional RSL-RL training dependency when you want to train through
-the ``uvms_rl`` RSL-RL adapter:
-
-.. code-block:: shell
-
-   python3 -m pip install rsl-rl-lib
+For optional training dependencies, see :doc:`rl_training`.
 
 OMPL Python Bindings
 --------------------
@@ -211,18 +203,10 @@ On pushes to ``main``, the workflow builds ``doc/_build/html``
 and deploys it as the Pages artifact. Pull requests build the docs but do not
 deploy them.
 
-First Launch Check
-------------------
+Updating
+--------
 
-After the build succeeds, launch one simulated interactive UVMS:
+Update the simulator and SimLab together, rebuild both packages, and restart ROS
+processes after interface or model changes. Use the companion revisions in ``dependency_repos.repos``.
 
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_manipulator_hardware:=false \
-       use_vehicle_hardware:=false \
-       sim_robot_count:=1 \
-       task:=interactive
-
-For hardware launch flows, see :doc:`hil_setup`.
-For first-use runtime steps, see :doc:`userdoc`.
+Continue with :doc:`userdoc` or :doc:`hil_setup`.

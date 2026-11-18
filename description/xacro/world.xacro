@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
-  <xacro:macro name="sim_world" params="world_frame:=world">
+  <xacro:macro name="sim_world" params="world_frame:=world scene_file:=''">
   
       <!-- world origin -->
     <link name="${world_frame}">
@@ -13,6 +13,11 @@
         </visual>
     </link>
 
+    <xacro:if value="${scene_file != ''}">
+      <xacro:include filename="${scene_file}"/>
+      <xacro:scene_environment world_frame="${world_frame}" asset_directory="${scene_file.rsplit('/', 1)[0]}"/>
+    </xacro:if>
+    <xacro:unless value="${scene_file != ''}">
     <link name="world_bottom"/>
 
     <link name="bathymetry_shipwreck">
@@ -69,6 +74,8 @@
       <parent link="world_bottom" />
       <origin xyz="15.0 -6.0 -1.0" rpy="0 0 0"/>
     </joint>
+
+    </xacro:unless>
 
     <!-- Robot world origin -->
     <link name="base_link"/>    

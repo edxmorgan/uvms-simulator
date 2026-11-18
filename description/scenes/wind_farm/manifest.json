@@ -1,0 +1,384 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "VincentGu2000/u0env",
+    "revision": "3f4b8409a9942935df1521fac2d905b65a2d36e2",
+    "scenario": "ros_ws/src/stonefish_bluerov2/scenarios/bluerov2_farm.scn",
+    "data_root": "ros_ws/src/stonefish_bluerov2/data"
+  },
+  "source_frame": "NED",
+  "world_frame": "NWU",
+  "floor_z": -8.0,
+  "seabed_crop_local_xy": [
+    -12.5,
+    65.6386259022516,
+    -161.55838128904668,
+    143.11238382904114
+  ],
+  "seabed_margin_m": 10,
+  "seabed_grid_half_extent_m": 25,
+  "objects": [
+    {
+      "name": "bathymetry_seabed_0",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -8.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_401ba3765cae.obj",
+        "scale": 2.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_5c224e0d117a.obj",
+        "scale": 2.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_turbine2_base_1",
+      "world_xyz_nwu": [
+        100.0,
+        -250.0,
+        -8.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "turbines/turbine2_base.obj",
+        "asset": "turbine2_base_cb92d9255c0c.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "turbines/turbine2_base.obj",
+        "asset": "turbine2_base_16955758109a.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_turbine2_main_2",
+      "world_xyz_nwu": [
+        100.0,
+        -250.0,
+        -8.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "turbines/turbine2_main.obj",
+        "asset": "turbine2_main_8989297c2b97.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          1.2
+        ]
+      },
+      "visual": {
+        "source_mesh": "turbines/turbine2_main.obj",
+        "asset": "turbine2_main_90b0323dc178.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          1.2
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_turbine2_base_3",
+      "world_xyz_nwu": [
+        100.0,
+        0.0,
+        -8.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "turbines/turbine2_base.obj",
+        "asset": "turbine2_base_cb92d9255c0c.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "turbines/turbine2_base.obj",
+        "asset": "turbine2_base_16955758109a.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_turbine2_main_4",
+      "world_xyz_nwu": [
+        100.0,
+        0.0,
+        -8.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "turbines/turbine2_main.obj",
+        "asset": "turbine2_main_8989297c2b97.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          1.2
+        ]
+      },
+      "visual": {
+        "source_mesh": "turbines/turbine2_main.obj",
+        "asset": "turbine2_main_90b0323dc178.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          1.2
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_turbine2_base_5",
+      "world_xyz_nwu": [
+        100.0,
+        250.0,
+        -8.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "turbines/turbine2_base.obj",
+        "asset": "turbine2_base_cb92d9255c0c.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "turbines/turbine2_base.obj",
+        "asset": "turbine2_base_16955758109a.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_turbine2_main_6",
+      "world_xyz_nwu": [
+        100.0,
+        250.0,
+        -8.0
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "turbines/turbine2_main.obj",
+        "asset": "turbine2_main_8989297c2b97.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          1.2
+        ]
+      },
+      "visual": {
+        "source_mesh": "turbines/turbine2_main.obj",
+        "asset": "turbine2_main_90b0323dc178.obj",
+        "scale": 1.0,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          1.2
+        ]
+      }
+    }
+  ],
+  "upstream_assets": {
+    "turbines/turbine2_base.obj": {
+      "sha256": "2e4d0a7f6ad15698f1d3eb9ac89a0ba1899dbb9fcaf4e0b70e26cb76c852417e",
+      "bytes": 856015
+    },
+    "turbines/turbine2_main.obj": {
+      "sha256": "e2c61b7b8b6b474a07441e8985cd0c23a4596569e63dee2b5331f6272e243c80",
+      "bytes": 701078
+    },
+    "flat.obj": {
+      "sha256": "5f87248486780270d7c3415ad81ae5498c7a1a0f96055aab81c85a8fbb51f7c6",
+      "bytes": 1301471
+    },
+    "SoilBeach0078_1_350.jpg": {
+      "sha256": "b41e69b068d17d513cd1112f97e929d23e2fdd4ee4cdcc7f011a38271fb4bf95",
+      "bytes": 8805
+    },
+    "turbines/textures/Turbine_Base_Diffuse.png": {
+      "sha256": "f165602b2d4cc89984b87979c67a55f0b70ecc3fa67db016e3695b727afe24b4",
+      "bytes": 15409312
+    },
+    "turbines/textures/Turbine_Main_Diffuse.png": {
+      "sha256": "5c803f80e850bd22cf4bb8e58e5291fec3ac060be2c1a1ddde45bdf9ee94001c",
+      "bytes": 3613934
+    }
+  },
+  "adaptations": [
+    "Seabed clipped in local XY to (-12.5, 65.6386259022516, -161.55838128904668, 143.11238382904114) mesh units: flat.obj",
+    "Planar UV coordinates generated (1 local metre repeat): flat.obj",
+    "Entire static scene translated upward by 17 m; seabed depth limited to 8 m; geometry sizes preserved"
+  ],
+  "excluded_includes": [
+    "$(find stonefish_bluerov2)/scenarios/robots/bluerov2.scn"
+  ],
+  "limitations": [
+    "Static geometry only; no Stonefish ocean/lighting/physics",
+    "Visual/collision surfaces share crop; no collision decimation",
+    "Camera texture sampling uses existing vertex-color renderer"
+  ],
+  "artifact_sha256": {
+    "LICENSE.upstream": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "NOTICE": "3abcdc7c9f1b0d43fb16a828b15d61ebb438ef32dfa6fcc3304538d526db94db",
+    "assets/5c803f80e850bd22.png": "5c803f80e850bd22cf4bb8e58e5291fec3ac060be2c1a1ddde45bdf9ee94001c",
+    "assets/b41e69b068d17d51.jpg": "b41e69b068d17d513cd1112f97e929d23e2fdd4ee4cdcc7f011a38271fb4bf95",
+    "assets/f165602b2d4cc899.png": "f165602b2d4cc89984b87979c67a55f0b70ecc3fa67db016e3695b727afe24b4",
+    "assets/flat_401ba3765cae.obj": "af66fda5b5f3043004a9f79e9a5a97755f0e5a8e44f570d346c2fdd5c2be8608",
+    "assets/flat_5c224e0d117a.mtl": "9eacc1481a862c6d3256f74923dc627864e4db326ff3d042ee757a1863ae0c26",
+    "assets/flat_5c224e0d117a.obj": "070d4f60ad81a716d4dfa775c2e9b81747f883b61728963e09b4cf4b229926ac",
+    "assets/turbine2_base_16955758109a.mtl": "b3708b61f1abaf2229de4264db3be53d140cf7643292cc8ee9cc16e30a6161df",
+    "assets/turbine2_base_16955758109a.obj": "c89732c2117a6bf0eb0258e1a9b86d09609064e4db8e636ee277a260da3229d1",
+    "assets/turbine2_base_cb92d9255c0c.obj": "2e4d0a7f6ad15698f1d3eb9ac89a0ba1899dbb9fcaf4e0b70e26cb76c852417e",
+    "assets/turbine2_main_8989297c2b97.obj": "e2c61b7b8b6b474a07441e8985cd0c23a4596569e63dee2b5331f6272e243c80",
+    "assets/turbine2_main_90b0323dc178.mtl": "69af92a7bf38d4c9fe92fbc77adce11396a8be7bd1ffd7451adb771b20e8be17",
+    "assets/turbine2_main_90b0323dc178.obj": "e168cd638016b41c8f27463536426a0e17b718802e043a197aa13b4269015648",
+    "source.scn.template": "2955965fffcb32b84731aeb70724347ef93ad331ee40526ec3a4dca6615d2ea4",
+    "source_includes/objects/turbine2.scn": "cb0e3966a54e96463a5a7ca19ac909fef596c67ff3f1ca98a993be6eb6b76981",
+    "world.xacro": "efd5a2244d6e2cbe41a8147e4697096d9f46b71a9688c214721e81074407f763"
+  },
+  "source_floor_z": -25.0,
+  "vertical_offset_m": 17.0,
+  "max_seabed_depth_m": 8.0
+}

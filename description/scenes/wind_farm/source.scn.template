@@ -1,0 +1,245 @@
+<?xml version="1.0"?>
+<scenario>
+	<environment>
+		<!-- <ned latitude="56.262099" longitude="-2.3447141"/> -->
+		<ned latitude="56.027154" longitude="-3.385809"/>
+		<ocean>
+			<water density="1031.0" jerlov="0.20"/>
+			<waves height="0.0"/>
+			<particles enabled="true"/>
+			<current type="uniform">
+				<velocity xyz="0.0 0.0 0.0"/>
+			</current>
+			<current type="jet">
+				<center xyz="0.0 0.0 0.0"/>
+				<outlet radius="100.0"/>
+				<velocity xyz="0.0 0.0 0.0"/>
+			</current>
+		</ocean>
+		<atmosphere>
+			<sun azimuth="45.0" elevation="30.0"/>
+		</atmosphere>
+	</environment>
+
+	<materials>
+		<material name="Neutral" density="1000.0" restitution="0.1"/>
+		<material name="Rock" density="3000.0" restitution="0.8"/>
+		<material name="Fiberglass" density="1500.0" restitution="0.3"/>
+		<material name="Aluminium" density="2710.0" restitution="0.5"/>
+		<friction_table>
+			<friction material1="Neutral" material2="Neutral" static="0.5" dynamic="0.2"/>
+			<friction material1="Neutral" material2="Rock" static="0.2" dynamic="0.1"/>
+			<friction material1="Neutral" material2="Fiberglass" static="0.5" dynamic="0.2"/>
+			<friction material1="Neutral" material2="Aluminium" static="0.1" dynamic="0.02"/>
+			<friction material1="Rock" material2="Rock" static="0.9" dynamic="0.7"/>
+			<friction material1="Rock" material2="Fiberglass" static="0.6" dynamic="0.4"/>
+			<friction material1="Rock" material2="Aluminium" static="0.6" dynamic="0.3"/>
+			<friction material1="Fiberglass" material2="Fiberglass" static="0.5" dynamic="0.2"/>
+			<friction material1="Fiberglass" material2="Aluminium" static="0.5" dynamic="0.2"/>
+			<friction material1="Aluminium" material2="Aluminium" static="0.8" dynamic="0.5"/>
+		</friction_table>
+	</materials>
+
+	<looks>
+		<look name="black" gray="0.05" roughness="0.2"/>
+		<look name="yellow" rgb="1.0 0.9 0.0" roughness="0.3"/>
+		<look name="orange" rgb="0.9 0.1 0.0" roughness="0.3"/>
+		<look name="gray" gray="0.5" roughness="0.4" metalness="0.5"/>
+		<look name="ltgray" gray="0.75" roughness="1.0" metalness="0.0"/>
+		<look name="tank" rgb="0.9 0.9 0.9" roughness="0.9"/>
+		<look name="duct" gray="0.1" roughness="0.4" metalness="0.5"/>
+		
+		<look name="sand" gray="1.0" roughness="0.7" metalness="0.3" texture="SoilBeach0078_1_350.jpg"/>
+		<look name="gas_canister" gray="1.0" roughness="0.5" metalness="0.3" texture="models/gas_canister.png"/>
+		<look name="gas_tank" gray="1.0" roughness="0.5" metalness="0.5" texture="models/gas_tank.png"/>
+		<look name="oil_drum" gray="1.0" roughness="0.5" metalness="0.2" texture="models/oil_drum.png"/>
+		<look name="rust_pipe" gray="1.0" roughness="0.5" metalness="0.2" texture="models/rust_pipe.png"/>
+	</looks>
+
+	<static name="Seabed" type="model">
+		<physical>
+			<mesh filename="flat.obj" scale="2.0"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Rock"/>
+		<look name="sand"/>
+		<world_transform rpy="0.0 0.0 0.0" xyz="0.0 0.0 25.0"/>
+	</static>
+
+	<!-- <static name="Wavetank" type="model">
+		<physical>
+			<mesh filename="wavetank.obj" scale="1.0"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Rock"/>
+		<look name="tank"/>
+		<world_transform rpy="0.0 0.0 0.0" xyz="0.0 0.0 5.0"/>
+	</static>
+
+	<static name="Wavetank_floor" type="model">
+		<physical>
+			<mesh filename="wavetank_floor.obj" scale="1.0"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Rock"/>
+		<look name="ltgray"/>
+		<world_transform rpy="0.0 0.0 0.0" xyz="0.0 0.0 -1.0"/>
+	</static> -->
+
+	<!-- <static name="Canister1" type="model">
+		<physical>
+			<mesh filename="models/gas_canister.obj" scale="1"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Aluminium"/>
+		<look name="gas_canister"/>
+		<world_transform rpy="0.0 0.0 0.0" xyz="5.0 0.0 0.0"/>
+	</static>
+
+	<static name="Gastank1" type="model">
+		<physical>
+			<mesh filename="models/gas_tank.obj" scale="1"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Aluminium"/>
+		<look name="gas_tank"/>
+		<world_transform rpy="0.0 0.0 0.0" xyz="-10.0 0.0 0.0"/>
+	</static>
+
+	<static name="Oildrum" type="model">
+		<physical>
+			<mesh filename="models/oil_drum.obj" scale="1"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Aluminium"/>
+		<look name="oil_drum"/>
+		<world_transform rpy="0.0 0.0 0.0" xyz="10.0 0.0 0.0"/>
+	</static>
+
+	<dynamic name="Rustpipe" type="model">
+		<physical>
+			<mesh filename="models/rust_pipe.obj" scale="1"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Aluminium"/>
+		<look name="rust_pipe"/>
+		<world_transform rpy="0.0 1.57 0.0" xyz="1.0 0.0 7.0"/>
+	</dynamic> -->
+
+	<!-- <static name="Test" type="model">
+		<physical>
+			<mesh filename="models/Turbine.obj" scale="10.0"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Aluminium"/>
+		<look name="none"/>
+		<world_transform rpy="-1.571 0.0 1.57" xyz="10.0 0.0 10.0"/>
+	</static> -->
+
+	<!-- <static name="Turbine2" type="model">
+		<physical>
+			<mesh filename="models/Turbine.obj" scale="10.0"/>
+			<origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
+		</physical>
+		<material name="Aluminium"/>
+		<look name="none"/>
+		<world_transform rpy="-1.571 0.0 1.57" xyz="10.0 0.0 10.0"/>
+	</static> -->
+
+    <looks>
+        <look name="turbine_base" gray="1.0" roughness="0.4" metalness="0.5" texture="turbines/textures/Turbine_Base_Diffuse.png"/>
+		<look name="turbine_main" gray="1.0" roughness="0.4" metalness="0.5" texture="turbines/textures/Turbine_Main_Diffuse.png"/>
+	</looks>
+
+	<!-- <include file="$(find stonefish_bluerov2)/scenarios/turbine1.scn">
+		<arg name="model_name" value="turbine1"/>
+		<arg name="position" value="-50.0 -300.0 10.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="0.5"/>
+	</include>
+
+	<include file="$(find stonefish_bluerov2)/scenarios/turbine1.scn">
+		<arg name="model_name" value="turbine1"/>
+		<arg name="position" value="-100.0 -200.0 10.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="0.5"/>
+	</include>
+
+	<include file="$(find stonefish_bluerov2)/scenarios/turbine1.scn">
+		<arg name="model_name" value="turbine1"/>
+		<arg name="position" value="-50.0 -100.0 10.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="0.5"/>
+	</include>
+
+	<include file="$(find stonefish_bluerov2)/scenarios/turbine1.scn">
+		<arg name="model_name" value="turbine1"/>
+		<arg name="position" value="-100.0 0.0 10.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="0.5"/>
+	</include>
+
+	<include file="$(find stonefish_bluerov2)/scenarios/turbine1.scn">
+		<arg name="model_name" value="turbine1"/>
+		<arg name="position" value="-50.0 100.0 10.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="0.5"/>
+	</include>
+
+	<include file="$(find stonefish_bluerov2)/scenarios/turbine1.scn">
+		<arg name="model_name" value="turbine1"/>
+		<arg name="position" value="-100.0 200.0 10.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="0.5"/>
+	</include>
+
+	<include file="$(find stonefish_bluerov2)/scenarios/turbine1.scn">
+		<arg name="model_name" value="turbine1"/>
+		<arg name="position" value="-50.0 300.0 10.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="0.5"/>
+	</include> -->
+
+	<include file="$(find stonefish_bluerov2)/scenarios/objects/turbine2.scn">
+		<arg name="model_name" value="turbine2"/>
+		<arg name="position" value="100.0 250.0 25.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="1"/>
+	</include>
+
+	<include file="$(find stonefish_bluerov2)/scenarios/objects/turbine2.scn">
+		<arg name="model_name" value="turbine2"/>
+		<arg name="position" value="100.0 0.0 25.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="1"/>
+	</include>
+	
+	<include file="$(find stonefish_bluerov2)/scenarios/objects/turbine2.scn">
+		<arg name="model_name" value="turbine2"/>
+		<arg name="position" value="100.0 -250.0 25.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+		<arg name="scale" value="1"/>
+	</include>
+
+	<!-- <include file="$(find stonefish_bluerov2)/scenarios/objects.scn"/> -->
+
+	<!-- <include file="$(find stonefish_bluerov2)/scenarios/sonobot.scn">
+		<arg name="vehicle_name" value="sonobot"/>
+		<arg name="position" value="-110.0 0.0 0.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+	</include> -->
+
+	<include file="$(find stonefish_bluerov2)/scenarios/robots/bluerov2.scn">
+		<arg name="vehicle_name" value="bluerov2"/>
+		<!-- <arg name="position" value="-350.0 50.0 0.2"/> -->
+		<!-- <arg name="position" value="80.0 50.0 0.2"/> -->
+		<arg name="position" value="-10.0 0.0 0.2"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+	</include>
+
+	<!-- <include file="$(find stonefish_bluerov2)/scenarios/bluerov2.scn">
+		<arg name="vehicle_name" value="bluerov2_2"/>
+		<arg name="position" value="0.0 2.0 1.0"/>
+		<arg name="orientation" value="0.0 0.0 0.0"/>
+	</include> -->
+</scenario>

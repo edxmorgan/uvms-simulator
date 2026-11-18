@@ -12,6 +12,7 @@
     weight_bounds: [105.0, 150.0]
     # Number of fresh sensor snapshots, NOT control-loop ticks. At 5 Hz: ~60 s.
     horizon: 300
+    integration_seconds: 4.0
     fit_period: 1.0
     budget_seconds: 0.5
     max_gap: 0.5

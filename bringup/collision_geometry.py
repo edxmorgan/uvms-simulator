@@ -79,9 +79,12 @@ def collision_surface_mesh(kind, dimensions, resource="", scale=()):
         return trimesh.creation.cylinder(radius=dimensions[0], height=dimensions[1], sections=64)
     if len(scale) != 3 or not np.all(np.isfinite(scale)) or min(scale) <= 0:
         raise ValueError("collision_mesh_scale must contain three finite positive values")
-    loaded = trimesh.load(str(resolve_collision_mesh(resource)), force="scene")
+    # Collision and voxelization need surfaces only. Loading visual OBJ materials
+    # retains large decoded textures in every cached copy across scene switches.
+    loaded = trimesh.load(str(resolve_collision_mesh(resource)), force="scene", skip_materials=True)
     mesh = loaded.to_geometry() if isinstance(loaded, trimesh.Scene) else loaded
     mesh = mesh.copy()
+    mesh.visual = trimesh.visual.ColorVisuals(mesh=mesh)
     mesh.apply_scale(scale)
     if not len(mesh.vertices) or not len(mesh.faces) or not np.all(np.isfinite(mesh.vertices)):
         raise ValueError("mesh is empty or non-finite")

@@ -39,6 +39,9 @@ Packet::Packet(PacketId packet_id, DeviceId device_id, std::vector<unsigned char
   if (data_.empty()) {
     throw std::invalid_argument("Cannot create a packet with no data.");
   }
+  if (data_.size() > kMaxPayloadSize) {
+    throw std::invalid_argument("Packet payload exceeds the Reach protocol size limit.");
+  }
 }
 
 std::vector<unsigned char> Packet::encode() const
@@ -68,12 +71,18 @@ Packet Packet::decode(const std::vector<unsigned char> & data)
   if (data.empty()) {
     throw std::invalid_argument("An empty data packet was received for decoding.");
   }
+  if (data.size() > kMaxEncodedSize) {
+    throw std::runtime_error("Encoded packet exceeds the Reach protocol size limit.");
+  }
 
   // Note that an exception will be raised if the decoding fails
   std::vector<unsigned char> decoded_data = cobsDecode(data);
 
-  if (decoded_data.empty()) {
-    throw std::runtime_error("Decoded data is empty");
+  if (decoded_data.size() > kMaxDecodedSize) {
+    throw std::runtime_error("Decoded packet exceeds the Reach protocol size limit.");
+  }
+  if (decoded_data.size() < kFooterSize + 1) {
+    throw std::runtime_error("Packet requires payload and four footer bytes");
   }
 
   // Pop the CRC and make sure that it is defined correctly

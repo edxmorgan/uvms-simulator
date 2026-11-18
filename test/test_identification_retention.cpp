@@ -8,7 +8,7 @@ TEST(IdentificationWindow, GeneratedRestoringIsSubmergedAtEveryDepth) {
   Eigen::MatrixXd reference;
   for (double depth : {-1., -.001, 0., .001, 1., 3., 10.}) {
     vi::LiveWindow window(5, .05);
-    for (int step = 0; step <= 5; ++step) {
+    for (int step = 0; step <= 6; ++step) {
       vi::Measurement m{0., double(step), step*.01, .01, depth,
                         Eigen::Vector3d::Zero(), vi::Vector6::Zero(), vi::Vector6::Zero()};
       window.push(m);
@@ -16,8 +16,8 @@ TEST(IdentificationWindow, GeneratedRestoringIsSubmergedAtEveryDepth) {
     const auto result = window.snapshot();
     ASSERT_TRUE(result);
     // FRD restoring force is B-W in heave. Coordinate zero is not a surface switch.
-    EXPECT_DOUBLE_EQ(result->design(2, 10), -1.);
-    EXPECT_DOUBLE_EQ(result->design(2, 11), 1.);
+    EXPECT_NEAR(result->design(2, 10), -1., 1e-14);
+    EXPECT_NEAR(result->design(2, 11), 1., 1e-14);
     EXPECT_LT((result->design.col(10)+result->design.col(11)).norm(), 1e-14);
     if (reference.size()==0) reference=result->design;
     EXPECT_LT((result->design-reference).norm(), 1e-14);
@@ -55,7 +55,7 @@ TEST(HardwareIdentification, MissingFreshSensorsCannotAccumulateAnUnboundedInter
 }
 namespace {
 vi::Window window(double start, const vi::Parameters & parameters, double strength=1.) {
-  vi::Window w{0,start,start+10,Eigen::MatrixXd(606,27),{}, {}};
+  vi::Window w{0,start,start+10,Eigen::MatrixXd(606,27),{}, {}, {}};
   std::mt19937 generator(42);
   std::normal_distribution<double> normal;
   for(int r=0;r<606;++r)for(int c=0;c<27;++c)
@@ -194,4 +194,160 @@ TEST(IdentificationRetention, RetainedRmsUsesRecentPostAcceptanceMeasurementsAtR
   EXPECT_DOUBLE_EQ(result.retained_rms[0],2.);
   fresh.epoch=1;
   EXPECT_FALSE(retention.update(fresh,solve).retained_rms_available);
+}
+
+TEST(IdentificationWindow, QuadraticDragIntegralAndInputSwitchFallback) {
+  for(bool switched : {false,true}) {
+    vi::LiveWindow live(5,.05);
+    const std::array<double,7> times{0.,.01,.025,.035,.05,.06,.075};
+    for(int i=0;i<7;++i) {
+      double h=i ? times[i]-times[i-1] : .01;
+      vi::Measurement m{0.,double(i),times[i],h,2.,Eigen::Vector3d::Zero(),
+                         vi::Vector6::Zero(),vi::Vector6::Constant(switched ? i : 2.)};
+      m.velocity[0]=1.+times[i];live.push(m);
+    }
+    auto w=live.snapshot();ASSERT_TRUE(w);
+    ASSERT_EQ(w->support_starts.size(),5u);
+    for(int row=0;row<5;++row) {
+      double a=times[row], b=times[row+1], c=times[row+2];
+      EXPECT_DOUBLE_EQ(w->support_starts[row],a);
+      double exact=1.+a+c+(a*a+a*c+c*c)/3.;
+      double trap=((b-a)*((1+a)*(1+a)+(1+b)*(1+b))+
+                   (c-b)*((1+b)*(1+b)+(1+c)*(1+c)))/(2*(c-a));
+      EXPECT_NEAR(w->design(row*6,21),-(switched ? trap : exact),1e-13);
+      EXPECT_NEAR(w->design(row*6,0),1.,1e-13);
+      double input=switched ? ((b-a)*(row+1)+(c-b)*(row+2))/(c-a) : 2.;
+      EXPECT_NEAR(w->wrench[row*6],input,1e-13);
+    }
+    live.reset();EXPECT_EQ(live.size(),0u);EXPECT_FALSE(live.snapshot());
+  }
+}
+
+TEST(IdentificationRetention, ValidationExcludesRowsWhoseSupportOverlapsTraining) {
+  vi::ModelRetention retention({},false);
+  auto p=vi::Parameters::Ones().eval();
+  auto solve=[&](const auto &,const auto &){return fit(p);};
+  retention.update(window(0,p),solve); // training ends at 10
+  auto overlap=window(11,p);
+  // Row timestamps look later, but every row still depends on training data.
+  for(double t:overlap.times)overlap.support_starts.push_back(t-12.);
+  EXPECT_FALSE(retention.update(overlap,solve).accepted);
+  EXPECT_TRUE(retention.update(window(30,p),solve).accepted);
+}
+
+TEST(IdentificationRetention, RejectionRemainsVisibleWhileNextCandidateWaits) {
+  vi::ModelRetention retention({},false);
+  auto p=vi::Parameters::Ones().eval();
+  auto solve=[&](const auto &,const auto &){return fit(p);};
+  retention.update(window(0,p),solve);
+  auto bad=window(11,p);bad.wrench.array()+=10.;
+  auto result=retention.update(bad,solve);
+  EXPECT_EQ(result.status,"candidate_validation_failed");
+  EXPECT_NE(result.detail.find("exceeds limit"),std::string::npos);
+  EXPECT_FALSE(result.available);
+  result=retention.update(window(12,p),solve);
+  EXPECT_EQ(result.status,"candidate_validation_failed");
+  EXPECT_FALSE(result.detail.empty());
+  result=retention.update(window(22,p),solve);
+  EXPECT_TRUE(result.accepted);
+  EXPECT_TRUE(result.detail.empty());
+}
+
+TEST(IdentificationWindow, WeightedRowsKeepTheirFullSupportAndResetOnGaps) {
+  vi::LiveWindow window(5,.25,2.);
+  vi::Measurement m{1.,0.,0.,.1,3.,Eigen::Vector3d::Zero(),vi::Vector6::Zero(),vi::Vector6::Zero()};
+  for(int i=0;i<40;++i) {
+    m.step=i;m.time=i*.1;window.push(m);
+  }
+  auto snapshot=window.snapshot();ASSERT_TRUE(snapshot);
+  for(std::size_t i=0;i<snapshot->times.size();++i)
+    EXPECT_GE(snapshot->times[i]-snapshot->support_starts[i],2.-1e-9);
+  auto epoch=window.epoch();m.step+=2;m.time+=.2;
+  EXPECT_FALSE(window.push(m));EXPECT_GT(window.epoch(),epoch);
+  EXPECT_FALSE(window.snapshot());
+}
+
+TEST(IdentificationWindow, ClockJitterDoesNotDiscardTenHertzObservations) {
+  vi::LiveWindow window(300,.25,2.);
+  vi::Measurement m{1.,0.,0.,.1,3.,Eigen::Vector3d::Zero(),vi::Vector6::Zero(),vi::Vector6::Zero()};
+  for(int i=0;i<340;++i) {
+    m.step=i;
+    m.period=i%2?.095:.105;
+    m.time+=m.period;
+    window.push(m);
+  }
+  const auto snapshot=window.snapshot();
+  ASSERT_TRUE(snapshot);
+  EXPECT_NEAR(snapshot->times.back()-snapshot->times.front(),29.9,.02);
+  EXPECT_EQ(window.epoch(),0);
+}
+
+TEST(IdentificationRetention, KeepsBoundedValidatedEvidenceWithoutDuplicateRows) {
+  vi::ModelRetention retention({},false);
+  const vi::Parameters p=vi::Parameters::Ones();
+  Eigen::MatrixXd used;
+  auto solve=[&](const auto & a,const auto &) {used=a;return fit(p);};
+  const auto first=window(0,p);
+  retention.update(first,solve);
+  ASSERT_TRUE(retention.update(window(7,p),solve).accepted);
+  // Current starts at 8: only the 80 earlier archive rows may be appended.
+  const auto overlap=window(8,p);
+  retention.update(overlap,solve);
+  ASSERT_EQ(used.rows(),overlap.design.rows()+80*6);
+  EXPECT_EQ(used.topRows(overlap.design.rows()),overlap.design);
+  EXPECT_EQ(used.bottomRows(480),first.design.topRows(480));
+  for(int i=0;i<10;++i) {
+    retention.update(window(30+11*i,p),solve);
+    EXPECT_LE(used.rows(),2*first.design.rows());
+  }
+  auto changed=window(150,p);changed.epoch=1;
+  retention.update(changed,solve);
+  EXPECT_EQ(used.rows(),changed.design.rows());
+}
+
+TEST(IdentificationRetention, DiscardsArchivedEvidenceAfterPersistentModelChange) {
+  vi::ModelRetention retention({},false);
+  const vi::Parameters p=vi::Parameters::Ones();
+  Eigen::Index rows=0;
+  auto solve=[&](const auto & a,const auto &) {rows=a.rows();return fit(p);};
+  retention.update(window(0,p),solve);
+  ASSERT_TRUE(retention.update(window(11,p),solve).accepted);
+  vi::RetentionResult result;
+  for(int i=0;i<3;++i) {
+    auto changed=window(22+11*i,p);changed.wrench.array()+=10.;
+    result=retention.update(changed,solve);
+  }
+  EXPECT_FALSE(result.valid);
+  EXPECT_EQ(rows,606); // stale history must not oppose learning a changed plant
+}
+
+TEST(IdentificationWindow, WeightedQuadraticDragMatchesAnalyticalIntegral) {
+  vi::LiveWindow live(5,.25,2.);
+  for(int i=0;i<30;++i) {
+    vi::Measurement m{1.,double(i),i*.1,.1,3.,Eigen::Vector3d::Zero(),
+      vi::Vector6::Zero(),vi::Vector6::Zero()};
+    m.velocity[0]=1.+m.time;
+    live.push(m);
+  }
+  const auto window=live.snapshot();ASSERT_TRUE(window);
+  for(std::size_t i=0;i<window->times.size();++i) {
+    const double a=window->support_starts[i], b=window->times[i];
+    const double mean=1.+.5*(a+b),duration=b-a,pi=std::acos(-1.);
+    // Exact Hann-weighted second moment of v(t)=1+t.
+    const double expected=mean*mean+duration*duration*(1./12.-1./(2*pi*pi));
+    EXPECT_NEAR(window->design(6*i,21),-expected,1e-4);
+    EXPECT_NEAR(window->design(6*i,0),1.,1e-4);
+  }
+}
+
+TEST(IdentificationRetention, CandidateResidualsDescribeThePublishedCurrentWindow) {
+  vi::ModelRetention retention({},false);
+  const vi::Parameters p=vi::Parameters::Ones();
+  auto solve=[&](const auto &,const auto &) {return fit(p);};
+  retention.update(window(0,p),solve);
+  ASSERT_TRUE(retention.update(window(11,p),solve).accepted);
+  auto current=window(22,p);current.wrench.array()+=2.;
+  const auto result=retention.update(current,solve);
+  ASSERT_TRUE(result.candidate);
+  for(int axis=0;axis<6;++axis)EXPECT_NEAR(result.candidate->residual_rms[axis],2.,1e-12);
 }

@@ -1,0 +1,8 @@
+Scene assets adapted from https://github.com/VincentGu2000/u0env
+Commit: 3f4b8409a9942935df1521fac2d905b65a2d36e2
+Retain upstream LICENSE.upstream.
+Modifications: NED-to-NWU placement; reconstructed materials; seabed covers the 50 m RViz grid and structures with 10 m margin.
+Seabed clipped in local XY to (-25.0, 25.0, -25.0, 25.0) mesh units: flat.obj
+Planar UV coordinates generated (1 local metre repeat): flat.obj
+Entire static scene translated upward by 12.5 m; seabed depth limited to 8 m; geometry sizes preserved
+Ship translated 5 m along world +Y to leave the world and robot-map reset origins clear; mesh geometry unchanged

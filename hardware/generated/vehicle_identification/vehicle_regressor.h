@@ -53,6 +53,24 @@ int integral_bias_work_bytes(casadi_int *sz_arg, casadi_int* sz_res, casadi_int 
 #define integral_bias_SZ_RES 2
 #define integral_bias_SZ_IW 0
 #define integral_bias_SZ_W 247
+int integral_bias_weights(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem);
+int integral_bias_weights_checkout(void);
+void integral_bias_weights_release(int mem);
+void integral_bias_weights_incref(void);
+void integral_bias_weights_decref(void);
+casadi_int integral_bias_weights_n_in(void);
+casadi_int integral_bias_weights_n_out(void);
+casadi_real integral_bias_weights_default_in(casadi_int i);
+const char* integral_bias_weights_name_in(casadi_int i);
+const char* integral_bias_weights_name_out(casadi_int i);
+const casadi_int* integral_bias_weights_sparsity_in(casadi_int i);
+const casadi_int* integral_bias_weights_sparsity_out(casadi_int i);
+int integral_bias_weights_work(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w);
+int integral_bias_weights_work_bytes(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w);
+#define integral_bias_weights_SZ_ARG 6
+#define integral_bias_weights_SZ_RES 2
+#define integral_bias_weights_SZ_IW 0
+#define integral_bias_weights_SZ_W 15
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

@@ -1,0 +1,1840 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "VincentGu2000/u0env",
+    "revision": "3f4b8409a9942935df1521fac2d905b65a2d36e2",
+    "scenario": "ros_ws/src/stonefish_bluerov2/scenarios/template/bluerov2_lake.scn.template",
+    "data_root": "ros_ws/src/stonefish_bluerov2/data"
+  },
+  "source_frame": "NED",
+  "world_frame": "NWU",
+  "floor_z": -1.25,
+  "seabed_crop_local_xy": [
+    -83.33333333333334,
+    83.33333333333334,
+    -83.33333333333334,
+    83.33333333333334
+  ],
+  "seabed_margin_m": 10,
+  "seabed_grid_half_extent_m": 25,
+  "objects": [
+    {
+      "name": "bathymetry_seabed_0",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -1.25
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_6125f9d1ae3b.obj",
+        "scale": 0.3,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "flat.obj",
+        "asset": "flat_77d54f2a8296.obj",
+        "scale": 0.3,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_charge0_1",
+      "world_xyz_nwu": [
+        0.0,
+        6.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "charge/charge0.obj",
+        "asset": "charge0_31e84c3ada23.obj",
+        "scale": 1.5,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "charge/charge0.obj",
+        "asset": "charge0_da78ad15aba2.obj",
+        "scale": 1.5,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_charge1_2",
+      "world_xyz_nwu": [
+        0.0,
+        6.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "charge/charge1.obj",
+        "asset": "charge1_81817cded47a.obj",
+        "scale": 1.5,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "charge/charge1.obj",
+        "asset": "charge1_36f745500de1.obj",
+        "scale": 1.5,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_3",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_df9dc0691cc0.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_1973f694ffb2.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_4",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_dfcdd73bf30e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_ec4cad27d25e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_5",
+      "world_xyz_nwu": [
+        0.0,
+        0.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_6f0a68a8ca4f.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_92e80b7f8f45.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_6",
+      "world_xyz_nwu": [
+        0.0,
+        -3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_df9dc0691cc0.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_1973f694ffb2.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_7",
+      "world_xyz_nwu": [
+        0.0,
+        -3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_dfcdd73bf30e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_ec4cad27d25e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_8",
+      "world_xyz_nwu": [
+        0.0,
+        -3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_6f0a68a8ca4f.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_92e80b7f8f45.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_9",
+      "world_xyz_nwu": [
+        3.0,
+        0.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_df9dc0691cc0.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_1973f694ffb2.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_10",
+      "world_xyz_nwu": [
+        3.0,
+        0.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_dfcdd73bf30e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_ec4cad27d25e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_11",
+      "world_xyz_nwu": [
+        3.0,
+        0.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_6f0a68a8ca4f.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_92e80b7f8f45.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_12",
+      "world_xyz_nwu": [
+        0.0,
+        3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_df9dc0691cc0.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_1973f694ffb2.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_13",
+      "world_xyz_nwu": [
+        0.0,
+        3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_dfcdd73bf30e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_ec4cad27d25e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_14",
+      "world_xyz_nwu": [
+        0.0,
+        3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_6f0a68a8ca4f.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_92e80b7f8f45.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_15",
+      "world_xyz_nwu": [
+        -3.0,
+        0.0,
+        -1.1139756091160657
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_df9dc0691cc0.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_1973f694ffb2.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "placement_offset_z_m": -0.013975609116065657
+    },
+    {
+      "name": "bathymetry_solar_panel_16",
+      "world_xyz_nwu": [
+        -3.0,
+        0.0,
+        -1.1139756091160657
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_dfcdd73bf30e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_ec4cad27d25e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "placement_offset_z_m": -0.013975609116065657
+    },
+    {
+      "name": "bathymetry_solar_panel_17",
+      "world_xyz_nwu": [
+        -3.0,
+        0.0,
+        -1.1139756091160657
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_6f0a68a8ca4f.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_92e80b7f8f45.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "placement_offset_z_m": -0.013975609116065657
+    },
+    {
+      "name": "bathymetry_solar_panel_18",
+      "world_xyz_nwu": [
+        -3.0,
+        -3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_df9dc0691cc0.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_1973f694ffb2.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_19",
+      "world_xyz_nwu": [
+        -3.0,
+        -3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_dfcdd73bf30e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_ec4cad27d25e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_20",
+      "world_xyz_nwu": [
+        -3.0,
+        -3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_6f0a68a8ca4f.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_92e80b7f8f45.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_21",
+      "world_xyz_nwu": [
+        -3.0,
+        3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_df9dc0691cc0.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_1973f694ffb2.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_22",
+      "world_xyz_nwu": [
+        -3.0,
+        3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_dfcdd73bf30e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_ec4cad27d25e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_23",
+      "world_xyz_nwu": [
+        -3.0,
+        3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_6f0a68a8ca4f.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_92e80b7f8f45.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_24",
+      "world_xyz_nwu": [
+        3.0,
+        3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_df9dc0691cc0.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_1973f694ffb2.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_25",
+      "world_xyz_nwu": [
+        3.0,
+        3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_dfcdd73bf30e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_ec4cad27d25e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_26",
+      "world_xyz_nwu": [
+        3.0,
+        3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_6f0a68a8ca4f.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_92e80b7f8f45.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_27",
+      "world_xyz_nwu": [
+        3.0,
+        -3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_df9dc0691cc0.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel0.obj",
+        "asset": "solar_panel0_1973f694ffb2.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_28",
+      "world_xyz_nwu": [
+        3.0,
+        -3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_dfcdd73bf30e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel1.obj",
+        "asset": "solar_panel1_ec4cad27d25e.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_solar_panel_29",
+      "world_xyz_nwu": [
+        3.0,
+        -3.0,
+        -1.1
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_6f0a68a8ca4f.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "solar_panel/solar_panel2.obj",
+        "asset": "solar_panel2_92e80b7f8f45.obj",
+        "scale": 0.8,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_30",
+      "world_xyz_nwu": [
+        0.0,
+        8.0,
+        -1.2
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "signal_tower/signal_tower0.obj",
+        "asset": "signal_tower0_cc51a876028c.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "signal_tower/signal_tower0.obj",
+        "asset": "signal_tower0_56a8b4c225ff.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_31",
+      "world_xyz_nwu": [
+        0.0,
+        8.0,
+        -1.2
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "signal_tower/signal_tower1.obj",
+        "asset": "signal_tower1_8c2b9651d39b.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "signal_tower/signal_tower1.obj",
+        "asset": "signal_tower1_c3772f259bd1.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_32",
+      "world_xyz_nwu": [
+        0.0,
+        8.0,
+        -1.2
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "signal_tower/signal_tower2.obj",
+        "asset": "signal_tower2_af44ac5780d0.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "signal_tower/signal_tower2.obj",
+        "asset": "signal_tower2_f4a3e5e9204f.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_33",
+      "world_xyz_nwu": [
+        0.0,
+        8.0,
+        -1.2
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "signal_tower/signal_tower3.obj",
+        "asset": "signal_tower3_8af1efbf3075.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "signal_tower/signal_tower3.obj",
+        "asset": "signal_tower3_b79a56e3bd44.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_34",
+      "world_xyz_nwu": [
+        0.0,
+        8.0,
+        -1.2
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "signal_tower/signal_tower4.obj",
+        "asset": "signal_tower4_3427a7342d61.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "signal_tower/signal_tower4.obj",
+        "asset": "signal_tower4_9935f06393ff.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_35",
+      "world_xyz_nwu": [
+        0.0,
+        8.0,
+        -1.2
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "signal_tower/signal_tower5.obj",
+        "asset": "signal_tower5_1cfec9d2cdcb.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "signal_tower/signal_tower5.obj",
+        "asset": "signal_tower5_78ce5d6ef86c.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_36",
+      "world_xyz_nwu": [
+        0.0,
+        8.0,
+        -1.2
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "signal_tower/signal_tower6.obj",
+        "asset": "signal_tower6_ce1cf0b92fa6.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "signal_tower/signal_tower6.obj",
+        "asset": "signal_tower6_5ee78c85f2a7.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "bathymetry_pipe_37",
+      "world_xyz_nwu": [
+        0.0,
+        8.0,
+        -1.2
+      ],
+      "world_rpy_nwu": [
+        3.141592653589793,
+        0.0,
+        0.0
+      ],
+      "collision": {
+        "source_mesh": "signal_tower/signal_tower7.obj",
+        "asset": "signal_tower7_a75d31d072ed.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      },
+      "visual": {
+        "source_mesh": "signal_tower/signal_tower7.obj",
+        "asset": "signal_tower7_ee0dff79ae8b.obj",
+        "scale": 2.4,
+        "xyz": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rpy": [
+          3.14,
+          0.0,
+          0.0
+        ]
+      }
+    }
+  ],
+  "upstream_assets": {
+    "charge/charge0.obj": {
+      "sha256": "0ae610f022e87c9580680f1820402703b0bd49f47696617a92ffc97dd3f7f3c4",
+      "bytes": 10453
+    },
+    "charge/charge1.obj": {
+      "sha256": "56db20140358afcd11d3506ad7198ad2226f5f757809f98488dc6ebdf83430dc",
+      "bytes": 2301
+    },
+    "solar_panel/solar_panel0.obj": {
+      "sha256": "c1a379761aa64bb0ae03983d673588e8d2a21cf7d9ead686b7dd0f2638751519",
+      "bytes": 2148
+    },
+    "solar_panel/solar_panel1.obj": {
+      "sha256": "8255be97eb1b71d5d7cd93386dd73830cc681948651e41ca446ca85b8c9b5c1b",
+      "bytes": 69191
+    },
+    "solar_panel/solar_panel2.obj": {
+      "sha256": "75e84c4bdfd5e12c2df6bee7674ca0cc1f0a61f5e70998ce2b9fb9cd22a93398",
+      "bytes": 8555
+    },
+    "signal_tower/signal_tower0.obj": {
+      "sha256": "246553e9d86133729cb076c8c40309e20ba9a64483e73525eacc8c8959197e01",
+      "bytes": 607200
+    },
+    "signal_tower/signal_tower1.obj": {
+      "sha256": "94ea1b950d73ec11377d6bc2cb30c08e839d93df0fa611b99147f5215acbc7e0",
+      "bytes": 39327
+    },
+    "signal_tower/signal_tower2.obj": {
+      "sha256": "6e97cd0bffae2a241de526e0523109ac1d550870cb21a26ea9c6cca356824e7b",
+      "bytes": 131193
+    },
+    "signal_tower/signal_tower3.obj": {
+      "sha256": "6a42da876b4a6b9e96154e09b47b596806fdac1b35f36e0b4e29025010a64469",
+      "bytes": 34152
+    },
+    "signal_tower/signal_tower4.obj": {
+      "sha256": "9c27611429c5e773368cb1344a5cb93546bddab146e037352e7afca799fa8c8d",
+      "bytes": 80166
+    },
+    "signal_tower/signal_tower5.obj": {
+      "sha256": "45cb6c3be98ee48e89692ec3629bcb59385c70c8ac6194884ce5e3e0f5214b8e",
+      "bytes": 447396
+    },
+    "signal_tower/signal_tower6.obj": {
+      "sha256": "353766f2da864fed11a3fb13f80944c05a1a6c3faf4c387ebf11af8027a4cdbb",
+      "bytes": 261783
+    },
+    "signal_tower/signal_tower7.obj": {
+      "sha256": "6f00d99cc197a783a6b09f200f2890d3ddabfa13b4d4569cd328a9a6a72df2f5",
+      "bytes": 204844
+    },
+    "flat.obj": {
+      "sha256": "5f87248486780270d7c3415ad81ae5498c7a1a0f96055aab81c85a8fbb51f7c6",
+      "bytes": 1301471
+    },
+    "charge/charge0.png": {
+      "sha256": "0e1bdff79abaea478d0180ca4756fd59d0e414245a64c29009a3f1babfb1f1b3",
+      "bytes": 212008
+    },
+    "charge/charge1.png": {
+      "sha256": "57b43417d57b2b682aa8f8765eb1a765921d9238bcfcd792e56a5c588bc0d6aa",
+      "bytes": 387425
+    },
+    "solar_panel/solar_panel0.png": {
+      "sha256": "249766e9857f5b3bf9ecd8906789d259fb22e1e5cb9e734578dfee67501b75c8",
+      "bytes": 1408978
+    },
+    "solar_panel/solar_panel1.png": {
+      "sha256": "53107b879c5eeb9f982087dbece8de3a2ac4055eaa2adf180e353cca2ae26400",
+      "bytes": 442159
+    },
+    "solar_panel/solar_panel2.png": {
+      "sha256": "0e1bdff79abaea478d0180ca4756fd59d0e414245a64c29009a3f1babfb1f1b3",
+      "bytes": 212008
+    },
+    "signal_tower/signal_tower0.png": {
+      "sha256": "95ff9670f3f60d269c77140bb68d72f70dfb7f3b147f16b8d9129644b2a0e518",
+      "bytes": 115315
+    },
+    "signal_tower/signal_tower1.png": {
+      "sha256": "cc046ad1b7ab9f702c293b15d8fb50d2ca7def91dc61a0537632a6e70074756a",
+      "bytes": 474009
+    },
+    "signal_tower/signal_tower2.png": {
+      "sha256": "682923924236f5dc72de1bc3a9a136a2405f806996627f1cdd82c908324eb0d5",
+      "bytes": 405594
+    },
+    "signal_tower/signal_tower3.png": {
+      "sha256": "a9ace8d1a57647645f8922ed6df162f2d787dd610e4f728fc0d0aea322df176d",
+      "bytes": 1901797
+    },
+    "signal_tower/signal_tower4.png": {
+      "sha256": "57b43417d57b2b682aa8f8765eb1a765921d9238bcfcd792e56a5c588bc0d6aa",
+      "bytes": 387425
+    },
+    "signal_tower/signal_tower5.png": {
+      "sha256": "0e1bdff79abaea478d0180ca4756fd59d0e414245a64c29009a3f1babfb1f1b3",
+      "bytes": 212008
+    },
+    "signal_tower/signal_tower6.png": {
+      "sha256": "3751bf39b57b279e90c9a3a59610cccc29a265d8744f9bb04cc3b62ca2ce024a",
+      "bytes": 413474
+    },
+    "signal_tower/signal_tower7.png": {
+      "sha256": "3711161c0f67a21c48e6215f0f3a9364524ddc82dd8ab8bb3c4c5e45f49644ca",
+      "bytes": 495203
+    }
+  },
+  "adaptations": [
+    "Undefined look sand on bathymetry_seabed_0: explicit fallback RGB 0.76000000000000001 0.65000000000000002 0.40000000000000002",
+    "Seabed clipped in local XY to (-83.33333333333334, 83.33333333333334, -83.33333333333334, 83.33333333333334) mesh units: flat.obj",
+    "lake: panel assembly translated vertically by -0.0139756091 m to contact local seabed"
+  ],
+  "excluded_includes": [
+    "$(find stonefish_bluerov2)/scenarios/robots/bluerov2.scn"
+  ],
+  "limitations": [
+    "Static geometry only; no Stonefish ocean/lighting/physics",
+    "Visual/collision surfaces share crop; no collision decimation",
+    "Camera texture sampling uses existing vertex-color renderer"
+  ],
+  "artifact_sha256": {
+    "LICENSE.upstream": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "NOTICE": "9aa4648fc86d15e1586359089e94bf6c0f650042fea527c96faa4dc21a7c8f18",
+    "assets/0e1bdff79abaea47.png": "0e1bdff79abaea478d0180ca4756fd59d0e414245a64c29009a3f1babfb1f1b3",
+    "assets/249766e9857f5b3b.png": "249766e9857f5b3bf9ecd8906789d259fb22e1e5cb9e734578dfee67501b75c8",
+    "assets/3711161c0f67a21c.png": "3711161c0f67a21c48e6215f0f3a9364524ddc82dd8ab8bb3c4c5e45f49644ca",
+    "assets/3751bf39b57b279e.png": "3751bf39b57b279e90c9a3a59610cccc29a265d8744f9bb04cc3b62ca2ce024a",
+    "assets/53107b879c5eeb9f.png": "53107b879c5eeb9f982087dbece8de3a2ac4055eaa2adf180e353cca2ae26400",
+    "assets/57b43417d57b2b68.png": "57b43417d57b2b682aa8f8765eb1a765921d9238bcfcd792e56a5c588bc0d6aa",
+    "assets/682923924236f5dc.png": "682923924236f5dc72de1bc3a9a136a2405f806996627f1cdd82c908324eb0d5",
+    "assets/95ff9670f3f60d26.png": "95ff9670f3f60d269c77140bb68d72f70dfb7f3b147f16b8d9129644b2a0e518",
+    "assets/a9ace8d1a5764764.png": "a9ace8d1a57647645f8922ed6df162f2d787dd610e4f728fc0d0aea322df176d",
+    "assets/cc046ad1b7ab9f70.png": "cc046ad1b7ab9f702c293b15d8fb50d2ca7def91dc61a0537632a6e70074756a",
+    "assets/charge0_31e84c3ada23.obj": "a66925779b85e78dcc8c4fb8f42162ee6dea66711d5c96379c23cb83b0462eb1",
+    "assets/charge0_da78ad15aba2.mtl": "3acdab2af0586043dd97126c1f0e078ffddf4e2b1a7011663dfdb8f1c7f3c77c",
+    "assets/charge0_da78ad15aba2.obj": "801eb4a58819bfb4102cc8fcb04375cb027b548f358a2732127ec4b505d59e2a",
+    "assets/charge1_36f745500de1.mtl": "5be5f7591a9bd76932a00f76713d72ac95adb75910b3c615a362f9e141bb7bc7",
+    "assets/charge1_36f745500de1.obj": "b7b304c755f323c4893de332e5243aed36ffd26d6444ea673e48c0cf0b183ed8",
+    "assets/charge1_81817cded47a.obj": "26673cfeb3313cbd83e4904073dba8167045c1bd50f88eab1d0f29b558631ccf",
+    "assets/flat_6125f9d1ae3b.obj": "9e902148b748db7d720b36d921456dcc8351eeb964323fbb81386acf8683314c",
+    "assets/flat_77d54f2a8296.mtl": "35620be2f7d66adc9628026a250b3380b866dc7c8fb10cfaa076d9ed331872e9",
+    "assets/flat_77d54f2a8296.obj": "e13ce7b5b40777757dffe2c087332f102f5c4f9541751a7829d1ac7633b18a88",
+    "assets/signal_tower0_56a8b4c225ff.mtl": "79b2794cbd12038dd9eba3de38995076b73cf82a9a1c61b0ef7222ded03ee73f",
+    "assets/signal_tower0_56a8b4c225ff.obj": "16ef3de4c5d2b4bbf5b27d4c01414f809c40029498b974f9d4f7ab052e820748",
+    "assets/signal_tower0_cc51a876028c.obj": "3521ec049d4cb9fb1fb64595e77cd38eded79b15f77e549a99b1bab244ad298b",
+    "assets/signal_tower1_8c2b9651d39b.obj": "8665941973defaf15c10d6e1585f637ec601f5e8f56909bd48c65e302752d0c0",
+    "assets/signal_tower1_c3772f259bd1.mtl": "a44e2e3383c6eb82463e748337ae304c67db526f443e942418bf6685f7be4506",
+    "assets/signal_tower1_c3772f259bd1.obj": "b58f7e2a15288f83b76cfad132ba5f08dff1c4aa610ae8db7b352e604c317582",
+    "assets/signal_tower2_af44ac5780d0.obj": "59996e58a8f4a5123e3c764594547c7624aca8f4f6f9c522ac26069b0abc3ad3",
+    "assets/signal_tower2_f4a3e5e9204f.mtl": "4c9a290b6c5bfaeffc3be212c642eb3d0c3b8dc4ddf7a7fef21db796ad612075",
+    "assets/signal_tower2_f4a3e5e9204f.obj": "4ac8d43b5eccf7eb47dbdb827d2f9e77af84c07d821e9ad51a182d3d9b5ddc80",
+    "assets/signal_tower3_8af1efbf3075.obj": "b9879f39f8bfb01b23e13bb41381269c1c56e146d3f2f1d9f774f8e38d254484",
+    "assets/signal_tower3_b79a56e3bd44.mtl": "675036461f6808443655bbd91657c66111897b9b27af2b7e887a19b70cd8e49a",
+    "assets/signal_tower3_b79a56e3bd44.obj": "94699e765385af067737b368ba2f480740befc00c9d8b3bf6f834e3173b76369",
+    "assets/signal_tower4_3427a7342d61.obj": "6ec9bbd48287a541c3ad857c6aa581ea79808ed9766c88b267d51b6e788b3d48",
+    "assets/signal_tower4_9935f06393ff.mtl": "5be5f7591a9bd76932a00f76713d72ac95adb75910b3c615a362f9e141bb7bc7",
+    "assets/signal_tower4_9935f06393ff.obj": "1f71fe0264cc6abb9adaaed4bbba9cbf2d392c08d43c54cd9ef08ab79cd9e164",
+    "assets/signal_tower5_1cfec9d2cdcb.obj": "fb625540ac2380c8ea9f59e40bd179c9430ab998995d7249069ef13721c18e42",
+    "assets/signal_tower5_78ce5d6ef86c.mtl": "3acdab2af0586043dd97126c1f0e078ffddf4e2b1a7011663dfdb8f1c7f3c77c",
+    "assets/signal_tower5_78ce5d6ef86c.obj": "4c4b9e5830defd826f92ead96bcfd4414d78ee65ecd4bbdbc85409180a99b202",
+    "assets/signal_tower6_5ee78c85f2a7.mtl": "b9c66354f6391a96328414bee34533dadd9235d1a638b9c9d4669f2a68a59017",
+    "assets/signal_tower6_5ee78c85f2a7.obj": "d45ab4b23ab2bece0a8be6302d6930be40fda5fc4b5973490c31bc51d197dfb4",
+    "assets/signal_tower6_ce1cf0b92fa6.obj": "305cd2664274bdb7d8fe0b0d35f66c1cb6b5ec93c1c1cde90d3f154a966565fa",
+    "assets/signal_tower7_a75d31d072ed.obj": "bd393ea0863cf1100db80c617693785664bc8b42ad1d60a131b696ae7f072855",
+    "assets/signal_tower7_ee0dff79ae8b.mtl": "88058f7095170aa30f946f1f623728241e832e52cc75ca05bae7254b51a07bdf",
+    "assets/signal_tower7_ee0dff79ae8b.obj": "0620c6908378d8d9f8eda28c516b74329fc05202a877133003f2d95ec6fb109a",
+    "assets/solar_panel0_1973f694ffb2.mtl": "d8bd3315020c78cf438bcbd98b1426c2e41d6a3d03f976fc86fc068121c0f5cc",
+    "assets/solar_panel0_1973f694ffb2.obj": "43f10ca7c740207cea60f7a0cab4e462ba91d59975916b2a38c15612fe2cf200",
+    "assets/solar_panel0_df9dc0691cc0.obj": "f1d30c9f637b730387a66422fb26915007d3a88a4a23529bec0a5b16874d4283",
+    "assets/solar_panel1_dfcdd73bf30e.obj": "21617349250147b9395521da9df23d27537c517b887fb069b8e12b1825b17b49",
+    "assets/solar_panel1_ec4cad27d25e.mtl": "41d00da64830e0163a3526dc7d909128dbc1130ee86f13814156943a7745d680",
+    "assets/solar_panel1_ec4cad27d25e.obj": "9020444647379fa69670db46f26609af4565c31620ff728682397bbf84e6f04e",
+    "assets/solar_panel2_6f0a68a8ca4f.obj": "d8509066961cde63172a2681473c326f1f60a3dd833a8eac1f8fdeb33b677582",
+    "assets/solar_panel2_92e80b7f8f45.mtl": "3acdab2af0586043dd97126c1f0e078ffddf4e2b1a7011663dfdb8f1c7f3c77c",
+    "assets/solar_panel2_92e80b7f8f45.obj": "84c846324372dd6389abded10c06af069b2b16101de458b6dc952b363347f989",
+    "source.scn.template": "7723d543197dafbde06b1db3b6277026f7a45b33b5bceb15926f6bf1581934bf",
+    "world.xacro": "525c226956bed3e28ce063c2ec3fcbc74265c6f45401480a18f4d816fac5e9d3"
+  }
+}

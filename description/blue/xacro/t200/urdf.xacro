@@ -34,7 +34,7 @@
       <parent link="${parent}" />
       <child link="${prefix}thruster${id}" />
       <axis xyz="0 0 -1" />
-      <limits effort="-1" velocity="-1" />
+
     </joint>
 
   </xacro:macro>

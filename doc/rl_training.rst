@@ -72,80 +72,27 @@ Install RSL-RL first if it is not already present:
 
    python3 -m pip install rsl-rl-lib
 
-.. code-block:: python
+Create the adapter in Python with
+``RslRlUvmsEnv.from_experiment("hover_vehicle")``. For a complete runner setup,
+use ``uvms_rl/scripts/train_rsl.py`` and the experiment's ``trainer.rsl_rl`` config.
 
-   from rsl_rl.runners import OnPolicyRunner
-   from uvms_rl.rsl_adapter import RslRlUvmsEnv
+Use the Quick Start command for training. Add ``--iterations`` or ``--log-dir``
+to override the experiment defaults; ``--help`` lists all options.
 
-
-   env = RslRlUvmsEnv.from_experiment("hover_vehicle")
-   runner = OnPolicyRunner(env, train_cfg, log_dir="runs/hover_vehicle", device=str(env.device))
-   runner.learn(num_learning_iterations=1000)
-
-The packaged command trains from the experiment's ``trainer.rsl_rl`` config:
-
-.. code-block:: bash
-
-   ros2 run simlab uvms_rl_train_rsl --config hover_vehicle_stage1_fixed --backend gpu --device cuda
-
-Training logs and checkpoints are written under ``recordings/rl_runs`` by
-default. Override the backend, number of environments, iteration count, or log
-directory from the command line:
-
-.. code-block:: bash
-
-   ros2 run simlab uvms_rl_train_rsl \
-     --config hover_vehicle_stage1_fixed \
-     --backend gpu \
-     --device cuda \
-     --num-envs 2048 \
-     --iterations 3 \
-     --log-dir /tmp/uvms_rsl_hover_stage1
-
-RSL-RL does not call ``reset`` before training, so the adapter resets once at
-construction. During training it performs same-step resets for completed
-environment rows: returned ``dones`` still mark the terminal transition, while
-the returned observations for those rows are already the next episode's initial
-observations.
+Completed environments reset automatically: ``dones`` marks the terminal
+transition, while the returned observation belongs to the next episode.
 
 Timing Contract
 ---------------
 
-The RL API separates the policy/control step from the internal simulation step.
-One ``env.step(action)`` applies one policy action, holds it constant, advances
-the simulator for one or more internal substeps, then returns one observation,
-reward, and done flag per environment.
-
-.. code-block:: text
-
-   control_dt = policy action interval
-   sim_dt     = internal simulator integration interval
-   substeps   = control_dt / sim_dt
-
-For transfer to the ROS runtime, match ``control_dt`` to the action interval
-used by the controller path. The ROS runtime uses
-``controller_manager.update_rate`` as the ``ros2_control`` loop frequency, so
-start with:
-
-.. code-block:: text
-
-   control_dt = 1.0 / controller_manager.update_rate
-
-Set ``sim_dt`` to the simulator integration period. If the simulator integrates
-at the same rate as the controller, use ``sim_dt: control_dt``. If it integrates
-faster, use the smaller simulator period and let ``uvms_rl`` substep.
-
-Example for a ``150 Hz`` controller and ``600 Hz`` simulator:
-
-.. code-block:: yaml
+``control_dt`` is the policy-action interval; ``sim_dt`` is the internal
+integration interval. One ``env.step`` holds the action for
+``control_dt / sim_dt`` substeps. Set both explicitly when matching ROS timing.
+For example, a 150 Hz action interval and 600 Hz integration use::
 
    env:
      control_dt: 0.006666666666666667
      sim_dt: 0.001666666666666667
-
-The packaged hover experiments set ``sim_dt`` equal to ``control_dt`` for a
-simple one-substep rollout. For transfer experiments, set
-both values explicitly to the controller and simulator rates you want to match.
 
 Data Contract
 -------------
@@ -182,123 +129,32 @@ Action layout:
 Add an Experiment
 -----------------
 
-Add experiments as folders under ``uvms-simlab/uvms_rl/experiments``. An
-experiment should own its config. Reusable task implementations should live in
-``uvms-simlab/uvms_rl/tasks`` so multiple curriculum stages can share the same
-reward/reset logic without importing from each other.
+1. Copy an installed folder under ``uvms_rl/experiments`` and rename it.
+   Keep its ``trainer.rsl_rl`` block when using the packaged PPO runner.
+2. Put reusable task logic in ``uvms_rl/tasks/my_task.py``. Implement the
+   ``TaskBase`` methods: ``reset``, ``reset_indices``, ``policy_observation``,
+   ``reward_done`` and ``policy_observation_dim``.
+3. In the experiment's ``task.py``, import that class as ``Task``.
+4. Edit ``config.yaml``: backend, dynamics profile, batch size, timing, episode
+   length, seed and task-specific settings.
+5. Rebuild and run::
 
-.. code-block:: text
+      colcon build --packages-select simlab
+      source install/setup.bash
+      ros2 run simlab uvms_rl_train_rsl --config my_experiment --backend cpu --iterations 1
 
-   uvms_rl/experiments/my_experiment/
-   |-- config.yaml
-   `-- task.py
-
-1. Create a reusable task implementation, for example
-   ``uvms_rl/tasks/my_task.py``:
-
-.. code-block:: python
-
-   from uvms_rl.task_base import TaskBase
-
-
-   class Task(TaskBase):
-
-       @property
-       def policy_observation_dim(self) -> int:
-           return 33
-
-       def reset(self, env):
-           # Return initial raw simulator state with shape [N, 22].
-           ...
-
-       def reset_indices(self, env, indices):
-           # Return reset raw simulator states with shape [len(indices), 22].
-           # Required when using RSL-RL same-step resets.
-           ...
-
-       def policy_observation(self, env, sim_obs, actions):
-           # Return policy input with shape [N, policy_observation_dim].
-           ...
-
-       def reward_done(self, env, sim_obs, actions):
-           # Return rewards [N], dones [N], and metric dict.
-           ...
-
-2. Point the experiment folder at that task with a tiny
-   ``uvms_rl/experiments/my_experiment/task.py``:
-
-.. code-block:: python
-
-   from uvms_rl.tasks.my_task import Task
-
-3. Add ``uvms_rl/experiments/my_experiment/config.yaml``:
-
-.. code-block:: yaml
-
-   env:
-     backend: cpu
-     dynamics_profile: dory_alpha
-     robot_count: 1024
-     control_dt: 0.006666666666666667
-     sim_dt: 0.001666666666666667
-     max_episode_steps: 500
-     seed: 7
-
-   task:
-     target_x: [-2.0, 2.0]
-
-4. Rebuild and run:
-
-.. code-block:: bash
-
-   cd ~/ros_ws
-   colcon build --packages-select simlab
-   source install/setup.bash
-   ros2 run simlab uvms_rl_train_rsl --config my_experiment --backend cpu --iterations 1
+Task reset returns raw states shaped ``[N, 22]``; indexed reset returns
+``[len(indices), 22]``. Policy observations are ``[N, policy_observation_dim]``;
+rewards and dones are ``[N]``. Use ``hover_vehicle`` as the implementation example.
 
 Backend Boundary
 ----------------
 
-The task API is independent of the dynamics backend. CPU dynamics are the
-portable baseline. GPU dynamics use the CUDA batch core for high-throughput
-rollouts under the same task, reward, reset, and trainer code.
+Dynamics use float64; policy observations use float32.
 
-Both backends use float64 for dynamics inputs, parameters, intermediate states
-and outputs. The arm uses 30 RK4 substeps and the vehicle 25, matching the
-currently deployed main simulator integrators. Arm updates use the shared
-``arm_integration_policy`` to split the elapsed period into intervals of at
-most 10 ms (or ``30 / alpha`` when smaller), with 30 RK4 elements per interval.
-Joint-limit projection remains at the end of the full update. Host batch APIs
-reject invalid timing before advancing state; raw device-only arm launches
-return nonfinite output for invalid timing. CPU and GPU floating-point
-operation ordering can still differ; bit-identical results are not guaranteed.
-The RSL adapter converts policy observations to float32 separately from the
-simulator state. Float32 action arrays are accepted and converted at the boundary.
-
-The native batch pointer API now requires double buffers, including
-``set_actions_from_device`` and zero-copy CUDA state views. Rebuild dependent
-C++ extensions after this ABI change. ``BatchCommand`` actions,
-``BatchObservation`` state/reward arrays and ``ResetBatchSim`` states are float64;
-ROS clients must use the rebuilt message definitions. Older recorded batch
-messages retain their original float32 schema.
-
-Experiment configs should name the backend explicitly:
-
-.. code-block:: yaml
-
-   env:
-     backend: cpu
-     dynamics_profile: dory_alpha
-
-Use ``backend: gpu`` only on machines where ``ros2_control_blue_reach_5`` was
-built with CUDA dynamics enabled. It does not silently fall back to CPU; if the
-GPU extension or PyTorch CUDA support is missing, construction fails so the
-training run cannot accidentally use the wrong backend.
-
-``dynamics_profile`` is also required. It names the same whole-robot dynamics
-profile used by the hardware simulator replay path. Missing profiles fail at
-environment construction time instead of silently falling back to hidden
-defaults.
+Set ``env.backend`` and ``env.dynamics_profile`` explicitly. GPU requires the
+CUDA extension and PyTorch CUDA support; unavailable backends or profiles fail
+at construction. CUDA build options are in :doc:`installation`.
 
 Before training against the GPU backend, validate the installed GPU dynamics
 once after building:
@@ -306,7 +162,3 @@ once after building:
 .. code-block:: bash
 
    ros2 run ros2_control_blue_reach_5 uvms_gpu_dynamics_correctness
-   ros2 run ros2_control_blue_reach_5 uvms_gpu_dynamics_benchmark
-
-After those pass, switch the experiment config to ``backend: gpu`` and use the
-same task and trainer code.

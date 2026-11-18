@@ -1,137 +1,91 @@
-Tutorial
-========
+First Simulation
+================
 
-This tutorial assumes the workspace has already been installed, built, and
-sourced as described in :doc:`installation`.
+Build and source the workspace as described in :doc:`installation`.
 
-Verify the Robot Description
-----------------------------
+Launch
+------
 
-Open the robot description in RViz:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 view_robot.launch.py
-
-This checks the xacro/URDF description and the RViz model display before
-starting the full runtime stack.
-
-Launch Interactive Simulation
------------------------------
-
-Start one fully simulated UVMS in the interactive task:
-
-.. code-block:: shell
+Start one simulated vehicle and arm::
 
    ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_manipulator_hardware:=false \
-       use_vehicle_hardware:=false \
-       sim_robot_count:=1 \
-       task:=interactive
+     use_manipulator_hardware:=false use_vehicle_hardware:=false \
+     sim_robot_count:=1 task:=interactive
 
-The launch starts ros2_control, simulated vehicle/manipulator hardware,
-controllers, SimLab interactive controls, planner nodes, and RViz.
+This starts the simulator, controllers, planner, RViz and PlotJuggler.
+Each simulated component starts paused, including in mixed hardware/simulation
+launches. Arm-only joystick commands and replay profiles with
+``vehicle: zero_command`` leave the simulated vehicle paused. A vehicle or
+whole-robot execution request releases it; ``sim_startup_pause:=false`` permits
+free drift from launch.
+Readiness is automatic; selecting a controller or moving a target marker does
+not start motion.
 
-Common Launch Arguments
------------------------
+Move the robot
+--------------
 
-- ``use_manipulator_hardware:=false``: use the simulated manipulator.
-- ``use_vehicle_hardware:=false``: use the simulated vehicle.
-- ``sim_robot_count:=1``: spawn one simulated UVMS.
-- ``task:=interactive``: run RViz menus, planning, replay, and optional
-  manual joystick command input.
-- ``task:=manual``: run PS4 direct command teleoperation.
-- ``task:=direct_thrusters``: run keyboard direct-thruster control.
-- ``record_data:=true``: start the rosbag2 MCAP recorder.
-- ``gui:=false``: disable GUI applications, including RViz, RViz overlays, and
-  PlotJuggler.
-- ``launch_rviz:=false``: disable only RViz and RViz overlays.
+1. In RViz, select a robot from **Robots** if more than one is present.
+2. Choose the controller and control space under **Robot Control**.
+3. Move the target marker and select **Plan & Execute**.
+4. To queue vehicle goals, add targets under **Waypoints**, then execute.
 
-Use the ``interactive`` task for the normal simulator tutorial path. See
-:doc:`controls_and_menus` for the menu and joystick behavior of each task.
+**Stop Execution** cancels execution and stops command output. Already-running
+physics continues; components still paused remain paused.
 
-Inspect the Runtime
+When replacing an active vehicle plan, the robot holds and settles before the
+planner captures its new start state. A failed plan does not execute.
+After a simulator reset, use **Plan & Execute** again; no separate release is
+needed. See :doc:`controls_and_menus` for teleoperation and replay controls.
+
+Choose a scene from **Environment**. Switching cancels the old plan; execute a
+new one after loading completes. Available scenes and failure recovery are in
+:doc:`environment_scenes`.
+
+View and record data
+--------------------
+
+PlotJuggler starts by default. Use ``launch_plotjuggler:=false`` to disable it.
+PlotJuggler 4 uses its saved streaming-buffer setting. For workspace-specific
+messages, run a native build from the sourced workspace.
+
+Useful topics:
+
+- ``/dynamic_joint_states``: joint and vehicle states, efforts and estimates.
+- ``/<prefix>/reference/targets``: reference trajectories.
+- ``/<prefix>/performance/controller``: tracking metrics.
+
+Start and stop MCAP recording from **Data Recording**. To record from launch,
+append ``record_data:=true``. Bags are saved under
+``~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS`` and can be opened in
+PlotJuggler. See :doc:`replay_and_experiments` for replay profiles and logging.
+
+Launch options
+--------------
+
+Append these to the launch command as needed:
+
+- ``sim_robot_count:=N``: simulate multiple robots.
+- ``environment_scene:=pipeline``: choose the initial scene.
+- ``gui:=false``: run without GUI applications.
+- ``launch_rviz:=false``: disable RViz only.
+- ``launch_voxelviz:=true``: show environment voxels.
+- ``launch_collision_contact:=true``: enable collision/clearance visualization.
+- ``cleanup_stale_nodes:=false``: disable pre-launch process cleanup when
+  deliberately running separate simulations.
+
+Camera options are in :doc:`sensors_and_perception`. To list all launch arguments::
+
+   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py --show-args
+
+Inspect the runtime
 -------------------
 
-List active controllers:
-
-.. code-block:: shell
+If the robot is not ready, check controllers and feedback::
 
    ros2 control list_controllers
-
-List available hardware interfaces:
-
-.. code-block:: shell
-
    ros2 control list_hardware_interfaces
-
-Inspect the central state stream:
-
-.. code-block:: shell
-
    ros2 topic echo /dynamic_joint_states
 
-The exact controller names depend on robot count, task, and hardware/simulation
-selection. See :doc:`services_and_interfaces` for the main runtime interfaces.
+To inspect the robot description separately::
 
-Plot Data
----------
-
-The main launch file starts PlotJuggler by default:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_manipulator_hardware:=false \
-       use_vehicle_hardware:=false \
-       sim_robot_count:=1 \
-       task:=interactive \
-       launch_plotjuggler:=true
-
-Set ``launch_plotjuggler:=false`` when running headless or when you want to open
-PlotJuggler manually. The launch file starts ``/snap/bin/plotjuggler`` so the
-newer Snap release is used instead of the older ROS package executable.
-
-Useful live topics to plot:
-
-- ``/dynamic_joint_states`` for measured joint position, velocity, effort, and
-  acceleration interfaces.
-- ``/<prefix>/reference/targets`` for vehicle and arm reference trajectories.
-- ``/<prefix>/performance/controller`` for normalized tracking and controller
-  performance metrics.
-
-For recorded experiments, open
-``~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS`` in PlotJuggler and load
-the same topics from the bag.
-
-Record Data
------------
-
-The interactive RViz menu has ``Data Recording`` actions for starting and
-stopping MCAP recording during a session. The same actions are exposed through
-the SimLab backend API for non-RViz clients. For headless runs, start recording
-at launch:
-
-.. code-block:: shell
-
-   ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
-       use_manipulator_hardware:=false \
-       use_vehicle_hardware:=false \
-       sim_robot_count:=1 \
-       task:=interactive \
-       record_data:=true
-
-Bags are saved under ``~/ros_ws/recordings/mcap/uvms_bag_YYYYmmdd_HHMMSS``.
-Replay-session CSV logs are saved under
-``~/ros_ws/recordings/replay_sessions`` when enabled by a replay profile. If
-dynamic obstacles are present, each replay-session CSV is paired with a
-``*_dynamic_obstacles.json`` sidecar containing the start/stop obstacle snapshot
-for that replay pass.
-
-MCAP recordings include measured robot state, the selected camera feed on
-``/alpha/image_raw`` and ``/alpha/camera_info``, dynamic obstacle state on
-``/dynamic_obstacles`` and ``/dynamic_obstacle_markers``, and per-robot desired
-target topics for vehicle pose/velocity/acceleration and arm
-position/velocity/acceleration. They also include per-robot controller
-performance metrics on ``/<prefix>/performance/controller``; see
-:doc:`services_and_interfaces` for the metric fields.
+   ros2 launch ros2_control_blue_reach_5 view_robot.launch.py

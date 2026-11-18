@@ -1,0 +1,733 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="scene_environment" params="world_frame asset_directory">
+    <link name="bathymetry_seabed_0">
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/flat_6125f9d1ae3b.obj" scale="0.29999999999999999 0.29999999999999999 0.29999999999999999" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/flat_77d54f2a8296.obj" scale="0.29999999999999999 0.29999999999999999 0.29999999999999999" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_seabed_0_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_seabed_0" />
+      <origin xyz="0 0 -1.25" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_charge0_1">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/charge0_31e84c3ada23.obj" scale="1.5 1.5 1.5" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/charge0_da78ad15aba2.obj" scale="1.5 1.5 1.5" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_charge0_1_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_charge0_1" />
+      <origin xyz="0 6 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_charge1_2">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/charge1_81817cded47a.obj" scale="1.5 1.5 1.5" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/charge1_36f745500de1.obj" scale="1.5 1.5 1.5" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_charge1_2_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_charge1_2" />
+      <origin xyz="0 6 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_3">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_df9dc0691cc0.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_1973f694ffb2.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_3_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_3" />
+      <origin xyz="0 0 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_4">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_dfcdd73bf30e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_ec4cad27d25e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_4_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_4" />
+      <origin xyz="0 0 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_5">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_6f0a68a8ca4f.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_92e80b7f8f45.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_5_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_5" />
+      <origin xyz="0 0 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_6">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_df9dc0691cc0.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_1973f694ffb2.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_6_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_6" />
+      <origin xyz="0 -3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_7">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_dfcdd73bf30e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_ec4cad27d25e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_7_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_7" />
+      <origin xyz="0 -3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_8">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_6f0a68a8ca4f.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_92e80b7f8f45.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_8_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_8" />
+      <origin xyz="0 -3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_9">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_df9dc0691cc0.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_1973f694ffb2.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_9_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_9" />
+      <origin xyz="3 0 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_10">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_dfcdd73bf30e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_ec4cad27d25e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_10_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_10" />
+      <origin xyz="3 0 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_11">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_6f0a68a8ca4f.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_92e80b7f8f45.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_11_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_11" />
+      <origin xyz="3 0 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_12">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_df9dc0691cc0.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_1973f694ffb2.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_12_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_12" />
+      <origin xyz="0 3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_13">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_dfcdd73bf30e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_ec4cad27d25e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_13_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_13" />
+      <origin xyz="0 3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_14">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_6f0a68a8ca4f.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_92e80b7f8f45.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_14_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_14" />
+      <origin xyz="0 3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_15">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_df9dc0691cc0.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_1973f694ffb2.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_15_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_15" />
+      <origin xyz="-3 0 -1.1139756091160657" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_16">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_dfcdd73bf30e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_ec4cad27d25e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_16_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_16" />
+      <origin xyz="-3 0 -1.1139756091160657" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_17">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_6f0a68a8ca4f.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_92e80b7f8f45.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_17_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_17" />
+      <origin xyz="-3 0 -1.1139756091160657" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_18">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_df9dc0691cc0.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_1973f694ffb2.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_18_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_18" />
+      <origin xyz="-3 -3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_19">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_dfcdd73bf30e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_ec4cad27d25e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_19_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_19" />
+      <origin xyz="-3 -3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_20">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_6f0a68a8ca4f.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_92e80b7f8f45.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_20_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_20" />
+      <origin xyz="-3 -3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_21">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_df9dc0691cc0.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_1973f694ffb2.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_21_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_21" />
+      <origin xyz="-3 3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_22">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_dfcdd73bf30e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_ec4cad27d25e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_22_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_22" />
+      <origin xyz="-3 3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_23">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_6f0a68a8ca4f.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_92e80b7f8f45.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_23_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_23" />
+      <origin xyz="-3 3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_24">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_df9dc0691cc0.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_1973f694ffb2.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_24_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_24" />
+      <origin xyz="3 3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_25">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_dfcdd73bf30e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_ec4cad27d25e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_25_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_25" />
+      <origin xyz="3 3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_26">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_6f0a68a8ca4f.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_92e80b7f8f45.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_26_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_26" />
+      <origin xyz="3 3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_27">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_df9dc0691cc0.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel0_1973f694ffb2.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_27_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_27" />
+      <origin xyz="3 -3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_28">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_dfcdd73bf30e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel1_ec4cad27d25e.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_28_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_28" />
+      <origin xyz="3 -3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_solar_panel_29">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_6f0a68a8ca4f.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/solar_panel2_92e80b7f8f45.obj" scale="0.80000000000000004 0.80000000000000004 0.80000000000000004" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_solar_panel_29_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_solar_panel_29" />
+      <origin xyz="3 -3 -1.1000000000000001" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_pipe_30">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower0_cc51a876028c.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower0_56a8b4c225ff.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_pipe_30_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_pipe_30" />
+      <origin xyz="0 8 -1.2" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_pipe_31">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower1_8c2b9651d39b.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower1_c3772f259bd1.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_pipe_31_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_pipe_31" />
+      <origin xyz="0 8 -1.2" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_pipe_32">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower2_af44ac5780d0.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower2_f4a3e5e9204f.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_pipe_32_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_pipe_32" />
+      <origin xyz="0 8 -1.2" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_pipe_33">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower3_8af1efbf3075.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower3_b79a56e3bd44.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_pipe_33_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_pipe_33" />
+      <origin xyz="0 8 -1.2" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_pipe_34">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower4_3427a7342d61.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower4_9935f06393ff.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_pipe_34_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_pipe_34" />
+      <origin xyz="0 8 -1.2" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_pipe_35">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower5_1cfec9d2cdcb.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower5_78ce5d6ef86c.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_pipe_35_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_pipe_35" />
+      <origin xyz="0 8 -1.2" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_pipe_36">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower6_ce1cf0b92fa6.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower6_5ee78c85f2a7.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_pipe_36_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_pipe_36" />
+      <origin xyz="0 8 -1.2" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="bathymetry_pipe_37">
+      <collision>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower7_a75d31d072ed.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </collision>
+      <visual>
+        <origin xyz="0 0 0" rpy="3.1400000000000001 0 0" />
+        <geometry>
+          <mesh filename="file://${asset_directory}/assets/signal_tower7_ee0dff79ae8b.obj" scale="2.3999999999999999 2.3999999999999999 2.3999999999999999" />
+        </geometry>
+      </visual>
+    </link>
+    <joint name="bathymetry_pipe_37_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="bathymetry_pipe_37" />
+      <origin xyz="0 8 -1.2" rpy="3.1415926535897931 0 0" />
+    </joint>
+    <link name="world_bottom" />
+    <joint name="world_bottom_joint" type="fixed">
+      <parent link="${world_frame}" />
+      <child link="world_bottom" />
+      <origin xyz="0 0 -1.25" rpy="0 0 0" />
+    </joint>
+  </xacro:macro>
+</robot>

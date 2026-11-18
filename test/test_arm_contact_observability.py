@@ -14,7 +14,7 @@ import pytest
 ca = pytest.importorskip('casadi')
 ROOT = Path(__file__).resolve().parents[1]
 SIMLAB = ROOT.parent / 'uvms-simlab'
-spec = importlib.util.spec_from_file_location('model_profile', SIMLAB / 'simlab/controllers/model_profile.py')
+spec = importlib.util.spec_from_file_location('_test_dynamics_profiles', SIMLAB / 'simlab/dynamics_profiles.py')
 module = importlib.util.module_from_spec(spec)
 import sys
 sys.modules[spec.name] = module

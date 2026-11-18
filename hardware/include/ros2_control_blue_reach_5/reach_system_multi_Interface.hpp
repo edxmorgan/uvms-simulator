@@ -43,6 +43,7 @@
 #include "ros2_control_blue_reach_5/serial_budget.hpp"
 #include "ros2_control_blue_reach_5/command_safety.hpp"
 #include "ros2_control_blue_reach_5/hardware_arm_observer.hpp"
+#include "ros2_control_blue_reach_5/hardware_arm_identification.hpp"
 #include "ros2_control_blue_reach_5/packet.hpp"
 #include "ros2_control_blue_reach_5/joint.hpp"
 #include "ros2_control_blue_reach_5/state.hpp"
@@ -90,6 +91,14 @@ namespace ros2_control_blue_reach_5
         const rclcpp_lifecycle::State &previous_state) override;
 
     ROS2_CONTROL_BLUE_REACH_5_PUBLIC
+    hardware_interface::CallbackReturn on_error(
+        const rclcpp_lifecycle::State &previous_state) override;
+
+    ROS2_CONTROL_BLUE_REACH_5_PUBLIC
+    hardware_interface::CallbackReturn on_shutdown(
+        const rclcpp_lifecycle::State &previous_state) override;
+
+    ROS2_CONTROL_BLUE_REACH_5_PUBLIC
     hardware_interface::return_type prepare_command_mode_switch(
         const std::vector<std::string> &start_interfaces,
         const std::vector<std::string> &stop_interfaces) override;
@@ -122,6 +131,7 @@ namespace ros2_control_blue_reach_5
         const rclcpp::Time &time, const rclcpp::Duration &period) override;
 
   private:
+    friend struct ReachLifecycleTestAccess;
     // ReachComms comms_;
     Config cfg_;
     SerialBudget serial_budget_;
@@ -131,6 +141,9 @@ namespace ros2_control_blue_reach_5
     JointFeedbackClock::Clock::time_point activated_at_{};
     bool feedback_fault_{false};
     HardwareArmObserver arm_observer_;
+    std::unique_ptr<HardwareArmObserverWorker> arm_observer_worker_;
+    uvms::arm_identification::HardwareMeasurements identification_;
+    uvms::arm_identification::Sample identification_snapshot_;
 
     enum class mode_level_t
     {
@@ -163,6 +176,7 @@ namespace ros2_control_blue_reach_5
     std::string robot_prefix;
 
     // One EKF per joint
+    std::vector<JointMeasurementCursor> measurement_cursors_;
     std::vector<casadi::DM> x_est_list_;             // each is 3x1
     std::vector<casadi::DM> P_est_list_;             // each is 3x3
     std::vector<casadi::DM> Q_list_;                 // each is 3x3
@@ -178,6 +192,8 @@ namespace ros2_control_blue_reach_5
     rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
 
     // cache FK outputs computed in read
+    std::array<double, 4> kinematics_position_{};
+    bool kinematics_valid_ = false;
     std::vector<casadi::DM> T_i_;
     std::vector<casadi::DM> T_com_i_;
 
@@ -222,8 +238,10 @@ namespace ros2_control_blue_reach_5
     // Driver things
     alpha::driver::Driver driver_;
     std::thread state_request_worker_;
+    mutable std::atomic<int64_t> poll_started_ns_{0}, poll_finished_ns_{0};
     std::atomic<bool> running_{false};
     bool driver_started_{false};
+    bool feedback_callbacks_registered_{false};
 
     std::mutex access_async_states_;
 

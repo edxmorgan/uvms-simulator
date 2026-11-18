@@ -1,4 +1,5 @@
 import argparse
+import json
 import threading
 from typing import Dict
 
@@ -11,10 +12,17 @@ from std_srvs.srv import Trigger
 
 
 class SimResetCoordinator(Node):
-    def __init__(self, robot_prefixes: list[str]) -> None:
+    def __init__(self, robot_prefixes: list[str], simulated_components=None) -> None:
         super().__init__("sim_reset_coordinator")
         self._callback_group = ReentrantCallbackGroup()
         self._robot_prefixes = [prefix.strip() for prefix in robot_prefixes if prefix.strip()]
+
+        self._simulated_components = (simulated_components if simulated_components is not None
+            else {p: ['manipulator', 'vehicle'] for p in self._robot_prefixes})
+        if set(self._simulated_components) != set(self._robot_prefixes) or any(
+            not isinstance(parts, list) or not set(parts) <= {'manipulator', 'vehicle'}
+            for parts in self._simulated_components.values()):
+            raise ValueError('Invalid simulated component capabilities')
 
         self._reset_vehicle_clients: Dict[str, rclpy.client.Client] = {}
         self._reset_manipulator_clients: Dict[str, rclpy.client.Client] = {}
@@ -261,10 +269,10 @@ class SimResetCoordinator(Node):
 
     def _handle_release(self, prefix: str, response: Trigger.Response) -> Trigger.Response:
         self.get_logger().info(f"[{prefix}] combined release requested")
-        steps = [
-            (self._release_manipulator_clients[prefix], f"/{prefix}release_sim_manipulator"),
-            (self._release_vehicle_clients[prefix], f"/{prefix}release_sim_vehicle"),
-        ]
+        clients = {'manipulator': self._release_manipulator_clients,
+                   'vehicle': self._release_vehicle_clients}
+        steps = [(clients[part][prefix], f"/{prefix}release_sim_{part}")
+                 for part in self._simulated_components[prefix]]
 
         messages = []
         for client, service_name in steps:
@@ -335,12 +343,13 @@ class SimResetCoordinator(Node):
 def main() -> None:
     parser = argparse.ArgumentParser(description="Combined reset/release coordinator for simulated UVMS robots.")
     parser.add_argument("--robots-prefix", default="", help="Comma-separated list of robot prefixes.")
+    parser.add_argument("--simulated-components", default=None, help="JSON robot-to-simulated-component map")
     args = parser.parse_args()
 
     prefixes = [prefix.strip() for prefix in args.robots_prefix.split(",") if prefix.strip()]
 
     rclpy.init()
-    node = SimResetCoordinator(prefixes)
+    node = SimResetCoordinator(prefixes, json.loads(args.simulated_components) if args.simulated_components is not None else None)
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
 

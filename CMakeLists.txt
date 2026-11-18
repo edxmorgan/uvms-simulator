@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 project(ros2_control_blue_reach_5 LANGUAGES C CXX)
 
+# Real-time Eigen/model adapters need optimization in ordinary colcon builds.
+# Preserve explicit Debug builds and multi-configuration generator settings.
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
+endif()
+
 # ROS Jazzy dependencies still rely on FindBoost in some exported CMake files.
 # Keep the legacy behavior enabled so CMake 3.30+ does not warn during configure.
 if(POLICY CMP0167)
@@ -70,6 +76,7 @@ endif()
 # find dependencies
 set(THIS_PACKAGE_INCLUDE_DEPENDS
   hardware_interface
+  urdf
   pluginlib
   rclcpp
   rclcpp_lifecycle
@@ -115,6 +122,23 @@ else()
   message(FATAL_ERROR "CasADi was found, but it did not export a supported CMake target")
 endif()
 
+# Observer workers construct DM/Sparsity objects alongside the control loop.
+# Numeric-function thread safety alone does not protect CasADi's global caches.
+include(CheckCXXSourceCompiles)
+set(CMAKE_REQUIRED_LIBRARIES ${UVMS_CASADI_TARGET})
+unset(UVMS_CASADI_THREADSAFE CACHE)
+check_cxx_source_compiles("
+#include <casadi/casadi.hpp>
+#if !defined(CASADI_WITH_THREAD) || !defined(CASADI_WITH_THREADSAFE_SYMBOLICS)
+#error CasADi requires thread-safe symbolic caches
+#endif
+int main() { return 0; }
+" UVMS_CASADI_THREADSAFE)
+unset(CMAKE_REQUIRED_LIBRARIES)
+if(NOT UVMS_CASADI_THREADSAFE)
+  message(FATAL_ERROR "Rebuild CasADi with -DWITH_THREAD=ON -DWITH_THREADSAFE_SYMBOLICS=ON, then reinstall it. Concurrent observer/control DM operations require both options.")
+endif()
+
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DisturbanceCommand.msg"
   "msg/DisturbanceState.msg"
@@ -126,11 +150,13 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/BatchCommand.msg"
   "msg/BatchObservation.msg"
   "msg/VehicleIdentification.msg"
+  "msg/ArmIdentification.msg"
   "srv/ResetBatchSim.srv"
   "srv/ResetSimUvms.srv"
   "srv/SetSimCameraDynamics.srv"
   "srv/SetSimDynamics.srv"
   "srv/GetSimDynamics.srv"
+  "srv/EnvironmentScene.srv"
   DEPENDENCIES geometry_msgs std_msgs visualization_msgs builtin_interfaces
 )
 
@@ -144,6 +170,14 @@ message(STATUS "GStreamer libraries: ${GSTREAMER_LIBRARIES}")
 message(STATUS "GStreamer App include dirs: ${GSTREAMER_APP_INCLUDE_DIRS}")
 message(STATUS "GStreamer App libraries: ${GSTREAMER_APP_LIBRARIES}")
 # --- End GStreamer additions ---
+
+add_library(uvms_arm_model STATIC hardware/arm_identification_window.cpp
+  hardware/generated/arm_identification/arm_regressor.c)
+target_include_directories(uvms_arm_model PUBLIC hardware/include PRIVATE hardware/generated/arm_identification)
+target_link_libraries(uvms_arm_model PUBLIC Eigen3::Eigen)
+target_compile_features(uvms_arm_model PUBLIC cxx_std_17)
+target_compile_options(uvms_arm_model PRIVATE -O2)
+set_target_properties(uvms_arm_model PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(PROJECT_LIB ${PROJECT_NAME}_hardware)
 set(BATCH_UVMS_CORE_LIB ${PROJECT_NAME}_batch_uvms_core)
@@ -210,6 +244,8 @@ ament_target_dependencies(
   ${PROJECT_LIB} PUBLIC
   ${THIS_PACKAGE_INCLUDE_DEPENDS}
 )
+target_sources(${PROJECT_LIB} PRIVATE hardware/arm_identified_model_feedback.cpp)
+target_link_libraries(${PROJECT_LIB} PRIVATE uvms_arm_model)
 set_target_properties(${PROJECT_LIB} PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
 
 # Causes the visibility macros to use dllexport rather than dllimport,
@@ -276,7 +312,7 @@ install(
   DESTINATION include/${PROJECT_NAME}
 )
 install(
-  DIRECTORY description/launch description/ros2_control description/xacro description/rviz description/alpha description/Bathymetry description/blue
+  DIRECTORY description/launch description/ros2_control description/xacro description/rviz description/alpha description/Bathymetry description/blue description/scenes
   DESTINATION share/${PROJECT_NAME}
 )
 install(
@@ -343,15 +379,41 @@ endif()
 
 if(BUILD_TESTING)
   find_package(ament_cmake_pytest REQUIRED)
-  ament_add_pytest_test(test_mavros_telemetry test/test_mavros_telemetry.py)
-  ament_add_pytest_test(test_vehicle_interface_contract test/test_vehicle_interface_contract.py)
-  ament_add_pytest_test(test_rviz_pointcloud_qos test/test_rviz_pointcloud_qos.py)
-  ament_add_pytest_test(test_bruce_visual_alignment test/test_bruce_visual_alignment.py)
-  ament_add_pytest_test(test_camera_clipping test/test_camera_clipping.py)
-  ament_add_pytest_test(test_camera_destination test/test_camera_destination.py)
-  ament_add_pytest_test(test_obstacle_description test/test_obstacle_description.py)
-  ament_add_pytest_test(test_description_shutdown test/test_description_shutdown.py)
+  ament_add_pytest_test(test_scene_runtime test/test_scene_runtime.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR})
+  ament_add_pytest_test(test_environment_scene test/test_environment_scene.py
+    APPEND_ENV PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR})
+  ament_add_pytest_test(test_mavros_telemetry test/test_mavros_telemetry.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}")
+  ament_add_pytest_test(test_vehicle_interface_contract test/test_vehicle_interface_contract.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}")
+  ament_add_pytest_test(test_rviz_pointcloud_qos test/test_rviz_pointcloud_qos.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}")
+  ament_add_pytest_test(test_bruce_visual_alignment test/test_bruce_visual_alignment.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}")
+  ament_add_pytest_test(test_camera_clipping test/test_camera_clipping.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}")
+  ament_add_pytest_test(test_camera_destination test/test_camera_destination.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}")
+  ament_add_pytest_test(test_obstacle_description test/test_obstacle_description.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}")
+  ament_add_pytest_test(test_description_shutdown test/test_description_shutdown.py
+    APPEND_ENV "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}")
   find_package(ament_cmake_gtest REQUIRED)
+  if(UVMS_BUILD_VEHICLE_IDENTIFIER)
+    ament_add_gtest(test_identification_solver test/test_identification_solver.cpp)
+    target_link_libraries(test_identification_solver uvms_vehicle_identifier ${PROJECT_LIB})
+    target_include_directories(test_identification_solver PRIVATE hardware/generated/vehicle_identification)
+  endif()
+
+  if(UVMS_BUILD_ARM_IDENTIFIER)
+    ament_add_gtest(test_arm_identification test/test_arm_identification.cpp)
+    target_link_libraries(test_arm_identification uvms_arm_identifier ${PROJECT_LIB})
+    target_compile_definitions(test_arm_identification PRIVATE TEST_CASADI_DIR="${PROJECT_SOURCE_DIR}/casadi_lib")
+  endif()
+
+  ament_add_gtest(test_dvl_driver test/test_dvl_driver.cpp)
+  target_link_libraries(test_dvl_driver ${PROJECT_LIB})
   ament_add_gtest(test_disturbance_receiver test/test_disturbance_receiver.cpp)
   target_link_libraries(test_disturbance_receiver ${PROJECT_LIB})
   ament_add_gtest(test_vehicle_partial_feedback test/test_vehicle_partial_feedback.cpp)
@@ -359,6 +421,8 @@ if(BUILD_TESTING)
   target_compile_definitions(test_vehicle_partial_feedback PRIVATE TEST_CASADI_DIR="${PROJECT_SOURCE_DIR}/casadi_lib")
   ament_add_gtest(test_vehicle_disturbance_noise_adaptation test/test_vehicle_disturbance_noise_adaptation.cpp)
   target_link_libraries(test_vehicle_disturbance_noise_adaptation ${PROJECT_LIB})
+  ament_add_gtest(test_arm_identified_model_feedback test/test_arm_identified_model_feedback.cpp)
+  target_link_libraries(test_arm_identified_model_feedback ${PROJECT_LIB} uvms_arm_model)
   ament_add_gtest(test_arm_disturbance_ekf test/test_arm_disturbance_ekf.cpp)
   target_link_libraries(test_arm_disturbance_ekf ${PROJECT_LIB})
   target_compile_definitions(test_arm_disturbance_ekf PRIVATE TEST_CASADI_DIR="${PROJECT_SOURCE_DIR}/casadi_lib")
@@ -377,13 +441,24 @@ if(BUILD_TESTING)
   ament_add_gtest(test_serial_budget test/test_serial_budget.cpp
     hardware/packet.cpp hardware/cobs.cpp hardware/crc.cpp)
   target_include_directories(test_serial_budget PRIVATE hardware/include)
+  ament_add_gtest(test_serial_client test/test_serial_client.cpp
+    hardware/serial_client.cpp hardware/driver.cpp hardware/packet.cpp hardware/cobs.cpp hardware/crc.cpp)
+  target_include_directories(test_serial_client PRIVATE hardware/include)
+  ament_target_dependencies(test_serial_client rclcpp)
+  target_link_libraries(test_serial_client util)
+
+  ament_add_gtest(test_reach_lifecycle test/test_reach_lifecycle.cpp)
+  target_link_libraries(test_reach_lifecycle ${PROJECT_LIB} util)
+
+  ament_add_gtest(test_hardware_arm_identification test/test_hardware_arm_identification.cpp)
+  target_include_directories(test_hardware_arm_identification PRIVATE hardware/include)
   ament_add_gtest(test_command_safety test/test_command_safety.cpp)
   target_include_directories(test_command_safety PRIVATE hardware/include)
   ament_add_gtest(test_arm_actuator_model test/test_arm_actuator_model.cpp)
   target_include_directories(test_arm_actuator_model PRIVATE hardware/include)
   ament_add_gtest(test_batch_arm_actuation test/test_batch_arm_actuation.cpp)
   target_include_directories(test_batch_arm_actuation PRIVATE hardware/include)
-  target_link_libraries(test_batch_arm_actuation ${BATCH_UVMS_CORE_LIB})
+  target_link_libraries(test_batch_arm_actuation ${BATCH_UVMS_CORE_LIB} ${PROJECT_LIB})
 endif()
 
 ## EXPORTS

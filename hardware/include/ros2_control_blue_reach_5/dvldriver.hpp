@@ -20,6 +20,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <boost/asio.hpp>
@@ -37,6 +38,8 @@ namespace driver
 class DVLDriver
 {
 public:
+  // A frame exceeding this limit closes the connection, bounding memory use.
+  static constexpr std::size_t max_message_bytes = 64 * 1024;
   /**
    * @brief Construct a new DVLDriver object
    */
@@ -45,7 +48,7 @@ public:
   /**
    * @brief Destroy the DVLDriver object
    *
-   * Automatically stops the driver thread if it is running.
+   * Automatically stops and joins the driver thread, including after disconnect.
    */
   ~DVLDriver();
 
@@ -68,6 +71,7 @@ public:
   /**
    * @brief Subscribe to new JSON messages read from the DVL.
    *
+   * Callbacks must not call start(), stop(), or destroy this driver.
    * @param callback A function that will be invoked whenever the driver parses
    *        a new JSON line from the DVL.
    */
@@ -81,6 +85,9 @@ private:
   void pollData();
 
 private:
+  // Lifecycle methods are called by the owner, never from a receive callback.
+  std::mutex lifecycle_mutex_;
+  std::mutex callback_mutex_;
   std::atomic<bool> running_;
   std::thread poll_thread_;
 

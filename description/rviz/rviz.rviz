@@ -349,13 +349,13 @@ Visualization Manager:
         Z: 0
       Plane: XY
       Plane Cell Count: 50
-      Reference Frame: world_bottom
+      Reference Frame: environment_floor
       Value: true
     - Align Bottom: false
       Background Alpha: 0.5
       Background Color: 0; 0; 0
       Class: rviz_2d_overlay_plugins/TextOverlay
-      Enabled: true
+      Enabled: false
       Foreground Alpha: 0.800000011920929
       Foreground Color: 25; 255; 240
       Invert Shadow: false
@@ -369,7 +369,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /chatter_overlay_text
-      Value: true
+      Value: false
       font: Sans Serif
       height: 128
       hor_alignment: left
@@ -383,7 +383,7 @@ Visualization Manager:
       Background Alpha: 0.44999998807907104
       Background Color: 0; 0; 0
       Class: rviz_2d_overlay_plugins/TextOverlay
-      Enabled: true
+      Enabled: false
       Foreground Alpha: 0.949999988079071
       Foreground Color: 255; 230; 51
       Invert Shadow: false
@@ -397,7 +397,7 @@ Visualization Manager:
         History Policy: Keep Last
         Reliability Policy: Reliable
         Value: /robot_metrics_overlay_text
-      Value: true
+      Value: false
       font: Sans Serif
       height: 360
       hor_alignment: right

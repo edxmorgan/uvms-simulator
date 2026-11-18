@@ -20,6 +20,12 @@ class RobotDescriptionPublisher(Node):
         qos.reliability = ReliabilityPolicy.RELIABLE
         self._publisher = self.create_publisher(String, "robot_description", qos)
         self._publish()
+        from bringup.scene_manager import SceneManager
+        self.scene_manager = SceneManager(self, self._description, self.replace_description)
+
+    def replace_description(self, description):
+        self._description = description
+        self._publish()
 
     def _publish(self):
         msg = String()

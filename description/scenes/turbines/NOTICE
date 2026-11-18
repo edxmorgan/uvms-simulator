@@ -1,0 +1,8 @@
+Scene assets adapted from https://github.com/VincentGu2000/u0env
+Commit: 3f4b8409a9942935df1521fac2d905b65a2d36e2
+Retain upstream LICENSE.upstream.
+Modifications: NED-to-NWU placement; reconstructed materials; seabed covers the 50 m RViz grid and structures with 10 m margin.
+Seabed clipped in local XY to (-46.8842905, 25.638625902251608, -36.558381289046686, 18.112383829041143) mesh units: flat.obj
+Planar UV coordinates generated (1 local metre repeat): flat.obj
+Entire static scene translated upward by 17 m; seabed depth limited to 8 m; geometry sizes preserved
+turbines: assembly [1, 2] translated vertically by -3.08171569 m to contact local seabed

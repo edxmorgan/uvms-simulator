@@ -1,0 +1,24 @@
+{
+  "source_sha256": "c77d21ee33690fbbd02089a02d38ca69fd045c22ce931090c7df4a9af345e989",
+  "parameter_order_per_link": [
+    "mass",
+    "mx",
+    "my",
+    "mz",
+    "Ixx",
+    "Iyy",
+    "Izz",
+    "Ixy",
+    "Ixz",
+    "Iyz",
+    "viscous",
+    "coulomb"
+  ],
+  "joint_order": [
+    "e",
+    "d",
+    "c",
+    "b"
+  ],
+  "casadi_version": "3.8.0+"
+}

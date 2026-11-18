@@ -9,7 +9,7 @@
   </xacro:macro>
 
   <xacro:macro name="robot_system_multi_interface" 
-  params="name prefix serial_port state_update_frequency use_hardware arm_joint_locks:=true">
+  params="name prefix serial_port state_update_frequency use_hardware arm_joint_locks:=true startup_pause:=false">
 
     <ros2_control name="${name}" type="system">
 
@@ -23,6 +23,7 @@
 
         <xacro:unless value="${use_hardware}">
           <plugin>ros2_control_blue_reach_5/SimReachSystemMultiInterfaceHardware</plugin>
+          <param name="startup_pause">${startup_pause}</param>
           <param name="arm_joint_locks">${arm_joint_locks}</param>
           <param name="state_update_frequency">${state_update_frequency}</param>
           <param name="prefix">${prefix}</param>
@@ -429,6 +430,59 @@
           <state_interface name="estimator_disturbance_observable.c"/>
           <state_interface name="estimator_disturbance_observable.b"/>
           <xacro:arm_ekf_parameter_interfaces index="${0}" count="${81}"/>
+          <state_interface name="identification.time"/>
+          <state_interface name="identification.supported"/>
+          <state_interface name="identification.position.0"/>
+          <state_interface name="identification.velocity.0"/>
+          <state_interface name="identification.impulse.0"/>
+          <state_interface name="identification.generation.0"/>
+          <state_interface name="identification.valid.0"/>
+          <state_interface name="identification.position.1"/>
+          <state_interface name="identification.velocity.1"/>
+          <state_interface name="identification.impulse.1"/>
+          <state_interface name="identification.generation.1"/>
+          <state_interface name="identification.valid.1"/>
+          <state_interface name="identification.position.2"/>
+          <state_interface name="identification.velocity.2"/>
+          <state_interface name="identification.impulse.2"/>
+          <state_interface name="identification.generation.2"/>
+          <state_interface name="identification.valid.2"/>
+          <state_interface name="identification.position.3"/>
+          <state_interface name="identification.velocity.3"/>
+          <state_interface name="identification.impulse.3"/>
+          <state_interface name="identification.generation.3"/>
+          <state_interface name="identification.valid.3"/>
+          <state_interface name="identification.position.4"/>
+          <state_interface name="identification.velocity.4"/>
+          <state_interface name="identification.impulse.4"/>
+          <state_interface name="identification.generation.4"/>
+          <state_interface name="identification.valid.4"/>
+          <state_interface name="identification.context.0"/>
+          <state_interface name="identification.context.1"/>
+          <state_interface name="identification.context.2"/>
+          <state_interface name="identification.context.3"/>
+          <state_interface name="identification.context.4"/>
+          <state_interface name="identification.context.5"/>
+          <state_interface name="identification.context.6"/>
+          <state_interface name="identification.context.7"/>
+          <state_interface name="identification.context.8"/>
+          <state_interface name="identification.context.9"/>
+          <state_interface name="identification.context.10"/>
+          <state_interface name="identification.context.11"/>
+          <state_interface name="identification.context.12"/>
+          <state_interface name="identification.context.13"/>
+          <state_interface name="identification.context.14"/>
+          <xacro:unless value="${use_hardware}">
+          <state_interface name="estimator_identification.arm.active"/>
+          <state_interface name="estimator_identification.arm.epoch"/>
+          <state_interface name="estimator_identification.arm.accepted_time"/>
+          <state_interface name="estimator_identification.gripper.active"/>
+          <state_interface name="estimator_identification.gripper.epoch"/>
+          <state_interface name="estimator_identification.gripper.accepted_time"/>
+          <state_interface name="estimator_identification.gripper.parameter.0"/>
+          <state_interface name="estimator_identification.gripper.parameter.1"/>
+          <state_interface name="estimator_identification.gripper.parameter.2"/>
+          </xacro:unless>
       </gpio>
 
     </ros2_control>

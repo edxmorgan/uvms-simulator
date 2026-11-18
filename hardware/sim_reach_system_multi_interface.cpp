@@ -125,6 +125,7 @@ namespace ros2_control_blue_reach_5
         const auto parameters = dense_vector(estimator_nominal_parameters_, 81);
         std::copy(parameters.begin(), parameters.end(), estimator_model_readback_.begin());
 
+        reset_identified_models();
         const std::size_t nj = get_hardware_info().joints.size();
         x_est_list_.resize(nj);
         P_est_list_.resize(nj);
@@ -212,6 +213,7 @@ namespace ros2_control_blue_reach_5
         if (disturbance_receiver_) disturbance_receiver_->reset();
         sim_step_ = 0.0;
         sim_generation_ += 1.0;
+        identification_sample_.reset();
         const std::size_t joint_count = hw_joint_struct_.size();
         for (auto &joint : hw_joint_struct_)
         {
@@ -323,6 +325,8 @@ namespace ros2_control_blue_reach_5
             const auto &dynamics = request.manipulator_dynamics;
             use_coupled_dynamics_ = request.use_coupled_dynamics;
             manipulator_parameters_ = pack_manipulator_dynamics(dynamics);
+            identification_sample_.reset();
+            reset_identified_models();
             joint_lock_on_deadband_ = dynamics.joint_lock_on_deadband;
             joint_lock_off_deadband_ = dynamics.joint_lock_off_deadband;
             baumgarte_alpha_ = dynamics.baumgarte_alpha;
@@ -405,6 +409,7 @@ namespace ros2_control_blue_reach_5
         dynamics_service_.reset();
         dynamics_readback_service_.reset();
         disturbance_receiver_.reset();
+        for(auto &subscription:identification_subscriptions_)subscription.reset();
         executor_.reset();
         node_frames_interface_.reset();
     }
@@ -463,6 +468,8 @@ namespace ros2_control_blue_reach_5
         const auto dynamics = default_manipulator_dynamics();
         gravity_ = gravity_magnitude(dynamics.gravity_vector);
         manipulator_parameters_ = pack_manipulator_dynamics(dynamics);
+        identification_sample_.reset();
+        reset_identified_models();
         joint_lock_on_deadband_ = dynamics.joint_lock_on_deadband;
         joint_lock_off_deadband_ = dynamics.joint_lock_off_deadband;
         baumgarte_alpha_ = dynamics.baumgarte_alpha;
@@ -542,11 +549,11 @@ namespace ros2_control_blue_reach_5
         for (const hardware_interface::ComponentInfo &gpio : get_hardware_info().gpios)
         {
             // Existing metadata plus augmented EKF outputs and nominal-model readback.
-            if (gpio.state_interfaces.size() != 128)
+            if (gpio.state_interfaces.size() != 179)
             {
                 RCLCPP_FATAL(
                     rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
-                    "GPIO '%s'has %zu state interfaces. 128 expected.", gpio.name.c_str(),
+                    "GPIO '%s'has %zu state interfaces. 179 expected.", gpio.name.c_str(),
                     gpio.state_interfaces.size());
                 return hardware_interface::CallbackReturn::ERROR;
             }
@@ -593,6 +600,12 @@ namespace ros2_control_blue_reach_5
             return hardware_interface::CallbackReturn::ERROR;
         }
         reset_joint_estimators();
+        for(int i=0;i<2;++i) {
+            const std::string subsystem=i==0?"arm":"gripper";
+            identification_subscriptions_[i]=node_frames_interface_->create_subscription<ArmIdentification>(
+                "/arm_identification/"+get_hardware_info().gpios[0].name+"/"+subsystem,10,
+                [this](ArmIdentification::ConstSharedPtr m){receive_identified_model(*m);});
+        }
 
         auto reset_state_callback =
             [this](
@@ -649,6 +662,17 @@ namespace ros2_control_blue_reach_5
         reset_service_ = node_frames_interface_->create_service<ros2_control_blue_reach_5::srv::ResetSimUvms>(
             "/" + robot_prefix + "reset_sim_manipulator",
             reset_state_callback);
+
+        pause_service_ = node_frames_interface_->create_service<std_srvs::srv::Trigger>(
+            "/" + robot_prefix + "pause_sim_manipulator",
+            [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+                   std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+                std::lock_guard<std::mutex> lock(simulation_state_mutex_);
+                commands_held_ = true;
+                dynamics_paused_ = true;
+                response->success = true;
+                response->message = "Simulation paused; plant state preserved";
+            });
 
         release_service_ = node_frames_interface_->create_service<std_srvs::srv::Trigger>(
             "/" + robot_prefix + "release_sim_manipulator",
@@ -733,6 +757,8 @@ namespace ros2_control_blue_reach_5
                 std::lock_guard<std::mutex> lock(simulation_state_mutex_);
                 use_coupled_dynamics_ = request->use_coupled_dynamics;
                 manipulator_parameters_ = pack_manipulator_dynamics(dynamics);
+            identification_sample_.reset();
+            reset_identified_models();
                 joint_lock_on_deadband_ = dynamics.joint_lock_on_deadband;
                 joint_lock_off_deadband_ = dynamics.joint_lock_off_deadband;
                 baumgarte_alpha_ = dynamics.baumgarte_alpha;
@@ -859,6 +885,21 @@ namespace ros2_control_blue_reach_5
             get_hardware_info().gpios[0].name, "estimator_step", &estimator_step_));
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             get_hardware_info().gpios[0].name, "estimator_valid", &estimator_valid_));
+        auto id_interface = [&](const std::string &name, double &value) {
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name, "identification."+name, &value));
+        };
+        id_interface("time", identification_sample_.time);
+        id_interface("supported", identification_sample_.supported);
+        for(int j=0;j<5;++j) {
+            id_interface("position."+std::to_string(j), identification_sample_.position[j]);
+            id_interface("velocity."+std::to_string(j), identification_sample_.velocity[j]);
+            id_interface("impulse."+std::to_string(j), identification_sample_.impulse[j]);
+            id_interface("generation."+std::to_string(j), identification_sample_.generation[j]);
+            id_interface("valid."+std::to_string(j), identification_sample_.valid[j]);
+        }
+        for(int j=0;j<15;++j)
+            id_interface("context."+std::to_string(j), identification_sample_.context[j]);
         const std::array<std::string, 4> axes{"e", "d", "c", "b"};
         for (std::size_t i = 0; i < axes.size(); ++i)
         {
@@ -887,6 +928,14 @@ namespace ros2_control_blue_reach_5
             state_interfaces.emplace_back(hardware_interface::StateInterface(
                 get_hardware_info().gpios[0].name, "estimator_nominal_parameter." + std::to_string(i),
                 &estimator_model_readback_[i]));
+        for(int subsystem=0;subsystem<2;++subsystem) {
+            const std::string group=subsystem==0?"arm":"gripper";
+            for(int j=0;j<3;++j) state_interfaces.emplace_back(hardware_interface::StateInterface(
+                get_hardware_info().gpios[0].name,"estimator_identification."+group+"."+
+                std::array<std::string,3>{"active","epoch","accepted_time"}[j],&identification_ack_[3*subsystem+j]));
+        }
+        for(int j=0;j<3;++j) state_interfaces.emplace_back(hardware_interface::StateInterface(
+            get_hardware_info().gpios[0].name,"estimator_identification.gripper.parameter."+std::to_string(j),&gripper_model_readback_[j]));
         // 0-3: payload
         state_interfaces.emplace_back(hardware_interface::StateInterface(
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].state_interfaces[0].name, &payload_mass));
@@ -946,7 +995,9 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         reset_joint_simulation_state();
         commands_held_ = false;
-        dynamics_paused_ = false;
+        const auto startup = get_hardware_info().hardware_parameters.find("startup_pause");
+        dynamics_paused_ = startup != get_hardware_info().hardware_parameters.end() &&
+            (startup->second == "true" || startup->second == "True" || startup->second == "1");
         RCLCPP_INFO(
             rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"), "Activating... please wait...");
         for (std::size_t i = 0; i < hw_joint_struct_.size(); ++i)
@@ -999,8 +1050,10 @@ namespace ros2_control_blue_reach_5
 
         std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T, tipOffset};
         T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
-        // Keep reset estimator state unchanged throughout an explicit pause.
-        if (dynamics_paused_ || sim_step_ == estimator_step_)
+        // Reset has no completed step; every later completed step is consumed
+        // exactly once, including during a dynamics or scene pause.
+        // Otherwise a pause between write/read can strand that step on resume.
+        if (sim_step_ == estimator_step_)
         {
             return hardware_interface::return_type::OK;
         }
@@ -1015,6 +1068,7 @@ namespace ros2_control_blue_reach_5
                          "Arm disturbance EKF lost completed-step synchronization; reset required");
             return hardware_interface::return_type::ERROR;
         }
+        apply_identified_models();
         casadi::DM measurement = casadi::DM::zeros(8, 1);
         for (int i = 0; i < 4; ++i)
         {
@@ -1073,6 +1127,25 @@ namespace ros2_control_blue_reach_5
             casadi::DM y_k = casadi::DM::zeros(2, 1);
             y_k(0) = hw_joint_struct_[i].current_state_.position;
             y_k(1) = hw_joint_struct_[i].current_state_.velocity;
+
+            if(identification_ack_[3]==1.) {
+                Eigen::Vector2d measurement(double(y_k(0)),double(y_k(1)));
+                Eigen::Matrix2d R=Eigen::Matrix2d::Zero();
+                for(int j=0;j<2;++j)R(j,j)=double(R_list_[i](j,j));
+                const auto &limits=hw_joint_struct_[i].limits_;
+                const bool contact=measurement[0]<=limits.position_min+1e-9 || measurement[0]>=limits.position_max-1e-9;
+                gripper_observer_.update(completed_dt,gripper_applied_input_,measurement,R,contact);
+                const auto J=gripper_observer_.kinematic_jacobian();
+                const Eigen::Matrix3d P=J*gripper_observer_.covariance*J.transpose();
+                x_est_list_[i](0)=gripper_observer_.x[0];x_est_list_[i](1)=gripper_observer_.x[1];
+                x_est_list_[i](2)=gripper_observer_.acceleration(gripper_applied_input_);
+                for(int j=0;j<3;++j)for(int k=0;k<3;++k)P_est_list_[i](j,k)=P(j,k);
+                for(int j=0;j<3;++j)P_diag_list_[i][j]=P(j,j);
+                auto &state=hw_joint_struct_[i].current_state_;
+                state.filtered_position=gripper_observer_.x[0];state.filtered_velocity=gripper_observer_.x[1];
+                state.acceleration=state.estimated_acceleration=double(x_est_list_[i](2));
+                continue;
+            }
 
             // Bundle inputs for this joint
             std::vector<casadi::DM> ekf_inputs = {
@@ -1141,8 +1214,21 @@ namespace ros2_control_blue_reach_5
         if (disturbance_receiver_) disturbance_receiver_->paused(dynamics_paused_);
         if (dynamics_paused_)
         {
+            publishRealtimeTransforms();
             return hardware_interface::return_type::OK;
         }
+        // Do not overwrite completed-step evidence if release falls between
+        // read and write. The next read must drain the pending observation.
+        if (sim_step_ != estimator_step_)
+            return hardware_interface::return_type::OK;
+
+        if (!std::isfinite(delta_seconds) || delta_seconds <= 0.0)
+        {
+            RCLCPP_ERROR(rclcpp::get_logger("SimReachSystemMultiInterfaceHardware"),
+                         "Plant integration requires a finite positive period");
+            return hardware_interface::return_type::ERROR;
+        }
+
         arm_state.clear();
         arm_state.reserve(10);
 
@@ -1250,6 +1336,7 @@ namespace ros2_control_blue_reach_5
         estimator_completed_lock_mask_ = lock_mask;
         estimator_completed_lock_alpha_ = baumgarte_alpha_;
         estimator_completed_dt_ = delta_seconds;
+        gripper_applied_input_=double(arm_torques[4]);
 
         // clamp the NEW state, then write it back
         for (int j = 0; j < 5; ++j)
@@ -1278,8 +1365,38 @@ namespace ros2_control_blue_reach_5
             hw_joint_struct_[j].current_state_.position = q;
             hw_joint_struct_[j].current_state_.velocity = qd;
         }
+        // The standalone regressor models fixed-base rigid links and joint friction.
+        // Never treat injected loads, contacts or motor-lock reactions as actuator torque.
+        identification_sample_.supported = !use_coupled_dynamics_ && payload_mass == 0.0;
+        for(int j=48;j<52;++j)
+            if(double(manipulator_parameters_[j]) != 0.0) identification_sample_.supported=0;
+        for(int j=0;j<3;++j) identification_sample_.context[j]=double(manipulator_parameters_[56+j]);
+        for(int j=0;j<12;++j) identification_sample_.context[3+j]=double(manipulator_parameters_[63+j]);
+        std::array<double,5> id_q{}, id_v{}, id_tau{};
+        std::array<bool,5> id_usable{};
+        bool contact=false, external=false;
+        for(int j=0;j<4;++j) {
+            contact=contact || double(estimator_completed_contact_(j))!=0;
+            external=external || injection.joint_torques[j]!=0;
+        }
+        for(int j=0;j<5;++j) {
+            id_q[j]=hw_joint_struct_[j].current_state_.position;
+            id_v[j]=hw_joint_struct_[j].current_state_.velocity;
+            id_tau[j]=double(arm_torques[j]);
+            const auto &lim=hw_joint_struct_[j].limits_;
+            id_usable[j]=j<4 ? (!contact && !external && !is_locked_[j]) :
+                (id_q[j]>lim.position_min+1e-9 && id_q[j]<lim.position_max-1e-9);
+        }
+        identification_sample_.advance(delta_seconds,id_q,id_v,id_tau,id_usable);
         // Publish TFs
         sim_step_ += 1.0;
+        publishRealtimeTransforms();
+
+        return hardware_interface::return_type::OK;
+    }
+
+    void SimReachSystemMultiInterfaceHardware::publishRealtimeTransforms()
+    {
         rclcpp::Time current_time = node_frames_interface_->now();
         if (realtime_frame_transform_publisher_ && realtime_frame_transform_publisher_->trylock())
         {
@@ -1365,7 +1482,6 @@ namespace ros2_control_blue_reach_5
             realtime_frame_transform_publisher_->unlockAndPublish();
         }
 
-        return hardware_interface::return_type::OK;
     }
 
 } // namespace ros2_control_blue_reach_5

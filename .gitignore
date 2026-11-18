@@ -8,6 +8,8 @@
 *.lo
 *.o
 *.obj
+# Scene OBJ files are source meshes, not compiler object files.
+!description/scenes/**/assets/*.obj
 
 # Precompiled Headers
 *.gch

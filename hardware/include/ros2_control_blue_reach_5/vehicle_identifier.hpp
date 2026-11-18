@@ -25,21 +25,25 @@ struct Window {
   Eigen::MatrixXd design;
   Eigen::VectorXd wrench;
   std::vector<double> times;
+  // Earliest measurement used by each row; empty for legacy pointwise fixtures.
+  std::vector<double> support_starts;
 };
 class LiveWindow {
  public:
-  explicit LiveWindow(std::size_t horizon = 4200, double max_gap = .05);
+  explicit LiveWindow(std::size_t horizon = 4200, double max_gap = .05, double integration_seconds = 0.);
   bool push(const Measurement &);
   void reset();
   std::optional<Window> snapshot() const;
   std::size_t epoch() const { return epoch_; }
   std::size_t size() const { return rows_.size(); }
  private:
-  struct Row { double time; Regressor design; Vector6 wrench; };
+  struct Row { double start, time; Regressor design; Vector6 wrench; };
   std::size_t horizon_, epoch_ = 0;
-  double max_gap_;
-  std::optional<Measurement> previous_;
-  Regressor previous_bias_;
+  double max_gap_, integration_seconds_, next_row_time_=0.;
+  struct Observation { Measurement measurement; Regressor bias; };
+  std::deque<Observation> observations_;
+  std::optional<Measurement> previous_, older_;
+  Regressor previous_bias_, older_bias_;
   std::deque<Row> rows_;
 };
 struct Fit {
@@ -50,7 +54,8 @@ struct Fit {
 };
 class Identifier {
  public:
-  Identifier(double weight_min, double weight_max, double budget = .5);
+  Identifier(double weight_min, double weight_max, double budget = .5,
+             const Vector6 & residual_scales = Vector6::Ones());
   ~Identifier();
   // Exercise the same constrained solver without consuming measurements or publishing a fit.
   void preflight();
@@ -110,7 +115,11 @@ class ModelRetention {
   bool fixed_weight_, stale_ = false;
   std::optional<std::size_t> epoch_;
   std::optional<Saved> retained_, pending_;
+  // One validated informative window, bounded independently of run duration.
+  std::optional<Window> archive_;
+  double archive_information_ = 0.;
   double last_validation_end_ = 0;
+  std::string last_rejection_;
   int contradictions_ = 0;
   double error(const Window &, const Parameters &) const;
 };

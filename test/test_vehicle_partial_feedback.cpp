@@ -47,6 +47,17 @@ struct HardwareEstimatorTestAccess {
     ASSERT_TRUE(h.update_dvl_measurement_covariance());
     for(int i=0;i<3;++i)for(int j=0;j<3;++j)
       EXPECT_DOUBLE_EQ(double(h.R_(4+i,4+j)),covariance[3*i+j]);
+    const auto ros_covariance=h.dvl_ros_covariance(h.hw_vehicle_struct.dvl_state.covariance);
+    constexpr double signs[3]={1.,-1.,-1.};
+    for(int i=0;i<6;++i)for(int j=0;j<6;++j)
+      EXPECT_DOUBLE_EQ(ros_covariance[6*i+j],i<3 && j<3 ? signs[i]*signs[j]*covariance[3*i+j] : 0.);
+    h.sensor_mounts_.dvl_to_body = Eigen::AngleAxisd(.7,Eigen::Vector3d::UnitZ()).toRotationMatrix();
+    Eigen::Matrix3d sensor_covariance;
+    for(int i=0;i<3;++i)for(int j=0;j<3;++j) sensor_covariance(i,j)=covariance[3*i+j];
+    const Eigen::Matrix3d body_covariance=h.sensor_mounts_.dvl_to_body*sensor_covariance*h.sensor_mounts_.dvl_to_body.transpose();
+    ASSERT_TRUE(h.update_dvl_measurement_covariance());
+    for(int i=0;i<3;++i)for(int j=0;j<3;++j)
+      EXPECT_NEAR(double(h.R_(4+i,4+j)),body_covariance(i,j),1e-15);
     const auto good=h.R_;
     for (auto bad:std::vector<std::array<double,9>>{
         {},{-1.,0.,0.,0.,1.,0.,0.,0.,1.},
@@ -186,6 +197,63 @@ TEST(VehiclePartialFeedback, NoDvlAcquisitionAndLoss) {
 
 namespace ros2_control_blue_reach_5 {
 struct SimEstimatorTestAccess {
+  static void sensor_reset_and_rotated_dvl() {
+    using casadi::DM;
+    SimVehicleSystemMultiInterfaceHardware h;
+    h.node_topics_interface_=std::make_shared<rclcpp::Node>("sensor_mount_reset_test");
+    h.configure_estimator_noise();
+    h.sensor_mounts_.offsets = {0,0,0,-.06,0,.105,-.15,0,-.12};
+    h.sensor_offsets_=DM(std::vector<double>(h.sensor_mounts_.offsets.begin(),h.sensor_mounts_.offsets.end()));
+    h.sensor_mounts_.dvl_to_body = Eigen::AngleAxisd(.7,Eigen::Vector3d::UnitZ()).toRotationMatrix();
+    blue::dynamics::Vehicle::Pose_vel state{};
+    state.position_z=2.;state.setEuler(.2,.4,-.3);
+    state.u=.2;state.v=-.1;state.w=.05;state.p=.1;state.q=-.2;state.r=.3;
+    h.hw_vehicle_struct.default_state_=state;
+    h.reset_vehicle_simulation_state();
+    const Eigen::Vector3d body_velocity=Eigen::Vector3d(state.u,state.v,state.w)+
+        Eigen::Vector3d(state.p,state.q,state.r).cross(Eigen::Vector3d(-.06,0,.105));
+    const Eigen::Vector3d sensor_velocity=h.sensor_mounts_.dvl_to_body.transpose()*body_velocity;
+    EXPECT_NEAR(h.hw_vehicle_struct.depth_from_pressure2,
+        2.+.15*std::sin(.4)-.12*std::cos(.4)*std::cos(.2),1e-12);
+    EXPECT_NEAR(h.hw_vehicle_struct.dvl_state.vx,sensor_velocity[0],1e-12);
+    EXPECT_NEAR(h.hw_vehicle_struct.dvl_state.vy,sensor_velocity[1],1e-12);
+    EXPECT_NEAR(h.hw_vehicle_struct.dvl_state.vz,sensor_velocity[2],1e-12);
+    EXPECT_TRUE(std::isnan(h.hw_vehicle_struct.imu_state.linear_acceleration_x));
+    EXPECT_TRUE(std::isnan(h.hw_vehicle_struct.imu_state.linear_acceleration_y));
+    EXPECT_TRUE(std::isnan(h.hw_vehicle_struct.imu_state.linear_acceleration_z));
+    EXPECT_TRUE(std::all_of(h.raw_imu_new_.begin(),h.raw_imu_new_.end(),[](double v){return v==0.;}));
+
+    // Exercise the estimator's actual read boundary with rotated sensor axes.
+    const std::string library=std::string(TEST_CASADI_DIR)+"/libdisturbanceEKF_next.so";
+    h.estimator_covariance_predict_=casadi::external("disturbance_ekf_predict_covariance",library);
+    h.sensor_correct_=casadi::external("disturbance_ekf_sensor_correct",library);
+    h.physical_sensor_model_=casadi::external("vehicle_sensor_model",library);
+    h.sim_step_=1.;h.estimator_completed_dt_=.005;h.sensor_new_.fill(1.);
+    DM y=DM::zeros(13,1);y(0)=h.hw_vehicle_struct.depth_from_pressure2;
+    y(1)=state.roll;y(2)=state.pitch;y(3)=state.yaw;
+    for(int i=0;i<3;++i)y(4+i)=body_velocity[i];
+    DM mask=DM::zeros(13,1);for(int i=0;i<7;++i)mask(i)=1.;
+    const auto prior=casadi_reach_alpha_5::predict_disturbance_covariance(
+        h.estimator_covariance_predict_,h.x_est_,h.P_est_,h.estimator_applied_input_,
+        h.estimator_nominal_parameters_,.005,h.Q_);
+    const auto expected=h.sensor_correct_(std::vector<DM>{prior[0],prior[1],h.estimator_applied_input_,
+        h.estimator_nominal_parameters_,y,h.sensor_R_,mask,1.,h.sensor_offsets_,h.sensor_gravity_});
+    ASSERT_EQ(h.read(rclcpp::Time(1),rclcpp::Duration::from_seconds(.005)),hardware_interface::return_type::OK);
+    EXPECT_NEAR(double(DM::norm_inf(h.x_est_-expected[0])),0.,1e-12);
+    EXPECT_NEAR(double(DM::norm_inf(h.P_est_-expected[1])),0.,1e-12);
+  }
+
+  static void displaced_sensor_sampling() {
+    SimVehicleSystemMultiInterfaceHardware h;
+    h.sensor_mounts_.offsets = {0,0,0,-.06,0,.105,-.15,0,-.12};
+    h.sensor_rates_ = {0.,0.,0.};
+    h.sensor_noise_requested_.store(false);
+    std::vector<double> state(12,0.);state[2]=2.;state[4]=.4;state[11]=.3;
+    const auto y=h.sample_vehicle_measurements(state,.005);
+    EXPECT_NEAR(y[0],2.+.15*std::sin(.4)-.12*std::cos(.4),1e-12);
+    EXPECT_NEAR(y[4],0.,1e-12); EXPECT_NEAR(y[5],-.018,1e-12);
+  }
+
   static void independent_measurement_noise() {
     using casadi::DM;
     SimVehicleSystemMultiInterfaceHardware baseline, assumed;
@@ -285,7 +353,7 @@ struct SimEstimatorTestAccess {
     for(int i=4;i<7;++i)EXPECT_EQ(count[i],count[4]);
     // Exercise production read(): absent measurements must give prediction only,
     // including covariance, and a repeated read must do nothing.
-    h.sim_step_=1.;h.hw_vehicle_struct.sim_period=.005;
+    h.sim_step_=1.;h.hw_vehicle_struct.sim_period=.005;h.estimator_completed_dt_=.005;
     h.sensor_new_.fill(0.);
     h.x_est_(2)=2.;h.x_est_(6)=.2;
     const auto prior=h.estimator_predict_(std::vector<DM>{h.x_est_,h.estimator_applied_input_,h.estimator_nominal_parameters_,.005});
@@ -309,6 +377,44 @@ struct SimEstimatorTestAccess {
     h.read(rclcpp::Time(3),rclcpp::Duration::from_seconds(.005));
     EXPECT_NEAR(double(DM::norm_inf(h.x_est_-expected[0])),0.,1e-9);
     EXPECT_NEAR(double(DM::norm_inf(h.P_est_-expected[1])),0.,1e-9);
+    // Preserve completed plant dt, not the telemetry period of a paused write.
+    for (bool read_while_paused : {true, false}) {
+      h.sim_step_ += 1.;
+      const double completed_step=h.sim_step_;
+      h.estimator_completed_dt_=.005;
+      h.sensor_new_.fill(0.);h.raw_imu_new_.fill(0.);
+      const auto expected_pause_prior=casadi_reach_alpha_5::predict_disturbance_covariance(
+          h.estimator_covariance_predict_,h.x_est_,h.P_est_,h.estimator_applied_input_,
+          h.estimator_nominal_parameters_,.005,h.Q_);
+      h.commands_held_=h.dynamics_paused_=true;
+      ASSERT_EQ(h.write(rclcpp::Time(4),rclcpp::Duration::from_seconds(.2)),hardware_interface::return_type::OK);
+      EXPECT_DOUBLE_EQ(h.hw_vehicle_struct.sim_period,.2);
+      EXPECT_DOUBLE_EQ(h.estimator_completed_dt_,.005);
+      EXPECT_DOUBLE_EQ(h.sim_step_,completed_step);
+      if(read_while_paused) {
+        ASSERT_EQ(h.read(rclcpp::Time(5),rclcpp::Duration::from_seconds(.1)),hardware_interface::return_type::OK);
+        EXPECT_DOUBLE_EQ(h.estimator_step_,completed_step);
+      }
+      h.commands_held_=h.dynamics_paused_=false;
+      if(!read_while_paused) {
+        ASSERT_EQ(h.write(rclcpp::Time(6),rclcpp::Duration::from_seconds(.3)),hardware_interface::return_type::OK);
+        EXPECT_DOUBLE_EQ(h.sim_step_,completed_step);
+      }
+      ASSERT_EQ(h.read(rclcpp::Time(7),rclcpp::Duration::from_seconds(.1)),hardware_interface::return_type::OK);
+      EXPECT_DOUBLE_EQ(h.estimator_step_,completed_step);
+      EXPECT_NEAR(double(DM::norm_inf(h.x_est_-expected_pause_prior[0])),0.,1e-12);
+      EXPECT_NEAR(double(DM::norm_inf(h.P_est_-expected_pause_prior[1])),0.,1e-12);
+    }
+    for (double invalid_dt : {0., -.005}) {
+      const auto step = h.sim_step_;
+      const DM state = h.x_est_;
+      const auto energy = h.control_energy_;
+      EXPECT_EQ(h.write(rclcpp::Time(8), rclcpp::Duration::from_seconds(invalid_dt)),
+                hardware_interface::return_type::ERROR);
+      EXPECT_EQ(h.sim_step_, step);
+      EXPECT_EQ(double(DM::norm_inf(h.x_est_-state)), 0.);
+      EXPECT_EQ(h.control_energy_, energy);
+    }
     const auto before=h.sensor_sample_time_;
     h.sample_vehicle_measurements(truth,.7);
     EXPECT_GT(h.sensor_sample_time_[2],before[2]); // one sample, no fabricated catch-up
@@ -570,5 +676,37 @@ TEST(VehiclePartialFeedback, AdaptationRejectsFullCovarianceOverride) {
 TEST(VehiclePartialFeedback, IndependentMeasurementNoiseAssumptions) {
   rclcpp::init(0,nullptr);
   ros2_control_blue_reach_5::SimEstimatorTestAccess::independent_measurement_noise();
+  rclcpp::shutdown();
+}
+
+TEST(VehicleSensorMounts, UrdfChainAndFrameConversion) {
+  using ros2_control_blue_reach_5::VehicleSensorMounts;
+  const std::string xml = R"(<robot name="sensor_test">
+    <link name="r_base_link"/><link name="r_imu_link"/><link name="mount"/>
+    <link name="r_dvl_link"/><link name="r_pressure_link"/>
+    <joint name="imu" type="fixed"><parent link="r_base_link"/><child link="r_imu_link"/>
+      <origin xyz="0 0 0"/></joint>
+    <joint name="mount" type="fixed"><parent link="r_base_link"/><child link="mount"/>
+      <origin xyz="-0.06 0 -0.105" rpy="0 0 1.5707963267948966"/></joint>
+    <joint name="dvl" type="fixed"><parent link="mount"/><child link="r_dvl_link"/></joint>
+    <joint name="pressure" type="fixed"><parent link="r_base_link"/><child link="r_pressure_link"/>
+      <origin xyz="-0.15 0 0.12"/></joint>
+  </robot>)";
+  const auto mounts = VehicleSensorMounts::from_urdf(xml,"r_");
+  EXPECT_DOUBLE_EQ(mounts.offsets[3],-.06);
+  EXPECT_DOUBLE_EQ(mounts.offsets[5],.105);
+  EXPECT_DOUBLE_EQ(mounts.offsets[8],-.12);
+  const Eigen::Vector3d v = mounts.dvl_to_body * Eigen::Vector3d::UnitX();
+  EXPECT_NEAR(v[0],0.,1e-12); EXPECT_NEAR(v[1],-1.,1e-12);
+  EXPECT_THROW(VehicleSensorMounts::from_urdf(xml,"missing_"),std::invalid_argument);
+}
+
+TEST(VehicleSensorMounts, SimulationSamplesAtSensorOrigins) {
+  ros2_control_blue_reach_5::SimEstimatorTestAccess::displaced_sensor_sampling();
+}
+
+TEST(VehicleSensorMounts, ResetAndRotatedDvlUseSensorFrames) {
+  rclcpp::init(0,nullptr);
+  ros2_control_blue_reach_5::SimEstimatorTestAccess::sensor_reset_and_rotated_dvl();
   rclcpp::shutdown();
 }

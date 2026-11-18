@@ -48,8 +48,8 @@ SimLab package:
 - ``uvms-simlab/simlab/planner_action_server.py`` and
   ``planner_action_client.py``: planner action server/client.
 
-State Machine Rules
--------------------
+Runtime Modes
+-------------
 
 The main runtime modes are:
 
@@ -84,109 +84,19 @@ To add a controller:
 The control loop calls the currently selected controller with the latest
 vehicle/manipulator state and target commands.
 
-Semantics of built-in controllers:
+Built-in controller behavior is described in :doc:`controls_and_menus`.
 
-- ``PID`` combines feedback terms with hydrostatic restoring compensation on
-  the vehicle path. The manipulator path is joint-space feedback with
-  configured command limits.
-- ``InvDyn`` implements inverse-dynamics control in the computed-torque sense:
-  desired state and desired acceleration are mapped through an estimated model
-  to actuation, with feedback terms correcting model and state-estimation
-  errors.
-
-Example:
-
-.. code-block:: python
-
-   import numpy as np
-
-   from simlab.controllers.base import ControllerTemplate
-
-
-   class MyController(ControllerTemplate):
-       registry_name = "MyController"
-
-       def __init__(self, node, arm_dof=4, robot_prefix=""):
-           super().__init__(node, arm_dof=arm_dof, robot_prefix=robot_prefix)
-           self.vehicle_kp = np.array([8.0, 8.0, 10.0, 1.0, 1.0, 2.0])
-           self.arm_kp = np.array([2.0, 2.0, 1.0, 1.0, 0.0])
-
-       def vehicle_controller(
-           self,
-           state,
-           target_pos,
-           target_vel,
-           target_acc,
-           dt,
-       ):
-           state = self.vector(state, 12, "state")
-           target_pos = self.vector(target_pos, 6, "target_pos")
-           target_vel = self.vector(target_vel, 6, "target_vel")
-           error = target_pos - state[:6]
-           damping = target_vel - state[6:12]
-           return self.vehicle_kp * error + 0.1 * damping
-
-       def arm_controller(
-           self,
-           q,
-           q_dot,
-           q_ref,
-           dq_ref,
-           ddq_ref,
-           dt,
-       ):
-           q = self.arm_vector(q, "q")
-           q_dot = self.arm_vector(q_dot, "q_dot")
-           q_ref = self.arm_vector(q_ref, "q_ref")
-           dq_ref = self.arm_vector(dq_ref, "dq_ref")
-           return self.arm_kp * (q_ref - q) + 0.05 * (dq_ref - q_dot)
-
-Then register it:
-
-.. code-block:: python
-
-   from simlab.controllers.my_controller import MyController
-
-   DEFAULT_CONTROLLER_CLASSES = [
-       LowLevelPidController,
-       LowLevelInvDynController,
-       CmdReplayController,
-       MyController,
-   ]
-
-After rebuilding, ``MyController`` appears in the RViz controller menu.
+Use an existing controller as the signature reference. Vehicle output is a
+six-element body-FRD wrench; arm output follows e, d, c, b, a (gripper).
+Use estimated feedback and keep model/gain state local to each instance.
+Append your class to the existing registry, then rebuild SimLab and restart.
 
 Adding a Planner
 ----------------
 
-Motion planning code lives under ``uvms-simlab/simlab/motion_planning``.
-The current stack exposes separable planner, trajectory-generator, and dynamic
-replanner components, but that separation is not a hard algorithmic rule. An
-integrated motion-planning method such as GPMP or CHOMP can own path generation,
-trajectory timing, and dynamic replanning behind one implementation when that is
-the cleaner model.
-
-All motion-planning algorithms should return a ``MotionPlanResult`` from
-``simlab.motion_planning.result``. The result declares which execution shape the
-algorithm produced:
-
-- ``MotionPlanKind.PATH``: geometric waypoints. The selected trajectory
-  generator, currently ``ruckig``, time-parameterizes the path before the
-  controller tracks it.
-- ``MotionPlanKind.TIMED_TRAJECTORY``: already time-parameterized trajectory
-  samples. This is the natural target for CHOMP/GPMP-style optimizers when they
-  produce timing or derivatives directly.
-- ``MotionPlanKind.CONTROL_SEQUENCE``: direct controls or short-horizon
-  references. This is the natural target for MPC or integrated
-  planner-controller methods.
-
-The current ``PlanVehicle`` ROS action transports ``MotionPlanKind.PATH``
-results for the existing OMPL/Ruckig pipeline. Timed trajectories and direct
-control-sequence execution need a richer execution transport before they can
-bypass the trajectory generator at runtime without losing timing, derivative,
-or control information. The plugin result contract already separates those
-algorithmic outputs from the split pipeline so CHOMP, GPMP, or MPC-style
-plugins have a clear target as that execution transport is added.
+Motion planning lives under ``simlab/motion_planning``. Return a typed
+``MotionPlanResult``. The current ``PlanVehicle`` action accepts ``PATH`` only;
+the selected trajectory generator adds timing.
 
 Planner choices are class-based. They live under
 ``uvms-simlab/simlab/motion_planning/planners``. The RViz menu and planner
@@ -202,56 +112,10 @@ To add a planner:
 - Return a ``MotionPlanResult``. Planner plugins should not return raw result
   dictionaries.
 
-Example:
-
-.. code-block:: python
-
-   import numpy as np
-
-   from simlab.motion_planning.planners.base import PlannerTemplate
-   from simlab.motion_planning.result import MotionPlanKind, MotionPlanResult
-
-
-   class MyPlanner(PlannerTemplate):
-       registry_name = "MyPlanner"
-       visible = True
-
-       def plan_vehicle(
-           self,
-           *,
-           start_xyz,
-           start_quat_wxyz,
-           goal_xyz,
-           goal_quat_wxyz,
-           time_limit,
-           robot_collision_radius,
-       ):
-           xyz = np.asarray([start_xyz, goal_xyz], dtype=float)
-           quat = np.asarray([start_quat_wxyz, goal_quat_wxyz], dtype=float)
-           length = float(np.linalg.norm(xyz[-1] - xyz[0]))
-           return MotionPlanResult(
-               is_success=True,
-               kind=MotionPlanKind.PATH,
-               xyz=xyz,
-               quat_wxyz=quat,
-               path_length_cost=length,
-               geom_length=length,
-               message="MyPlanner returned a straight-line path.",
-           )
-
-Then register it:
-
-.. code-block:: python
-
-   from simlab.motion_planning.planners.my_planner import MyPlanner
-
-   DEFAULT_PLANNER_CLASSES = [
-       RrtStarPlanner,
-       BitStarPlanner,
-       RrtConnectPlanner,
-       MyPlanner,
-   ]
-
+Implement ``plan_vehicle`` with the signature in ``PlannerTemplate``, including
+``dynamic_obstacle_prediction_speed``. Validate collision clearance before
+returning success; use the existing OMPL adapters as examples. Append the class
+to the registry rather than replacing built-in entries.
 
 Adding a Trajectory Generator
 -----------------------------
@@ -267,8 +131,9 @@ To add a trajectory generator:
 - Create a file, for example
   ``simlab/motion_planning/trajectory_generators/my_generator.py``.
 - Inherit from ``VehicleTrajectoryGeneratorTemplate``.
-- Implement ``start_from_path(...)``, ``update(yaw_blend_factor)``, and
-  ``close()``.
+- Implement ``current_reference()``, ``start_from_path(...)``,
+  ``update(yaw_blend_factor)`` and ``close()``. Provide read-only timed
+  ``preview_samples(...)`` for clearance monitoring.
 - Add the class to ``DEFAULT_VEHICLE_TRAJECTORY_GENERATOR_CLASSES`` in
   ``simlab/motion_planning/trajectory_generators/__init__.py``.
 - Select it with the ``vehicle_trajectory_generator`` ROS parameter.
@@ -282,121 +147,87 @@ Example selection:
 
 The default generator is ``ruckig``.
 
-Planner and trajectory runtime notes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Dynamic replanning is implemented as part of the motion-planning pipeline, not
-as a separate algorithm family. The active dynamic replanner samples the
-remaining trajectory against the shared dynamic-obstacle world. When clearance
-falls below the configured margin, it asks the selected planner for a
-replacement path and lets the selected trajectory generator build the new
-executable trajectory. The current trajectory remains active while this request
-is pending.
-
-Vehicle path planning uses a spherical vehicle approximation and plans the
-translation path. Planner requests project vehicle start and goal quaternions to
-yaw-only before calling OMPL so transient roll or pitch during trajectory
-tracking does not make an otherwise valid live start state invalid. This
-projection affects only the planner request; it does not change the controller
-state.
-
 Adding a Dynamics Backend or Robot Interface
 --------------------------------------------
 
-Use this path when the robot itself changes: vehicle geometry, manipulator,
-thruster layout, actuator protocol, sensor suite, estimator, or dynamics
-model. A backend/interface change defines what state the rest of the stack can
-read and how commands reach the real or simulated actuators.
+1. Implement the real/sim driver under ``uvms-simulator/hardware``.
+2. Define joints, sensors, thrusters and frames under ``description``.
+3. Wire hardware selection in ``bringup/launch`` and controllers in
+   ``bringup/config``.
+4. Expose the shared state/command interfaces, then add SimLab readers only
+   where the contract requires them.
 
-ROS 2 control interface basics:
+Specify frames, units, joint order and signs. Keep sensor conversion, actuator
+limits and allocation in the driver. High-level consumers use estimated state;
+physical simulation state is reserved for plant integration and evaluation.
 
-- A hardware interface is the boundary between ROS controllers and the robot or
-  simulator.
-- State interfaces are values the robot exposes to ROS: vehicle pose, body
-  velocity, body acceleration, joint position, joint velocity, joint
-  acceleration, measured effort, and similar feedback.
-- Command interfaces are values ROS controllers write: vehicle wrench,
-  thruster commands, joint effort commands, grasper commands, or other actuator
-  inputs.
-- Simulated and real implementations should use the same interface names when
-  they represent the same physical quantity. That is what allows the same
-  controller and logger to run in simulation, hardware, or mixed setups.
+Validate interface availability, frame conversions, fresh feedback, zero command
+and single-axis allocation before closed-loop operation. Simulation and hardware
+should use the same names when they represent the same quantity.
 
-State and command contract:
+Kinematics and model integration
+--------------------------------
 
-- Decide the vehicle state convention: position/orientation frame, body
-  velocity frame, acceleration frame, units, and sign convention.
-- Decide the manipulator convention: joint names, joint ordering, units,
-  encoder signs, zero offsets, and grasper treatment.
-- Decide the command convention: vehicle wrench ordering, thruster command
-  ordering, manipulator effort ordering, actuator limits, and saturation
-  behavior.
-- Expose enough state for the rest of the stack to avoid guessing. If
-  acceleration or measured effort is available, publish it as a state interface
-  rather than making controllers or loggers reconstruct it.
+``motion_planning/kinematics/forward`` loads FK exports; ``inverse`` registers
+whole-body and manipulator solvers. Implement ``WholeBodyIKTemplate`` or
+``ManipulatorIKTemplate`` and add the class to ``DEFAULT_IK_CLASSES``.
+Use typed requests and return ``IKResult``; failures must not replace targets.
 
-Vehicle command allocation:
+``Robot`` construction selects ``whole_body_ik_name`` and ``manipulator_ik_name``.
+Defaults are ``whole_body_endpoint`` and ``manipulator_position``; these are not
+launch arguments. Whole-body results are checked against FK and joint bounds.
+Arm-only IK solves position with fixed vehicle pose; orientation is unconstrained
+and finite output does not guarantee endpoint accuracy.
+An IK endpoint is not a collision-checked path.
 
-- The high-level vehicle controller produces a 6-DOF command such as
-  ``[Fx, Fy, Fz, Tx, Ty, Tz]``.
-- The vehicle interface must map that command to the actual thrusters for the
-  specific vehicle.
-- The allocation must account for thruster position, thruster direction,
-  command limits, deadband, PWM/force conversion, and actuator sign.
-- Validate allocation with single-axis tests: pure surge, pure heave, pure yaw,
-  and zero command.
+Generate models in the existing diff_uv and Floating-KinDyn-Graph notebooks.
+Consumers load exported ``.casadi``/``.so`` artifacts; do not add source-runtime
+imports or parallel export scripts. Use CasADi 3.7.2 for public serialized models
+and validate loads/signatures before replacing them. Endpoint IK and its geometric
+Jacobian come from ``usage/robot_inverse_kinematics_analysis.ipynb``. Arm EKF
+exports come from ``usage/joint_ekf.ipynb``; vehicle exports use diff_uv
+``usage/code_generation.ipynb``. Install matching libraries and adapters together.
 
-Manipulator command allocation:
+Custom disturbance waveforms
+----------------------------
 
-- Keep joint names and ordering explicit. For the current Alpha manipulator
-  convention, the arm joints are ``axis_e``, ``axis_d``, ``axis_c``,
-  ``axis_b``, and grasper ``axis_a``.
-- Map controller effort commands to actuator commands using that explicit
-  ordering.
-- Handle actuator limits, encoder signs, gear ratios, and zero offsets inside
-  the robot interface.
-- If effort sensing is available, expose measured effort. Otherwise expose the
-  best available estimate and make that clear in the interface documentation.
+Add a class in ``simlab/disturbances/my_waveform.py``::
 
-Sensor fusion and state estimation:
+   import math
+   from simlab.disturbances.base import DisturbanceWaveform
 
-- Decide where sensor fusion lives. Typical inputs are IMU, depth/pressure,
-  DVL, odometry, and actuator feedback.
-- Publish one coherent estimated state to the rest of the stack instead of
-  making each controller fuse sensors independently.
-- Keep frame conversion in the interface or estimator layer. Controllers should
-  receive state in the convention they expect.
-- Use estimator/source timestamps when latency matters.
+   class Cosine(DisturbanceWaveform):
+       registry_name = "cosine"
 
-Dynamics model integration:
+       @staticmethod
+       def sample(c):
+           return math.cos(2 * math.pi * c.frequency * c.elapsed
+                           + math.radians(c.phase_deg))
 
-- A simulator backend implements state-update logic: current state plus command
-  produces the next state.
-- A hardware backend needs driver logic: read sensors, decode state, convert
-  commands, and write actuator commands.
-- If a dynamics model is used, document the input ordering, output ordering,
-  frames, units, and signs.
-- Connect vehicle model forces to thruster allocation and manipulator model
-  efforts to joint/actuator mapping.
+Import it in ``simlab/disturbances/local.py`` and add it to ``LOCAL_WAVEFORMS``.
+Rebuild and restart, then use ``--waveform cosine``. Installed packages can
+instead register an entry point in the ``simlab.disturbances`` group.
 
-Where to change code:
+Return a finite dimensionless value; the runtime applies amplitude, delay and
+run boundaries. Sampling must be deterministic, fast and nonblocking. Names must
+be unique. Optional hooks customize validation, plot style and metadata; see
+``DisturbanceWaveform``. Plugins run trusted Python in the node process.
 
-- Add or modify robot interfaces under ``uvms-simulator/hardware``.
-- Add or modify xacro/URDF joints, transmissions, thrusters, sensors, and
-  frames under ``uvms-simulator/description``.
-- Add controller-manager configuration under ``uvms-simulator/bringup/config``.
-- Add launch arguments and hardware selection wiring in
-  ``uvms-simulator/bringup/launch/robot_system_multi_interface.launch.py``.
-- Add SimLab-side readers, wrappers, or parameters under ``uvms-simlab/simlab``
-  only when the low-level state/command contract is clear.
+Obstacle sources
+----------------
 
-Backend validation sequence:
+Implement the lifecycle in ``simlab/dynamic_obstacle_sources/behavior.py``:
+``initialize``, ``step``, ``on_edit``, ``reset`` and ``close``. Select the source
+with ``dynamic_obstacle_source``, ``obstacle_source_config`` and ``obstacle_seed``.
+Sources receive scene/observation snapshots and control motion. Frontends own
+geometry edits through ``EditDynamicObstacles``. Reset must restore seeded state.
 
-- Bring up ros2_control and verify the expected state and command interfaces
-  exist.
-- Run open-loop single-axis actuator tests with conservative limits.
-- Verify frame conventions using known vehicle poses and known joint
-  positions.
-- Verify state-estimation output with actuators disabled.
-- Test zero command, then low-amplitude command profiles, before enabling
-  planner execution.
+Run tests
+---------
+
+Build both packages, then test with the generated ROS interfaces available::
+
+   source install/setup.bash
+   python3 -m pytest src/uvms-simlab/test -q
+   colcon test --packages-select ros2_control_blue_reach_5
+   colcon test-result --verbose

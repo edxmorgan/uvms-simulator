@@ -39,8 +39,13 @@ Driver::Driver()
   });
 }
 
+Driver::~Driver() { stop(); }
+
 void Driver::start(const std::string & serial_port, int heartbeat_timeout, bool verbose)
 {
+  if (running_.load() || heartbeat_worker_.joinable()) {
+    throw std::logic_error("Driver must be stopped before restarting");
+  }
   if (heartbeat_timeout < 1) {
     throw std::invalid_argument("The heartbeat timeout must be greater than 1 second.");
   }
@@ -49,29 +54,35 @@ void Driver::start(const std::string & serial_port, int heartbeat_timeout, bool 
   // We don't expose the VTIME timeout to the user API to avoid usability concerns
   client_.connect(serial_port);
 
-  // Disable any previous heartbeat configurations
-  disableHeartbeat();
+  try {
+    // Disable any previous heartbeat configurations
+    disableHeartbeat();
 
-  // Configure the new heartbeat request
-  // The heartbeat has a minimum frequency of one message per second, so we set it to that
-  enableHeartbeat(1);
+    // Configure the new heartbeat request
+    // The heartbeat has a minimum frequency of one message per second, so we set it to that
+    enableHeartbeat(1);
+    if (client_.write_failed()) throw std::runtime_error("Failed to configure manipulator heartbeat");
 
-  {
-    const std::lock_guard<std::mutex> lock(last_heartbeat_lock_);
-    last_heartbeat_ = std::chrono::steady_clock::now();
+    {
+      const std::lock_guard<std::mutex> lock(last_heartbeat_lock_);
+      last_heartbeat_ = std::chrono::steady_clock::now();
+    }
+
+    running_.store(true);
+
+    // Start the thread that monitors heartbeats from the manipulator
+    heartbeat_worker_ = std::thread(&Driver::monitorHeartbeat, this, heartbeat_timeout, verbose);
+  } catch (...) {
+    stop();
+    throw;
   }
-
-  running_.store(true);
-
-  // Start the thread that monitors heartbeats from the manipulator
-  heartbeat_worker_ = std::thread(&Driver::monitorHeartbeat, this, heartbeat_timeout, verbose);
 }
 
 void Driver::stop()
 {
-  disableHeartbeat();
-  running_.store(false);
-  heartbeat_worker_.join();
+  const bool was_running = running_.exchange(false);
+  if (was_running && client_.active()) disableHeartbeat();
+  if (heartbeat_worker_.joinable()) heartbeat_worker_.join();
   client_.disconnect();
 }
 
@@ -213,7 +224,8 @@ void Driver::monitorHeartbeat(int heartbeat_timeout, bool verbose) const
     }
 
     // We don't need to check more often than our timeout requires us to
-    std::this_thread::sleep_for(std::chrono::seconds(heartbeat_timeout));
+    for (int tick = 0; tick < heartbeat_timeout * 100 && running_.load(); ++tick)
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
 

@@ -30,6 +30,17 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
     new_rviz_config = copy.deepcopy(rviz_config)
     visualization_manager = new_rviz_config.setdefault('Visualization Manager', {})
     visualization_manager.setdefault('Global Options', {})['Fixed Frame'] = world_frame
+    if task == 'interactive':
+        displays = visualization_manager.setdefault('Displays', [])
+        displays[:] = [d for d in displays if d.get('Name') not in ('Grid', 'Grid_bottom')]
+        displays.insert(0, {
+            'Class': 'rviz_default_plugins/MarkerArray', 'Name': 'Environment grid',
+            'Enabled': True, 'Value': True,
+            'Topic': {'Value': '/environment_grid', 'Depth': 1,
+                      'History Policy': 'Keep Last', 'Reliability Policy': 'Reliable',
+                      'Durability Policy': 'Transient Local'},
+        })
+
 
     rviz_view_configure(
         robot_prefixes,
@@ -102,10 +113,10 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
             "Min Color": "0; 0; 0",
             "Min Intensity": 0,
             "Position Transformer": "XYZ",
-            "Selectable": True,
-            "Size (Pixels)": 3,
+            "Selectable": False,
+            "Size (Pixels)": 1,
             "Size (m)": 0.01,
-            "Style": "Flat Squares",
+            "Style": "Points",
             # Match the reliable publisher for this multi-megabyte static cloud.
             "Topic": {
                 "Depth": 1,
@@ -123,7 +134,8 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
     rviz_point_cloud2(
         'dynamic_collision_voxels', '/dynamic_voxels_cloud', new_rviz_config,
         True, '255; 140; 30', custom_properties={
-            'Decay Time': 0.0, 'Style': 'Flat Squares', 'Size (m)': 0.01,
+            'Decay Time': 0.0, 'Style': 'Points', 'Size (Pixels)': 1,
+            'Selectable': False,
             'Topic': {'Depth': 1, 'Durability Policy': 'Transient Local',
                       'History Policy': 'Keep Last', 'Reliability Policy': 'Reliable',
                       'Value': '/dynamic_voxels_cloud'},
@@ -167,7 +179,7 @@ def rviz_robot_metrics_overlay_configure(robot_prefixes, rviz_config):
         display['Background Alpha'] = 0.44999998807907104
         display['Background Color'] = '0; 0; 0'
         display['Class'] = 'rviz_2d_overlay_plugins/TextOverlay'
-        display['Enabled'] = True
+        display.setdefault('Enabled', False)
         display['Foreground Alpha'] = 0.949999988079071
         display['Foreground Color'] = '255; 230; 51'
         display['Invert Shadow'] = False
@@ -181,7 +193,7 @@ def rviz_robot_metrics_overlay_configure(robot_prefixes, rviz_config):
             'Reliability Policy': 'Reliable',
             'Value': '/robot_metrics_overlay_text',
         }
-        display['Value'] = True
+        display['Value'] = display['Enabled']
         display['font'] = 'Sans Serif'
         display['height'] = overlay_height
         display['hor_alignment'] = 'right'
@@ -298,6 +310,22 @@ def rviz_point_cloud2(name, topic, rviz_config, enabled, color="255; 255; 255", 
         "Use rainbow": True,
         "Value": True
     }
+    # Templates may contain saved copies of these generated displays. Remove
+    # them by topic as well as name: an old Reliable subscription is incompatible
+    # with the streaming Best Effort publisher, even beside a correct copy.
+    def remove_previous(displays):
+        kept = []
+        for display in displays:
+            old_topic = display.get('Topic', {})
+            old_topic = old_topic.get('Value', '') if isinstance(old_topic, dict) else old_topic
+            if (display.get('Class') == 'rviz_default_plugins/PointCloud2'
+                    and str(old_topic).lstrip('/') == topic.lstrip('/')):
+                continue
+            if 'Displays' in display:
+                remove_previous(display['Displays'])
+            kept.append(display)
+        displays[:] = kept
+    remove_previous(rviz_config['Visualization Manager']['Displays'])
     # Override default properties with any custom properties provided
     if custom_properties:
         added_point_cloud2.update(custom_properties)
@@ -598,7 +626,7 @@ def add_wrench_entries(ix, rviz_config, enabled=True):
     displays[-1]['Topic']['Depth'] = 1
     displays.append({
         'Class': 'rviz_2d_overlay_plugins/TextOverlay',
-        'Name': 'Effort values and status', 'Enabled': enabled, 'Value': enabled,
+        'Name': 'Effort values and status', 'Enabled': False, 'Value': False,
         'Overtake Position Properties': False,
         'Overtake FG Color Properties': False, 'Overtake BG Color Properties': False,
         'Topic': {'Depth': 1, 'Durability Policy': 'Volatile',

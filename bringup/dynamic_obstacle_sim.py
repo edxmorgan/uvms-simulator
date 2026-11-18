@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 # Copyright (C) 2026 Edward Morgan
 
+import copy
 import json
 import math
 from pathlib import Path
+
+import numpy as np
+from scipy.spatial.transform import Rotation
 
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -22,13 +26,14 @@ from bringup.obstacle_description import (
 
 class DynamicObstacleTransport(Node):
     """Shared ROS transport and markers; motion is owned by the simlab source host."""
-    def __init__(self) -> None:
+    def __init__(self, *, robot_collision_radius: float) -> None:
         super().__init__("dynamic_obstacle_sim_node")
         self.declare_parameter("world_frame", "world")
         self.declare_parameter("publish_rate", 10.0)
         self.declare_parameter("profile_file", "")
         self.declare_parameter("robot_base_frames", [""])
-        self.declare_parameter("robot_collision_radius", 0.574)
+        self.declare_parameter("robot_collision_radius", robot_collision_radius)
+        self.declare_parameter("robot_feedback_timeout", 0.5)
         self.declare_parameter("robot_overlap_safety_margin", 0.0)
         self.declare_parameter("reject_robot_overlaps", True)
 
@@ -38,7 +43,16 @@ class DynamicObstacleTransport(Node):
             for frame in self.get_parameter("robot_base_frames").value
             if str(frame).strip()
         ]
+        owners = [self._robot_owner(frame) for frame in self.robot_base_frames]
+        if len(owners) != len(set(owners)):
+            raise ValueError('robot_base_frames must identify unique robot owners')
         self.robot_collision_radius = max(0.0, float(self.get_parameter("robot_collision_radius").value))
+        self.robot_feedback_timeout = float(self.get_parameter('robot_feedback_timeout').value)
+        if not math.isfinite(self.robot_feedback_timeout) or self.robot_feedback_timeout <= 0:
+            raise ValueError('robot_feedback_timeout must be finite and positive')
+        if not math.isfinite(self.robot_collision_radius) or self.robot_collision_radius <= 0:
+            raise ValueError('robot_collision_radius must be finite and positive')
+        self._robot_history = {}
         self.robot_overlap_safety_margin = max(0.0, float(self.get_parameter("robot_overlap_safety_margin").value))
         self.reject_robot_overlaps = bool(self.get_parameter("reject_robot_overlaps").value)
         self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=10.0))
@@ -78,7 +92,10 @@ class DynamicObstacleTransport(Node):
     def _load_profile_file(self, profile_file: str) -> None:
         path = Path(profile_file).expanduser()
         loaded = json.loads(path.read_text())
-        self.obstacles = obstacle_array_from_profile(loaded, self.world_frame)
+        candidate = obstacle_array_from_profile(loaded, self.world_frame)
+        if candidate.header.frame_id != self.world_frame:
+            raise ValueError(f"obstacle profile frame '{candidate.header.frame_id}' does not match '{self.world_frame}'")
+        self.obstacles = candidate
 
     def _validate_obstacles_do_not_overlap_robots(self, obstacles) -> None:
         if not self.reject_robot_overlaps:
@@ -110,27 +127,21 @@ class DynamicObstacleTransport(Node):
                     )
 
     def _current_robot_positions(self) -> dict[str, tuple[float, float, float]]:
-        positions: dict[str, tuple[float, float, float]] = {}
-        for base_frame in self.robot_base_frames:
-            try:
-                transform = self.tf_buffer.lookup_transform(
-                    self.world_frame,
-                    base_frame,
-                    Time(),
-                    timeout=Duration(nanoseconds=50_000_000),
-                )
-            except Exception as exc:
-                raise ValueError(
-                    f"robot-overlap validation unavailable: missing transform "
-                    f"{self.world_frame} <- {base_frame}: {exc}"
-                ) from exc
-            translation = transform.transform.translation
-            positions[base_frame] = (
-                float(translation.x),
-                float(translation.y),
-                float(translation.z),
+        snapshot = self._compose_snapshot()
+        if snapshot.unavailable_robot_owners:
+            raise ValueError(
+                'robot-overlap validation unavailable: missing, invalid or stale robot poses: '
+                + ', '.join(snapshot.unavailable_robot_owners)
             )
-        return positions
+        frames = {self._robot_owner(frame): frame for frame in self.robot_base_frames}
+        return {
+            frames[obstacle.owner_robot]: (
+                float(obstacle.pose.position.x),
+                float(obstacle.pose.position.y),
+                float(obstacle.pose.position.z),
+            )
+            for obstacle in snapshot.obstacles if obstacle.source == 'robot'
+        }
 
     @staticmethod
     def _obstacle_bounding_radius(obstacle: DynamicObstacle) -> float:
@@ -153,16 +164,80 @@ class DynamicObstacleTransport(Node):
     def _publish_callback(self):
         raise NotImplementedError('The selected behavior source owns motion')
 
-    def _publish_snapshot(self) -> None:
-        self.obstacles.header.stamp = self.get_clock().now().to_msg()
-        self.publisher.publish(self.obstacles)
-        self._publish_markers()
+    @staticmethod
+    def _robot_owner(base_frame):
+        return base_frame[:-len('base_link')] if base_frame.endswith('base_link') else base_frame
 
-    def _publish_markers(self) -> None:
+    def _compose_snapshot(self):
+        """Compose editable/source obstacles and generated robots without merging stores."""
+        now = self.get_clock().now()
+        snapshot = copy.deepcopy(self.obstacles)
+        snapshot.header.stamp = now.to_msg()
+        snapshot.header.frame_id = self.world_frame
+        snapshot.unavailable_robot_owners = []
+        for obstacle in snapshot.obstacles:
+            # Source-host motion is supplied explicitly; robot metadata cannot be
+            # injected through the editable obstacle store.
+            obstacle.owner_robot = ''
+            obstacle.source = 'scripted'
+            obstacle.stamp = now.to_msg()
+            obstacle.velocity_valid = True
+        for frame in self.robot_base_frames:
+            owner = self._robot_owner(frame)
+            try:
+                transform = self.tf_buffer.lookup_transform(self.world_frame, frame, Time())
+                stamp = transform.header.stamp
+                sample_ns = int(stamp.sec)*1_000_000_000 + int(stamp.nanosec)
+                age = (now.nanoseconds - sample_ns)*1e-9
+                if sample_ns and (age < -1e-3 or age > self.robot_feedback_timeout):
+                    raise ValueError('robot transform is stale or in the future')
+                p, q = transform.transform.translation, transform.transform.rotation
+                position = np.array([p.x, p.y, p.z])
+                quaternion = np.array([q.x, q.y, q.z, q.w])
+                if not np.isfinite(position).all() or not np.isfinite(quaternion).all() or np.linalg.norm(quaternion) < 1e-9:
+                    raise ValueError('robot transform is not finite or has invalid orientation')
+                quaternion /= np.linalg.norm(quaternion)
+                obstacle = DynamicObstacle(id='robot/'+owner, owner_robot=owner, source='robot',
+                    stamp=copy.deepcopy(stamp), collision_type=DynamicObstacle.GEOMETRY_SPHERE,
+                    collision_dimensions=[self.robot_collision_radius], visual_type=DynamicObstacle.GEOMETRY_NONE)
+                obstacle.pose.position.x, obstacle.pose.position.y, obstacle.pose.position.z = map(float, position)
+                obstacle.pose.orientation.x, obstacle.pose.orientation.y, obstacle.pose.orientation.z, obstacle.pose.orientation.w = map(float, quaternion)
+                previous = self._robot_history.get(owner)
+                if sample_ns == 0:
+                    # TF reports zero time for a wholly static chain.
+                    obstacle.velocity_valid = True
+                elif previous is not None:
+                    previous_ns, previous_position, previous_quaternion, previous_twist, previous_valid = previous
+                    dt = (sample_ns - previous_ns)*1e-9
+                    if sample_ns == previous_ns:
+                        obstacle.twist = copy.deepcopy(previous_twist)
+                        obstacle.velocity_valid = previous_valid
+                    elif 0 < dt <= self.robot_feedback_timeout:
+                        velocity = (position - previous_position)/dt
+                        angular = (Rotation.from_quat(quaternion)*Rotation.from_quat(previous_quaternion).inv()).as_rotvec()/dt
+                        if np.isfinite(velocity).all() and np.isfinite(angular).all():
+                            obstacle.twist.linear.x, obstacle.twist.linear.y, obstacle.twist.linear.z = map(float, velocity)
+                            obstacle.twist.angular.x, obstacle.twist.angular.y, obstacle.twist.angular.z = map(float, angular)
+                            obstacle.velocity_valid = True
+                self._robot_history[owner] = (sample_ns, position, quaternion, copy.deepcopy(obstacle.twist), obstacle.velocity_valid)
+                snapshot.obstacles.append(obstacle)
+            except Exception:
+                self._robot_history.pop(owner, None)
+                snapshot.unavailable_robot_owners.append(owner)
+        return snapshot
+
+    def _publish_snapshot(self) -> None:
+        snapshot = self._compose_snapshot()
+        self.publisher.publish(snapshot)
+        self._publish_markers(snapshot)
+
+    def _publish_markers(self, snapshot) -> None:
         marker_array = MarkerArray()
-        for index, obstacle in enumerate(self.obstacles.obstacles):
+        visible = [obstacle for obstacle in snapshot.obstacles
+                   if visual_geometry(obstacle)[0] != DynamicObstacle.GEOMETRY_NONE]
+        for index, obstacle in enumerate(visible):
             marker = Marker()
-            marker.header = self.obstacles.header
+            marker.header = snapshot.header
             marker.ns = "dynamic_obstacles"
             marker.id = index
             marker.action = Marker.ADD
@@ -183,10 +258,10 @@ class DynamicObstacleTransport(Node):
                     marker.color.r = marker.color.g = marker.color.b = marker.color.a = 0.
             marker_array.markers.append(marker)
 
-        current_count = len(self.obstacles.obstacles)
+        current_count = len(visible)
         for stale_index in range(current_count, self._last_marker_count):
             marker = Marker()
-            marker.header = self.obstacles.header
+            marker.header = snapshot.header
             marker.ns = "dynamic_obstacles"
             marker.id = stale_index
             marker.action = Marker.DELETE

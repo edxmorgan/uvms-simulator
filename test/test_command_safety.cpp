@@ -47,3 +47,23 @@ TEST(CommandSafety, RequiresFreshPacketsForEveryField)
   feedback.seen[0] = false;
   EXPECT_FALSE(feedback.fresh(t + std::chrono::seconds(1)));
 }
+
+TEST(CommandSafety, FilterConsumesPositionAndVelocityPacketsIndependently)
+{
+  JointFeedbackClock clock;
+  JointMeasurementCursor cursor;
+  const JointFeedbackClock::Clock::time_point t{};
+  EXPECT_EQ(cursor.take(clock), (std::array<double,2>{0.,0.}));
+  clock.update(0,t);
+  EXPECT_EQ(cursor.take(clock), (std::array<double,2>{1.,0.}));
+  for (int i=0;i<10;++i) EXPECT_EQ(cursor.take(clock), (std::array<double,2>{0.,0.}));
+  clock.update(1,t+std::chrono::milliseconds(5));
+  EXPECT_EQ(cursor.take(clock), (std::array<double,2>{0.,1.}));
+  clock.update(2,t+std::chrono::milliseconds(10));
+  EXPECT_EQ(cursor.take(clock), (std::array<double,2>{0.,0.}));
+  clock.seen[0]=false;
+  EXPECT_EQ(cursor.take(clock), (std::array<double,2>{0.,0.}));
+  clock.update(0,t+std::chrono::milliseconds(50));
+  clock.update(1,t+std::chrono::milliseconds(50));
+  EXPECT_EQ(cursor.take(clock), (std::array<double,2>{1.,1.}));
+}

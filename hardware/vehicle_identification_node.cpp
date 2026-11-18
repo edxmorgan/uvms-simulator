@@ -3,6 +3,7 @@
 #include <control_msgs/msg/dynamic_joint_state.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/trigger.hpp>
+#include <std_msgs/msg/string.hpp>
 #include <chrono>
 #include <algorithm>
 #include <cmath>
@@ -27,14 +28,14 @@ class VehicleIdentificationNode : public rclcpp::Node {
     if(bounds.size()!=2)throw std::invalid_argument("Configure independent weight_bounds [min,max]");
     lower_=bounds[0];upper_=bounds[1];
     budget_=declare_parameter("budget_seconds",.5,fixed);
-    gap_=declare_parameter("max_gap",.05,fixed);
+    gap_=declare_parameter("max_gap",.25,fixed);
     period_=declare_parameter("fit_period",1.,fixed);
-    int horizon=declare_parameter("horizon",4200,fixed);
+    int horizon=declare_parameter("horizon",300,fixed);
     if(horizon<5 || horizon>100000 || !std::isfinite(period_) || period_<=0)
       throw std::invalid_argument("Invalid horizon/fit period");
-    window_=std::make_unique<vi::LiveWindow>(horizon,gap_);
+    window_=std::make_unique<vi::LiveWindow>(horizon,gap_,
+      declare_parameter("integration_seconds",4.,fixed));
     // Instantiate/check configuration here; all solves run exclusively on the worker.
-    identifier_=std::make_unique<vi::Identifier>(lower_,upper_,budget_);
     vi::RetentionConfig retention_config;
     auto scales=declare_parameter<std::vector<double>>("retention_parameter_scales",
       std::vector<double>(retention_config.parameter_scales.data(),retention_config.parameter_scales.data()+27),fixed);
@@ -51,9 +52,12 @@ class VehicleIdentificationNode : public rclcpp::Node {
     retention_config.change_error=declare_parameter("retention_change_error",retention_config.change_error,fixed);
     retention_config.change_blocks=declare_parameter("retention_change_blocks",retention_config.change_blocks,fixed);
     retention_=std::make_unique<vi::ModelRetention>(retention_config,lower_==upper_);
+    identifier_=std::make_unique<vi::Identifier>(lower_,upper_,budget_,retention_config.residual_scales);
     auto_start_=declare_parameter("auto_start",false,fixed);
     publisher_=create_publisher<Diagnostic>("/vehicle_identification/"+joint_+"/candidate",10);
     const auto base="/vehicle_identification/"+joint_+"/";
+    summary_publisher_=create_publisher<std_msgs::msg::String>(base+"summary",
+      rclcpp::QoS(1).transient_local());
     status_=confirmed_?"checking_solver":"awaiting_configuration_confirmation";
     for(const std::string command:{"start","stop","reset","status","confirm_configuration"}) {
       services_.push_back(create_service<std_srvs::srv::Trigger>(base+command,
@@ -74,7 +78,7 @@ class VehicleIdentificationNode : public rclcpp::Node {
           }
           response->success=true;
           response->message=status();
-          auto m=message(status_);m.detail=detail_;publisher_->publish(m);
+          auto m=message(status_);m.detail=detail_;publish(m);
         }));
     }
     if(confirmed_)preflight_=std::async(std::launch::async,[this](){identifier_->preflight();});
@@ -90,6 +94,46 @@ class VehicleIdentificationNode : public rclcpp::Node {
   }
  private:
   using Clock=std::chrono::steady_clock;
+  void publish(const Diagnostic & diagnostic) {
+    publisher_->publish(diagnostic);
+    std_msgs::msg::String summary;
+    static const std::map<std::string,std::string> labels={
+      {"idle","Identification stopped"},
+      {"checking_solver","Checking solver"},
+      {"solver_unavailable","Solver unavailable"},
+      {"awaiting_configuration_confirmation","Confirm measurement configuration before starting"},
+      {"solve_rejected","Fit failed"},
+      {"discarded_stale_candidate","Discarded fit after measurements changed or stopped"},
+      {"not_identified","No validated model yet"},
+      {"retained_outside_identified_regime","Motion is outside the validated model regime"},
+      {"waiting_for_valid_window","Collecting measurements"},
+      {"not_identified_insufficient_excitation","More varied motion needed"},
+      {"awaiting_independent_validation","Checking model on new measurements"},
+      {"candidate_validation_failed","Model rejected; testing a new candidate"},
+      {"retained_updated","Model validated"},
+      {"holding_retained","Validated model retained"},
+      {"holding_retained_insufficient_excitation","Keeping validated model; motion is quiet"},
+      {"retained_stale_validation_failed","Retained model no longer predicts measurements"}};
+    const auto label=labels.find(diagnostic.status);
+    summary.data=label==labels.end()?diagnostic.status:label->second;
+    if(diagnostic.status=="awaiting_independent_validation" && diagnostic.retained_valid)
+      summary.data=diagnostic.applied?"Using validated model; checking replacement":
+        "Validated model; checking replacement";
+    summary.data += "; rows=" + std::to_string(diagnostic.window_samples) +
+      "/" + std::to_string(get_parameter("horizon").as_int()) +
+      "; model=" + (diagnostic.retained_valid?"valid":"not validated");
+    if(hardware_)
+      summary.data += "; hardware observation only";
+    else if(diagnostic.applied)
+      summary.data += "; EKF: identified model applied";
+    else if(diagnostic.retained_valid)
+      summary.data += "; EKF: new model pending acknowledgement";
+    else
+      summary.data += "; EKF: awaiting validated model";
+    if(!diagnostic.detail.empty())summary.data += "; " + diagnostic.detail;
+    summary_publisher_->publish(summary);
+  }
+
   std::string status() const {
     return status_+"; enabled="+(enabled_?"true":"false")+
       "; weight_bounds=["+std::to_string(lower_)+", "+std::to_string(upper_)+"] N; confirmed="+(confirmed_?"true":"false")+
@@ -141,46 +185,26 @@ class VehicleIdentificationNode : public rclcpp::Node {
       for(std::size_t j=0;j<values.values.size();++j)
         if(!v.emplace(values.interface_names[j],values.values[j]).second)throw std::invalid_argument("Duplicate interface");
       vi::Measurement m;
-      if(hardware_) {
-        if(v.at("identification.valid")!=1.) {
-          if(window_->size())window_->reset();
-          last_received_={};
-          return;
-        }
-        m.generation=v.at("identification.generation");m.step=v.at("identification.step");
-        m.time=v.at("identification.time");m.period=v.at("identification.period");
-        m.depth=v.at("identification.depth");
-        for(int j=0;j<3;++j)m.attitude[j]=v.at("identification.attitude."+std::to_string(j));
-        for(int j=0;j<6;++j) {
-          m.velocity[j]=v.at("identification.velocity."+std::to_string(j));
-          m.wrench[j]=v.at("identification.wrench."+std::to_string(j));
-        }
-      } else {
-      // This interval regressor requires adjacent, fresh physics-step endpoints.
-      // Multirate held values are not independent observations. Do not silently
-      // fit them; an asynchronous impulse/endpoints adapter is a separate task.
-      if (v.count("sensor_new.0")) {
-        bool fresh=true;
-        for (int channel=0; channel<7; ++channel)
-          fresh = fresh && v.at("sensor_new."+std::to_string(channel))==1.0;
-        if (!fresh) {
-          window_->reset();last_received_={};
-          detail_="Multirate sensor observations: identifier requires fresh adjacent-step endpoints; no fit performed";
-          return;
-        }
+      if(v.at("identification.valid")!=1.) {
+        if(window_->size())window_->reset();
+        last_received_={};
+        return;
       }
-      m.generation=v.at("sim_generation");m.step=v.at("sim_step");m.time=v.at("sim_time");
-      applied_retained_=v.at("estimator_model_retained");
-      applied_epoch_=v.at("estimator_model_epoch");
-      applied_time_=v.at("estimator_model_accepted_time");
-      m.period=v.at("sim_period");m.depth=v.at("depth_from_pressure2");
-      m.attitude<<v.at("imu_roll"),-v.at("imu_pitch"),-v.at("imu_yaw");
-      m.velocity<<v.at("dvl_speed_x"),v.at("dvl_speed_y"),v.at("dvl_speed_z"),
-        v.at("imu_angular_vel_x"),-v.at("imu_angular_vel_y"),-v.at("imu_angular_vel_z");
-      m.wrench<<v.at("force.x"),v.at("force.y"),v.at("force.z"),v.at("torque.x"),v.at("torque.y"),v.at("torque.z");
+      m.generation=v.at("identification.generation");m.step=v.at("identification.step");
+      m.time=v.at("identification.time");m.period=v.at("identification.period");
+      m.depth=v.at("identification.depth");
+      for(int j=0;j<3;++j)m.attitude[j]=v.at("identification.attitude."+std::to_string(j));
+      for(int j=0;j<6;++j) {
+        m.velocity[j]=v.at("identification.velocity."+std::to_string(j));
+        m.wrench[j]=v.at("identification.wrench."+std::to_string(j));
+      }
+      if(!hardware_) {
+        applied_retained_=v.at("estimator_model_retained");
+        applied_epoch_=v.at("estimator_model_epoch");
+        applied_time_=v.at("estimator_model_accepted_time");
       }
       if(window_->push(m)) {
-        source_generation_=static_cast<uint64_t>(m.generation);
+        source_generation_=static_cast<uint64_t>(hardware_ ? m.generation : v.at("sim_generation"));
         last_received_=Clock::now();
       }
     }catch(const std::exception & e){
@@ -197,7 +221,7 @@ class VehicleIdentificationNode : public rclcpp::Node {
         RCLCPP_INFO(get_logger(),"MOSEK ready; background observation %s; controller and hardware model application disabled",enabled_?"enabled":"disabled by configuration");
       else
         RCLCPP_WARN(get_logger(),"Background identification unavailable: %s. Operation can continue without identification.",detail_.c_str());
-      auto m=message(status_);m.detail=detail_;publisher_->publish(m);
+      auto m=message(status_);m.detail=detail_;publish(m);
     }
     if(future_.valid()){
       if(future_.wait_for(0s)!=std::future_status::ready)return;
@@ -220,14 +244,17 @@ class VehicleIdentificationNode : public rclcpp::Node {
         }
       }catch(const std::exception & e){m.detail=e.what();}
       if(enabled_ && window_->epoch()==inflight_epoch_) {
-        status_=m.status;detail_=m.detail;publisher_->publish(m);
+        if(status_!=m.status) {
+          RCLCPP_INFO(get_logger(), "Identification: %s; %s", m.status.c_str(), m.detail.c_str());
+        }
+        status_=m.status;detail_=m.detail;publish(m);
       }
     }
     if(age(last_attempt_)<period_)return;
     last_attempt_=Clock::now();
-    if(!enabled_) {auto m=message(status_);m.detail=detail_;publisher_->publish(m);return;}
+    if(!enabled_) {auto m=message(status_);m.detail=detail_;publish(m);return;}
     auto w=window_->snapshot();
-    if(!w || age(last_received_)>gap_){status_="waiting_for_valid_window";publisher_->publish(message(status_));return;}
+    if(!w || age(last_received_)>gap_){status_="waiting_for_valid_window";publish(message(status_));return;}
     inflight_epoch_=w->epoch;inflight_start_=w->start;inflight_end_=w->end;
     future_=std::async(std::launch::async,[this,w=std::move(*w)](){
       return retention_->update(w,[this](const auto & a,const auto & b){return identifier_->fit(a,b);});
@@ -251,6 +278,7 @@ class VehicleIdentificationNode : public rclcpp::Node {
   std::vector<rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr> services_;
   Clock::time_point last_received_{},last_attempt_{};
   rclcpp::Publisher<Diagnostic>::SharedPtr publisher_;
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr summary_publisher_;
   rclcpp::Subscription<control_msgs::msg::DynamicJointState>::SharedPtr subscription_;
   rclcpp::TimerBase::SharedPtr timer_;
 };

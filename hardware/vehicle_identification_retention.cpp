@@ -86,20 +86,31 @@ RetentionResult ModelRetention::update(const Window & w,const Solver & solve) {
   for(std::size_t i=0;i<w.times.size();++i)
     if(!std::isfinite(w.times[i]) || (i && w.times[i]<=w.times[i-1]))
       throw std::invalid_argument("Nonmonotonic retention window");
+  if(!w.support_starts.empty()) {
+    if(w.support_starts.size()!=w.times.size())
+      throw std::invalid_argument("Invalid interval support");
+    for(std::size_t i=0;i<w.times.size();++i)
+      if(!std::isfinite(w.support_starts[i]) || w.support_starts[i]>w.times[i] ||
+         (i && w.support_starts[i]<w.support_starts[i-1]))
+        throw std::invalid_argument("Invalid interval support");
+  }
   if(!epoch_ || *epoch_!=w.epoch) {
-    epoch_=w.epoch;retained_.reset();pending_.reset();stale_=false;
-    contradictions_=0;last_validation_end_=w.start;
+    epoch_=w.epoch;retained_.reset();pending_.reset();archive_.reset();archive_information_=0.;stale_=false;
+    contradictions_=0;last_validation_end_=w.start;last_rejection_.clear();
   }
   RetentionResult out;
   out.information=information(w.design);
   // Validate only on later data, separated from training and from the last
   // validation block. Adjacent rolling fits never count as independent votes.
   auto later=[&](double after)->std::optional<Window> {
-    auto first=std::upper_bound(w.times.begin(),w.times.end(),after+config_.validation_gap);
+    const auto & support=w.support_starts.empty() ? w.times : w.support_starts;
+    auto support_first=std::upper_bound(support.begin(),support.end(),after+config_.validation_gap);
+    auto first=w.times.begin()+std::distance(support.begin(),support_first);
     if(first==w.times.end() || w.end-*first<config_.validation_seconds)return {};
     const auto index=std::distance(w.times.begin(),first);
-    return Window{w.epoch,*first,w.end,w.design.bottomRows(w.design.rows()-6*index),
-                 w.wrench.tail(w.wrench.size()-6*index),{first,w.times.end()}};
+    return Window{w.epoch,*support_first,w.end,w.design.bottomRows(w.design.rows()-6*index),
+                 w.wrench.tail(w.wrench.size()-6*index),{first,w.times.end()},
+                 {support_first,support.end()}};
   };
   if(auto block=later(last_validation_end_)) {
     last_validation_end_=w.end;
@@ -107,7 +118,10 @@ RetentionResult ModelRetention::update(const Window & w,const Solver & solve) {
       out.retained_error=error(*block,retained_->fit.parameters);
       if(out.retained_error>config_.change_error)++contradictions_;
       else contradictions_=0;
-      if(contradictions_>=config_.change_blocks)stale_=true;
+      if(contradictions_>=config_.change_blocks) {
+        if(!stale_)pending_.reset();
+        stale_=true;archive_.reset();archive_information_=0.;
+      }
     }
   }
   if(pending_) {
@@ -116,7 +130,9 @@ RetentionResult ModelRetention::update(const Window & w,const Solver & solve) {
     if(auto block=later(pending_->training.end)) {
       const auto & fresh=*block;
       const auto fresh_info=information(fresh.design);
-      out.validation_error=error(fresh,pending_->fit.parameters);
+      const Vector6 prediction_rms=residual_rms(fresh.design,fresh.wrench,pending_->fit.parameters);
+      Eigen::Index worst_axis=0;
+      out.validation_error=prediction_rms.cwiseQuotient(config_.residual_scales).maxCoeff(&worst_axis);
       // Validation must also excite the target combinations. Quiet data must
       // not approve a candidate merely because both models predict rest.
       if(fresh_info.sufficient && fresh_info.net_weight_only==pending_->info.net_weight_only) {
@@ -135,6 +151,19 @@ RetentionResult ModelRetention::update(const Window & w,const Solver & solve) {
         if(out.validation_error<=config_.max_validation_error && replace) {
           retained_=std::move(pending_);retained_->accepted_time=w.end;
           stale_=false;contradictions_=0;out.accepted=true;
+          last_rejection_.clear();
+          if(!archive_ || retained_->info.minimum>archive_information_) {
+            archive_=retained_->training;
+            archive_information_=retained_->info.minimum;
+          }
+        } else if(out.validation_error>config_.max_validation_error) {
+          static const char *axes[]={"Fx","Fy","Fz","Tx","Ty","Tz"};
+          const std::string unit=worst_axis<3?" N":" Nm";
+          last_rejection_="Last candidate rejected on " + std::string(axes[worst_axis]) +
+            ": independent RMS " + std::to_string(prediction_rms[worst_axis]) + unit +
+            " exceeds limit " + std::to_string(config_.residual_scales[worst_axis]*config_.max_validation_error) +
+            unit + " (normalized " + std::to_string(out.validation_error) + ").";
+
         }
         pending_.reset();
       } else if(w.end-pending_->training.end>2*(w.end-w.start)) {
@@ -148,12 +177,32 @@ RetentionResult ModelRetention::update(const Window & w,const Solver & solve) {
   // No candidate is published as a successful fit when fitting was skipped.
   if(out.information.sufficient) {
     try {
-      auto fit=solve(w.design,w.wrench);
+      Eigen::MatrixXd design=w.design;
+      Eigen::VectorXd input=w.wrench;
+      if(archive_ && !stale_ && retained_ &&
+         out.information.net_weight_only==retained_->info.net_weight_only) {
+        // Keep earlier speed/attitude coverage without counting rolling-window
+        // rows twice. Both sets precede the pending candidate's validation cutoff.
+        const auto end=std::lower_bound(archive_->times.begin(),archive_->times.end(),w.times.front());
+        const Eigen::Index rows=6*std::distance(archive_->times.begin(),end);
+        design.conservativeResize(w.design.rows()+rows,27);
+        input.conservativeResize(w.wrench.size()+rows);
+        design.bottomRows(rows)=archive_->design.topRows(rows);
+        input.tail(rows)=archive_->wrench.head(rows);
+      }
+      auto fit=solve(design,input);
       if(!fit.parameters.allFinite())throw std::runtime_error("Nonfinite candidate");
+      // Diagnostics retain their current-window meaning when the fit also
+      // uses archived measurements.
+      fit.residual_rms=residual_rms(w.design,w.wrench,fit.parameters);
       out.candidate=fit;
       if(!pending_ && out.information.sufficient)
         pending_=Saved{fit,w,out.information,0};
     }catch(const std::exception & e){out.detail=e.what();}
+  }
+  if(!last_rejection_.empty()) {
+    if(!out.detail.empty())out.detail += "; ";
+    out.detail += last_rejection_;
   }
   out.available=retained_.has_value();
   const bool outside_regime=retained_ && retained_->info.net_weight_only && !out.information.net_weight_only;
@@ -179,6 +228,7 @@ RetentionResult ModelRetention::update(const Window & w,const Solver & solve) {
   out.status=stale_?"retained_stale_validation_failed":outside_regime?"retained_outside_identified_regime":out.accepted?"retained_updated":
     !out.information.sufficient?(retained_?"holding_retained_insufficient_excitation":"not_identified_insufficient_excitation"):
     pending_?"awaiting_independent_validation":retained_?"holding_retained":"not_identified";
+  if(!out.available && !last_rejection_.empty())out.status="candidate_validation_failed";
   return out;
 }
 }  // namespace uvms::identification

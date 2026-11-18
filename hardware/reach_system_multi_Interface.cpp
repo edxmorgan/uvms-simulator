@@ -1,3 +1,4 @@
+#include "ros2_control_blue_reach_5/arm_actuator_model.hpp"
 // Copyright (C) 2024 Edward Morgan
 //
 // This program is free software: you can redistribute it and/or modify
@@ -24,6 +25,7 @@
 #include <string>
 #include <vector>
 #include <random>
+#include <sstream>
 
 #include "ros2_control_blue_reach_5/device_id.hpp"
 #include "ros2_control_blue_reach_5/mode.hpp"
@@ -93,12 +95,14 @@ namespace ros2_control_blue_reach_5
     utils_service.current2torqueMap = utils_service.load_casadi_fun("current_to_torque_map", "libC2T.so");
     utils_service.torque2currentMap = utils_service.load_casadi_fun("torque_to_current_map", "libT2C.so");
     utils_service.forward_kinematics = utils_service.load_casadi_fun("fkeval", "libFK.so");
-    utils_service.manip_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libmEKF_next.so");
+    utils_service.manip_Exkalman_update = utils_service.load_casadi_fun("ekf_update_fresh", "libmEKF_next.so");
     arm_observer_.predict = utils_service.load_casadi_fun(
       "arm_disturbance_ekf_predict_locked", "libmDisturbanceEKF_next.so");
     arm_observer_.update = utils_service.load_casadi_fun(
       "arm_disturbance_ekf_update_limited", "libmDisturbanceEKF_next.so");
+    arm_observer_worker_.reset();
     arm_observer_.reset();
+    { std::lock_guard<std::mutex> lock(access_async_states_); identification_.reset(); }
     RCLCPP_WARN(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
       "Augmented arm EKF enabled in SHADOW mode: nominal model/noise require hardware calibration; compensation admission disabled");
     utils_service.forward_kinematics_com = utils_service.load_casadi_fun("fkcomeval", "libFKcom.so");
@@ -147,7 +151,8 @@ namespace ros2_control_blue_reach_5
       double default_position = stod(joint.parameters.at("home"));
       uint8_t device_id = static_cast<uint8_t>(std::stoul(device_id_value, nullptr, 16));
       RCLCPP_INFO(
-          rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "Device with id %u found", static_cast<unsigned int>(device_id));
+          rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "Configured joint %s with device ID %u; communication not yet verified",
+          joint.name.c_str(), static_cast<unsigned int>(device_id));
 
       double max_effort = stod(joint.parameters.at("max_effort"));
       bool positionLimitsFlag = stoi(joint.parameters.at("has_position_limits"));
@@ -159,6 +164,11 @@ namespace ros2_control_blue_reach_5
       double soft_min_position = stod(joint.parameters.at("soft_min_position"));
       double soft_max_position = stod(joint.parameters.at("soft_max_position"));
       double kt = stod(joint.parameters.at("kt"));
+      if (!std::isfinite(kt) || kt <= 0.) {
+        RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+          "Invalid current-per-torque calibration for %s", joint.name.c_str());
+        return hardware_interface::CallbackReturn::ERROR;
+      }
       double forward_I_static = stod(joint.parameters.at("forward_I_static"));
       double backward_I_static = stod(joint.parameters.at("backward_I_static"));
 
@@ -193,11 +203,11 @@ namespace ros2_control_blue_reach_5
     for (const hardware_interface::ComponentInfo &gpio : get_hardware_info().gpios)
     {
       // Same disturbance telemetry contract as the simulated arm.
-      if (gpio.state_interfaces.size() != 128)
+      if (gpio.state_interfaces.size() != 170)
       {
         RCLCPP_FATAL(
             rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
-            "GPIO '%s'has %zu state interfaces. 128 expected.", gpio.name.c_str(),
+            "GPIO '%s'has %zu state interfaces. 170 expected.", gpio.name.c_str(),
             gpio.state_interfaces.size());
         return hardware_interface::CallbackReturn::ERROR;
       }
@@ -226,26 +236,32 @@ namespace ros2_control_blue_reach_5
     {
       RCLCPP_FATAL( // NOLINT
           rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
-          "Failed to configure the serial driver for the AlphaHardware system interface.");
+          "Failed to configure serial port %s: %s", cfg_.serial_port_.c_str(), e.what());
 
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    // Register callbacks for joint states
-    driver_.subscribe(
-        alpha::driver::PacketId::PacketID_POSITION,
-        [this](const alpha::driver::Packet &packet) -> void
-        { updatePositionCb(packet, hw_joint_struct_); });
+    // The driver retains subscriptions across lifecycle reconfiguration.
+    if (!feedback_callbacks_registered_)
+    {
+      // Register callbacks for joint states
+      driver_.subscribe(
+          alpha::driver::PacketId::PacketID_POSITION,
+          [this](const alpha::driver::Packet &packet) -> void
+          { updatePositionCb(packet, hw_joint_struct_); });
 
-    driver_.subscribe(
-        alpha::driver::PacketId::PacketID_VELOCITY,
-        [this](const alpha::driver::Packet &packet) -> void
-        { updateVelocityCb(packet, hw_joint_struct_); });
+      driver_.subscribe(
+          alpha::driver::PacketId::PacketID_VELOCITY,
+          [this](const alpha::driver::Packet &packet) -> void
+          { updateVelocityCb(packet, hw_joint_struct_); });
 
-    driver_.subscribe(
-        alpha::driver::PacketId::PacketID_CURRENT,
-        [this](const alpha::driver::Packet &packet) -> void
-        { updateCurrentCb(packet, hw_joint_struct_); });
+      driver_.subscribe(
+          alpha::driver::PacketId::PacketID_CURRENT,
+          [this](const alpha::driver::Packet &packet) -> void
+          { updateCurrentCb(packet, hw_joint_struct_); });
+
+      feedback_callbacks_registered_ = true;
+    }
 
     // Start a thread to request state updates
     running_.store(true);
@@ -322,6 +338,7 @@ namespace ros2_control_blue_reach_5
 
     // Initialize one EKF per joint
     const std::size_t nj = get_hardware_info().joints.size();
+    measurement_cursors_.assign(nj, JointMeasurementCursor{});
     x_est_list_.resize(nj);
     P_est_list_.resize(nj);
     Q_list_.resize(nj);
@@ -363,6 +380,21 @@ namespace ros2_control_blue_reach_5
     RCLCPP_INFO( // NOLINT
         rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "Shutting down the AlphaHardware system interface.");
 
+    stop_background_work();
+    return hardware_interface::CallbackReturn::SUCCESS;
+  }
+
+  hardware_interface::CallbackReturn ReachSystemMultiInterfaceHardware::on_error(
+      const rclcpp_lifecycle::State &)
+  {
+    stop_background_work();
+    // Successful cleanup permits explicit reconfiguration; it never resumes motion.
+    return hardware_interface::CallbackReturn::SUCCESS;
+  }
+
+  hardware_interface::CallbackReturn ReachSystemMultiInterfaceHardware::on_shutdown(
+      const rclcpp_lifecycle::State &)
+  {
     stop_background_work();
     return hardware_interface::CallbackReturn::SUCCESS;
   }
@@ -466,6 +498,17 @@ namespace ros2_control_blue_reach_5
     const auto add = [&](const std::string &name, double *value) {
       state_interfaces.emplace_back(get_hardware_info().gpios[0].name, name, value);
     };
+    auto id = [&](const std::string &name, double &v) { add("identification."+name, &v); };
+    id("time", identification_snapshot_.time);
+    id("supported", identification_snapshot_.supported);
+    for(int j=0;j<5;++j) {
+      id("position."+std::to_string(j), identification_snapshot_.position[j]);
+      id("velocity."+std::to_string(j), identification_snapshot_.velocity[j]);
+      id("impulse."+std::to_string(j), identification_snapshot_.impulse[j]);
+      id("generation."+std::to_string(j), identification_snapshot_.generation[j]);
+      id("valid."+std::to_string(j), identification_snapshot_.valid[j]);
+    }
+    for(int j=0;j<15;++j) id("context."+std::to_string(j), identification_snapshot_.context[j]);
     // Legacy names retained for layout compatibility; on hardware these count
     // accepted serial snapshots and estimator lifecycle generations, not sim ticks.
     add("sim_step", &arm_observer_.sample_step);
@@ -566,7 +609,9 @@ namespace ros2_control_blue_reach_5
   hardware_interface::CallbackReturn ReachSystemMultiInterfaceHardware::on_activate(
       const rclcpp_lifecycle::State & /*previous_state*/)
   {
+    arm_observer_worker_.reset();
     arm_observer_.reset();
+    { std::lock_guard<std::mutex> lock(access_async_states_); identification_.reset(); }
     serial_budget_.reset();
     activated_at_ = JointFeedbackClock::Clock::now();
     feedback_fault_ = false;
@@ -581,6 +626,7 @@ namespace ros2_control_blue_reach_5
       RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), e.what()); // NOLINT
       return hardware_interface::CallbackReturn::ERROR;
     }
+    arm_observer_worker_ = std::make_unique<HardwareArmObserverWorker>(arm_observer_);
     RCLCPP_INFO(
         rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "System successfully activated!");
     return hardware_interface::CallbackReturn::SUCCESS;
@@ -589,7 +635,9 @@ namespace ros2_control_blue_reach_5
   hardware_interface::CallbackReturn ReachSystemMultiInterfaceHardware::on_deactivate(
       const rclcpp_lifecycle::State & /*previous_state*/)
   {
+    arm_observer_worker_.reset();
     arm_observer_.reset();
+    { std::lock_guard<std::mutex> lock(access_async_states_); identification_.reset(); }
     RCLCPP_INFO(
         rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "Deactivating... please wait...");
     try
@@ -620,9 +668,13 @@ namespace ros2_control_blue_reach_5
       hw_joint_struct_[i].current_state_.position = hw_joint_struct_[i].async_state_.position;
       hw_joint_struct_[i].current_state_.velocity = hw_joint_struct_[i].async_state_.velocity;
       hw_joint_struct_[i].current_state_.current = hw_joint_struct_[i].async_state_.current;
-      std::vector<DM> T2C_arg;  // local: never shared with the write path
-
-      if (std::abs(hw_joint_struct_[i].current_state_.current) <= kTorqueCurrentZeroEpsilon)
+      std::vector<DM> T2C_arg;  // legacy scalar-gripper conversion
+      const auto &actuator = hw_joint_struct_[i].actuator_Properties_;
+      if (i < 4) {
+        const double current = hw_joint_struct_[i].current_state_.current;
+        hw_joint_struct_[i].current_state_.effort = arm_actuator_model::current_to_motor_torque(actuator.kt, current);
+      }
+      else if (std::abs(hw_joint_struct_[i].current_state_.current) <= kTorqueCurrentZeroEpsilon)
       {
         hw_joint_struct_[i].current_state_.effort = 0.0;
       }
@@ -638,7 +690,7 @@ namespace ros2_control_blue_reach_5
                    DM(hw_joint_struct_[i].actuator_Properties_.backward_I_static),
                    DM(hw_joint_struct_[i].current_state_.current)};
       };
-      if (std::abs(hw_joint_struct_[i].current_state_.current) > kTorqueCurrentZeroEpsilon)
+      if (i >= 4 && std::abs(hw_joint_struct_[i].current_state_.current) > kTorqueCurrentZeroEpsilon)
       {
         std::vector<DM> torque = utils_service.current2torqueMap(T2C_arg);
         hw_joint_struct_[i].current_state_.effort = torque.at(0).scalar();
@@ -650,6 +702,16 @@ namespace ros2_control_blue_reach_5
       hw_joint_struct_[i].current_state_.sim_period = delta_seconds;
     };
 
+    std::array<double,4> id_lower{}, id_upper{};
+    for(int j=0;j<4;++j) {
+      id_lower[j]=hw_joint_struct_[j].limits_.position_min;
+      id_upper[j]=hw_joint_struct_[j].limits_.position_max;
+    }
+    identification_.snapshot(std::chrono::duration<double>(JointFeedbackClock::Clock::now().time_since_epoch()).count(), id_lower, id_upper);
+    identification_snapshot_=identification_.sample;
+    if(payload_mass!=0) identification_snapshot_.supported=0;
+    std::array<JointFeedbackClock,5> filter_clocks;
+    std::copy(feedback_clocks_.begin(), feedback_clocks_.end(), filter_clocks.begin());
     std::array<JointFeedbackClock,4> clocks;
     for(int i=0;i<4;++i) clocks[i]=feedback_clocks_[i];
     // Numerical estimation must not block serial receive callbacks. State and
@@ -657,39 +719,52 @@ namespace ros2_control_blue_reach_5
     lock.unlock();
     control_energy_ += control_power_ * delta_seconds;
 
-    DM q = DM::vertcat({hw_joint_struct_[0].current_state_.position,
-                        hw_joint_struct_[1].current_state_.position,
-                        hw_joint_struct_[2].current_state_.position,
-                        hw_joint_struct_[3].current_state_.position});
+    // Serial positions arrive at 20 Hz. FK and COM transforms depend only on
+    // position and the fixed mounting constants below, not the 200 Hz tick.
+    // Reuse exactly identical inputs; never quantize or defer a changed pose.
+    std::array<double, 4> kinematics_position;
+    for (int i=0; i<4; ++i)
+      kinematics_position[i] = hw_joint_struct_[i].current_state_.position;
+    if (!kinematics_valid_ || kinematics_position != kinematics_position_) {
+      DM q = DM::vertcat({hw_joint_struct_[0].current_state_.position,
+                          hw_joint_struct_[1].current_state_.position,
+                          hw_joint_struct_[2].current_state_.position,
+                          hw_joint_struct_[3].current_state_.position});
 
-    DM base_T = DM::vertcat({0.190, 0.000, -0.120, 3.141592653589793, 0.000, 0.000});
-    DM world_T = DM::vertcat({0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
+      DM base_T = DM::vertcat({0.190, 0.000, -0.120, 3.141592653589793, 0.000, 0.000});
+      DM world_T = DM::vertcat({0.0, 0.0, 0.0, 0.0, 0.0, 0.0});
 
-     DM tipOffset = DM::vertcat({0.0, 0.0, 0.04, 0.0, 0.0, 0.0});
+       DM tipOffset = DM::vertcat({0.0, 0.0, 0.04, 0.0, 0.0, 0.0});
 
-    std::vector<DM> fk_args = {q, base_T, world_T, tipOffset};
-    T_i_ = utils_service.forward_kinematics(fk_args);
+      std::vector<DM> fk_args = {q, base_T, world_T, tipOffset};
+      T_i_ = utils_service.forward_kinematics(fk_args);
 
-    DM c_sample = DM::vertcat({5e-12, -1e-12, 16e-12,
-                               73.563e-12, -0.091e-12, -0.734e-12,
-                               17e-12, -26e-12, 2e-12,
-                               -0.030e-12, -12e-12, -98e-12});
-    DM r_com_body = DM::vertcat({0.0, 0.0, 0.0});
+      DM c_sample = DM::vertcat({5e-12, -1e-12, 16e-12,
+                                 73.563e-12, -0.091e-12, -0.734e-12,
+                                 17e-12, -26e-12, 2e-12,
+                                 -0.030e-12, -12e-12, -98e-12});
+      DM r_com_body = DM::vertcat({0.0, 0.0, 0.0});
 
 
-    std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T, tipOffset};
-    T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
+      std::vector<DM> fkcom_args = {q, c_sample, r_com_body, base_T, world_T, tipOffset};
+      T_com_i_ = utils_service.forward_kinematics_com(fkcom_args);
+
+      kinematics_position_ = kinematics_position;
+      kinematics_valid_ = true;
+    }
 
     // Time step for this cycle
     casadi::DM dt_dm(delta_seconds);
 
-    // Run EKF for each joint, measurement y = [position, velocity]^T from current raw states
+    // Predict every read; correct each sensor field once per received packet.
     for (std::size_t i = 0; i < get_hardware_info().joints.size(); ++i)
     {
       // Pack measurement
       casadi::DM y_k = casadi::DM::zeros(2, 1);
       y_k(0) = hw_joint_struct_[i].current_state_.position;
       y_k(1) = hw_joint_struct_[i].current_state_.velocity;
+
+      const auto fresh = measurement_cursors_[i].take(filter_clocks[i]);
 
       // Bundle inputs for this joint
       std::vector<casadi::DM> ekf_inputs = {
@@ -698,7 +773,8 @@ namespace ros2_control_blue_reach_5
           dt_dm,          // dt
           y_k,            // measurement
           Q_list_[i],     // Q
-          R_list_[i]      // R
+          R_list_[i],     // R
+          DM(std::vector<double>{fresh[0], fresh[1]})
       };
 
       // EKF update
@@ -723,168 +799,210 @@ namespace ros2_control_blue_reach_5
       hw_joint_struct_[i].current_state_.estimated_acceleration = estimated_acceleration;
       hw_joint_struct_[i].current_state_.acceleration = estimated_acceleration;
     }
-    DM measurement=DM::zeros(8,1), input=DM::zeros(4,1);
-    DM lower=DM::zeros(4,1), upper=DM::zeros(4,1);
+    HardwareArmObserverWorker::Sample sample;
+    sample.clocks=clocks;
     for(int i=0;i<4;++i) {
-      measurement(i)=hw_joint_struct_[i].current_state_.position;
-      measurement(4+i)=hw_joint_struct_[i].current_state_.velocity;
-      input(i)=hw_joint_struct_[i].current_state_.effort;
-      lower(i)=hw_joint_struct_[i].limits_.position_min;
-      upper(i)=hw_joint_struct_[i].limits_.position_max;
+      sample.measurement[i]=hw_joint_struct_[i].current_state_.position;
+      sample.measurement[4+i]=hw_joint_struct_[i].current_state_.velocity;
+      sample.input[i]=hw_joint_struct_[i].current_state_.effort;
+      sample.lower[i]=hw_joint_struct_[i].limits_.position_min;
+      sample.upper[i]=hw_joint_struct_[i].limits_.position_max;
     }
-    // Preserve existing controller-facing filters during shadow commissioning.
-    arm_observer_.observe(clocks,measurement,input,lower,upper,JointFeedbackClock::Clock::now());
+    // Controller-facing filters above stay synchronous. Only shadow diagnostics
+    // consume this bounded mailbox; never wait for a serial-interval EKF here.
+    if(arm_observer_worker_)
+      arm_observer_worker_->exchange(sample,arm_observer_,JointFeedbackClock::Clock::now());
     return hardware_interface::return_type::OK;
   }
 
   hardware_interface::return_type ReachSystemMultiInterfaceHardware::write(
       const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
   {
-    const auto now = JointFeedbackClock::Clock::now();
-    bool fresh = true;
-    std::string stale_joint;
+    try
     {
-      const std::lock_guard<std::mutex> lock(access_async_states_);
-      for (std::size_t i = 0; i < feedback_clocks_.size(); ++i)
-        if (!claimed_modes_[i].empty() && !feedback_clocks_[i].fresh(now)) {
-          fresh = false;
-          stale_joint = joint_names_[i];
+      const auto transport_failed = [this]() {
+        if (!driver_.write_failed() && !driver_.read_failed()) return false;
+        if (!feedback_fault_)
+          RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+            "Serial transport failed; hardware write cannot confirm command delivery.");
+        feedback_fault_ = true;
+        return true;
+      };
+      if (transport_failed()) return hardware_interface::return_type::ERROR;
+      const auto now = JointFeedbackClock::Clock::now();
+      bool fresh = true;
+      std::ostringstream stale_signals;
+      {
+        const std::lock_guard<std::mutex> lock(access_async_states_);
+        for (std::size_t i = 0; i < feedback_clocks_.size(); ++i)
+          if (!claimed_modes_[i].empty() && !feedback_clocks_[i].fresh(now)) fresh = false;
+        // Snapshot every device on a fault: the first expired field alone cannot
+        // distinguish a device outage from a common receive/polling delay.
+        if (!fresh) for (std::size_t i = 0; i < feedback_clocks_.size(); ++i) {
+            static const char *fields[] = {"position", "velocity", "current"};
+            for (std::size_t field = 0; field < 3; ++field) {
+              const auto &clock = feedback_clocks_[i];
+              stale_signals << joint_names_[i] << '/' << fields[field] << '=';
+              if (!clock.seen[field]) stale_signals << "missing/invalid";
+              else stale_signals << std::chrono::duration<double, std::milli>(
+                now - clock.received[field]).count() << "ms";
+              stale_signals << ' ';
+            }
+          }
+      }
+      if (feedback_fault_) return hardware_interface::return_type::ERROR;
+      if (!fresh) {
+        if (now - activated_at_ <= std::chrono::milliseconds(500))
+          return hardware_interface::return_type::OK;  // no motion until all signals arrive
+        feedback_fault_ = true;
+        const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+          now.time_since_epoch()).count();
+        stale_signals << "poll_start_age_ms=" << (now_ns - poll_started_ns_.load()) / 1e6
+                      << " poll_finish_age_ms=" << (now_ns - poll_finished_ns_.load()) / 1e6;
+        for (const auto &joint : hw_joint_struct_) {
+          const auto device = static_cast<alpha::driver::DeviceId>(joint.device_id);
+          driver_.setCurrent(0.0, device);
+          driver_.setVelocity(0.0, device);
+        }
+        RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+          "Feedback fault (>500ms or missing/invalid): %s; zero commands sent, hardware fault latched",
+          stale_signals.str().c_str());
+        RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+          "Serial fault trace (request_written is not device acknowledgement): %s",
+          driver_.serial_diagnostics().c_str());
+        return hardware_interface::return_type::ERROR;
+      }
+      if (!serial_budget_.command_due(SerialBudget::Clock::now()))
+      {
+        return hardware_interface::return_type::OK;
+      }
+      // Send the commands for each joint
+      for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
+      {
+        const auto &command = hw_joint_struct_[i].command_state_;
+        const bool invalid_effort = control_level_[i] == mode_level_t::MODE_EFFORT && !std::isfinite(command.effort);
+        const bool invalid_current = control_level_[i] == mode_level_t::MODE_CURRENT && !std::isfinite(command.current);
+        if (invalid_effort || invalid_current) {
+          const auto device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
+          driver_.setCurrent(0.0, device);
+          driver_.setVelocity(0.0, device);
+          RCLCPP_WARN_THROTTLE(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+            *node_frames_interface_->get_clock(), 1000, "Non-finite command rejected for %s; zero sent", joint_names_[i].c_str());
+          continue;
+        }
+        switch (control_level_[i])
+        {
+        case mode_level_t::MODE_POSITION:
+          if (!std::isnan(hw_joint_struct_[i].command_state_.position))
+          {
+            // Get the target device
+            const auto target_device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
+
+            // Get the target position; if the command is for the jaws, then convert from m to mm
+            const double target_position =
+                static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id) == alpha::driver::DeviceId::kLinearJaws
+                    ? hw_joint_struct_[i].command_state_.position * 1000
+                    : hw_joint_struct_[i].command_state_.position;
+            driver_.setPosition(target_position, target_device);
+          }
+          break;
+        case mode_level_t::MODE_VELOCITY:
+          if (!std::isnan(hw_joint_struct_[i].command_state_.velocity))
+          {
+            // Get the target device
+            const auto target_device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
+
+            // Get the target velocity; if the command is for the jaws, then convert from m/s to mm/s
+            const double target_velocity =
+                static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id) == alpha::driver::DeviceId::kLinearJaws
+                    ? hw_joint_struct_[i].command_state_.velocity * 1000
+                    : hw_joint_struct_[i].command_state_.velocity;
+            // RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "%d size is %f", static_cast<int>(target_device), target_velocity);
+
+            driver_.setVelocity(target_velocity, target_device);
+          }
+          break;
+        case mode_level_t::MODE_CURRENT:
+          if (!std::isnan(hw_joint_struct_[i].command_state_.current))
+          {
+            // Get the target device
+            const auto target_device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
+
+            // enforce hard limit;
+            const double enforced_target_current = hw_joint_struct_[i].enforce_hard_limits(hw_joint_struct_[i].command_state_.current);
+
+            driver_.setCurrent(enforced_target_current, target_device);
+            if (enforced_target_current == 0.0)
+            {
+              driver_.setVelocity(0.0, target_device); // incase of currents leak
+            };
+          }
+          break;
+        case mode_level_t::MODE_EFFORT:
+          if (!std::isnan(hw_joint_struct_[i].command_state_.effort))
+          {
+            double requested_effort = hw_joint_struct_[i].command_state_.effort;
+            std::vector<DM> T2C_arg;  // local: never shared with the read path
+            double requested_current = 0.0;
+            if (std::abs(requested_effort) <= kTorqueCurrentZeroEpsilon)
+            {
+              requested_current = 0.0;
+            }
+            else if (requested_effort > 0)
+            {
+              T2C_arg = {DM(hw_joint_struct_[i].actuator_Properties_.kt),
+                         DM(hw_joint_struct_[i].actuator_Properties_.forward_I_static),
+                         DM(requested_effort)};
+            }
+            else
+            {
+              T2C_arg = {DM(hw_joint_struct_[i].actuator_Properties_.kt),
+                         DM(hw_joint_struct_[i].actuator_Properties_.backward_I_static),
+                         DM(requested_effort)};
+            }
+
+            // Preserve the commissioned command map. Adding full static-current
+            // offsets to every small torque caused hold drift on physical hardware;
+            // the configured offsets are not a validated inverse actuator model.
+            if (std::abs(requested_effort) > kTorqueCurrentZeroEpsilon)
+            {
+              std::vector<DM> currentMap = utils_service.torque2currentMap(T2C_arg);
+              requested_current = currentMap.at(0).scalar();
+            }
+
+            // Get the target device
+            const auto target_device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
+
+            // enforce hard limit;
+            const double enforced_target_current = hw_joint_struct_[i].enforce_hard_limits(requested_current);
+            // RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "effort mode::current from torque :::%f ", enforced_target_current);
+            driver_.setCurrent(enforced_target_current, target_device);
+            if (enforced_target_current == 0.0)
+            {
+              driver_.setVelocity(0.0, target_device); // incase of currents leak
+            };
+          }
+          break;
+        case mode_level_t::MODE_STANDBY:
+          // Handle standby mode if needed, or just break
+          break;
+        case mode_level_t::MODE_DISABLE:
+          // Handle disable mode if needed, or just break
+          break;
+        default:
+          // Existing code for default case...
           break;
         }
+      }
+      if (transport_failed()) return hardware_interface::return_type::ERROR;
+
     }
-    if (feedback_fault_) return hardware_interface::return_type::ERROR;
-    if (!fresh) {
-      if (now - activated_at_ <= std::chrono::milliseconds(500))
-        return hardware_interface::return_type::OK;  // no motion until all signals arrive
+    catch (const std::exception &error)
+    {
       feedback_fault_ = true;
-      for (const auto &joint : hw_joint_struct_) {
-        const auto device = static_cast<alpha::driver::DeviceId>(joint.device_id);
-        driver_.setCurrent(0.0, device);
-        driver_.setVelocity(0.0, device);
-      }
       RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
-        "Stale/missing position, velocity or current feedback for %s (>0.5s); zero commands sent, hardware fault latched",
-        stale_joint.c_str());
+        "Hardware command failed: %s", error.what());
       return hardware_interface::return_type::ERROR;
-    }
-    if (!serial_budget_.command_due(SerialBudget::Clock::now()))
-    {
-      return hardware_interface::return_type::OK;
-    }
-    // Send the commands for each joint
-    for (std::size_t i = 0; i < get_hardware_info().joints.size(); i++)
-    {
-      const auto &command = hw_joint_struct_[i].command_state_;
-      const bool invalid_effort = control_level_[i] == mode_level_t::MODE_EFFORT && !std::isfinite(command.effort);
-      const bool invalid_current = control_level_[i] == mode_level_t::MODE_CURRENT && !std::isfinite(command.current);
-      if (invalid_effort || invalid_current) {
-        const auto device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
-        driver_.setCurrent(0.0, device);
-        driver_.setVelocity(0.0, device);
-        RCLCPP_WARN_THROTTLE(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
-          *node_frames_interface_->get_clock(), 1000, "Non-finite command rejected for %s; zero sent", joint_names_[i].c_str());
-        continue;
-      }
-      switch (control_level_[i])
-      {
-      case mode_level_t::MODE_POSITION:
-        if (!std::isnan(hw_joint_struct_[i].command_state_.position))
-        {
-          // Get the target device
-          const auto target_device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
-
-          // Get the target position; if the command is for the jaws, then convert from m to mm
-          const double target_position =
-              static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id) == alpha::driver::DeviceId::kLinearJaws
-                  ? hw_joint_struct_[i].command_state_.position * 1000
-                  : hw_joint_struct_[i].command_state_.position;
-          driver_.setPosition(target_position, target_device);
-        }
-        break;
-      case mode_level_t::MODE_VELOCITY:
-        if (!std::isnan(hw_joint_struct_[i].command_state_.velocity))
-        {
-          // Get the target device
-          const auto target_device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
-
-          // Get the target velocity; if the command is for the jaws, then convert from m/s to mm/s
-          const double target_velocity =
-              static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id) == alpha::driver::DeviceId::kLinearJaws
-                  ? hw_joint_struct_[i].command_state_.velocity * 1000
-                  : hw_joint_struct_[i].command_state_.velocity;
-          // RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "%d size is %f", static_cast<int>(target_device), target_velocity);
-
-          driver_.setVelocity(target_velocity, target_device);
-        }
-        break;
-      case mode_level_t::MODE_CURRENT:
-        if (!std::isnan(hw_joint_struct_[i].command_state_.current))
-        {
-          // Get the target device
-          const auto target_device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
-
-          // enforce hard limit;
-          const double enforced_target_current = hw_joint_struct_[i].enforce_hard_limits(hw_joint_struct_[i].command_state_.current);
-
-          driver_.setCurrent(enforced_target_current, target_device);
-          if (enforced_target_current == 0.0)
-          {
-            driver_.setVelocity(0.0, target_device); // incase of currents leak
-          };
-        }
-        break;
-      case mode_level_t::MODE_EFFORT:
-        if (!std::isnan(hw_joint_struct_[i].command_state_.effort))
-        {
-          double requested_effort = hw_joint_struct_[i].command_state_.effort;
-          std::vector<DM> T2C_arg;  // local: never shared with the read path
-          double requested_current = 0.0;
-          if (std::abs(requested_effort) <= kTorqueCurrentZeroEpsilon)
-          {
-            requested_current = 0.0;
-          }
-          else if (requested_effort > 0)
-          {
-            T2C_arg = {DM(hw_joint_struct_[i].actuator_Properties_.kt),
-                       DM(hw_joint_struct_[i].actuator_Properties_.forward_I_static),
-                       DM(requested_effort)};
-          }
-          else
-          {
-            T2C_arg = {DM(hw_joint_struct_[i].actuator_Properties_.kt),
-                       DM(hw_joint_struct_[i].actuator_Properties_.backward_I_static),
-                       DM(requested_effort)};
-          }
-
-          if (std::abs(requested_effort) > kTorqueCurrentZeroEpsilon)
-          {
-            std::vector<DM> currentMap = utils_service.torque2currentMap(T2C_arg);
-            requested_current = currentMap.at(0).scalar();
-          }
-
-          // Get the target device
-          const auto target_device = static_cast<alpha::driver::DeviceId>(hw_joint_struct_[i].device_id);
-
-          // enforce hard limit;
-          const double enforced_target_current = hw_joint_struct_[i].enforce_hard_limits(requested_current);
-          // RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "effort mode::current from torque :::%f ", enforced_target_current);
-          driver_.setCurrent(enforced_target_current, target_device);
-          if (enforced_target_current == 0.0)
-          {
-            driver_.setVelocity(0.0, target_device); // incase of currents leak
-          };
-        }
-        break;
-      case mode_level_t::MODE_STANDBY:
-        // Handle standby mode if needed, or just break
-        break;
-      case mode_level_t::MODE_DISABLE:
-        // Handle disable mode if needed, or just break
-        break;
-      default:
-        // Existing code for default case...
-        break;
-      }
     }
     rclcpp::Time current_time = node_frames_interface_->now();
     if (realtime_frame_transform_publisher_ && realtime_frame_transform_publisher_->trylock())
@@ -999,7 +1117,9 @@ namespace ros2_control_blue_reach_5
 
     if (it != hw_joint_struct_ref.end())
     {
-      it->async_state_.position = position;
+      if (std::isfinite(position)) it->async_state_.position = position;
+      identification_.update(std::distance(hw_joint_struct_ref.begin(), it), 0,
+        std::chrono::duration<double>(JointFeedbackClock::Clock::now().time_since_epoch()).count(), position);
       if (std::isfinite(position))
         feedback_clocks_[std::distance(hw_joint_struct_ref.begin(), it)].update(0, JointFeedbackClock::Clock::now());
       else feedback_clocks_[std::distance(hw_joint_struct_ref.begin(), it)].seen[0] = false;
@@ -1031,7 +1151,9 @@ namespace ros2_control_blue_reach_5
 
     if (it != hw_joint_struct_ref.end())
     {
-      it->async_state_.velocity = velocity;
+      if (std::isfinite(velocity)) it->async_state_.velocity = velocity;
+      identification_.update(std::distance(hw_joint_struct_ref.begin(), it), 1,
+        std::chrono::duration<double>(JointFeedbackClock::Clock::now().time_since_epoch()).count(), velocity);
       if (std::isfinite(velocity))
         feedback_clocks_[std::distance(hw_joint_struct_ref.begin(), it)].update(1, JointFeedbackClock::Clock::now());
       else feedback_clocks_[std::distance(hw_joint_struct_ref.begin(), it)].seen[1] = false;
@@ -1063,7 +1185,18 @@ namespace ros2_control_blue_reach_5
 
     if (it != hw_joint_struct_ref.end())
     {
-      it->async_state_.current = current;
+      if (std::isfinite(current)) it->async_state_.current = current;
+      const auto index=std::distance(hw_joint_struct_ref.begin(), it);
+      if(index<4) {
+        // Preserve measured motor effort for identification, including at rest.
+        // Friction/load rejection belongs to the model/validation, not a deadband
+        // applied to the independent current measurement.
+        const double torque=arm_actuator_model::current_to_motor_torque(
+          it->actuator_Properties_.kt, double(current));
+        identification_.update(index,2,
+          std::chrono::duration<double>(JointFeedbackClock::Clock::now().time_since_epoch()).count(),torque);
+      }
+
       if (std::isfinite(current))
         feedback_clocks_[std::distance(hw_joint_struct_ref.begin(), it)].update(2, JointFeedbackClock::Clock::now());
       else feedback_clocks_[std::distance(hw_joint_struct_ref.begin(), it)].seen[2] = false;
@@ -1077,30 +1210,51 @@ namespace ros2_control_blue_reach_5
 
     while (running_.load())
     {
-      driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kLinearJaws);
-      driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kRotateEndEffector);
-      driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kBendElbow);
-      driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kBendShoulder);
-      driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kRotateBase);
+      const auto started = std::chrono::steady_clock::now();
+      poll_started_ns_.store(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        started.time_since_epoch()).count());
+      try
+      {
+        driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kLinearJaws);
+        driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kRotateEndEffector);
+        driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kBendElbow);
+        driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kBendShoulder);
+        driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kRotateBase);
 
-      driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kLinearJaws);
-      driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kRotateEndEffector);
-      driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kBendElbow);
-      driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kBendShoulder);
-      driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kRotateBase);
+        driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kLinearJaws);
+        driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kRotateEndEffector);
+        driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kBendElbow);
+        driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kBendShoulder);
+        driver_.request(alpha::driver::PacketId::PacketID_POSITION, alpha::driver::DeviceId::kRotateBase);
 
-      driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kLinearJaws);
-      driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kRotateEndEffector);
-      driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kBendElbow);
-      driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kBendShoulder);
-      driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kRotateBase);
+        driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kLinearJaws);
+        driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kRotateEndEffector);
+        driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kBendElbow);
+        driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kBendShoulder);
+        driver_.request(alpha::driver::PacketId::PacketID_CURRENT, alpha::driver::DeviceId::kRotateBase);
 
+      }
+      catch (const std::exception &error)
+      {
+        RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+          "Serial feedback requests stopped: %s", error.what());
+        return;
+      }
+
+      const auto finished = std::chrono::steady_clock::now();
+      poll_finished_ns_.store(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        finished.time_since_epoch()).count());
+      const auto elapsed_ms = std::chrono::duration<double, std::milli>(finished - started).count();
+      if (elapsed_ms > 100.)
+        RCLCPP_WARN(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+          "Serial request batch delayed: %.1fms for 15 feedback requests", elapsed_ms);
       std::this_thread::sleep_for(poll_period);
     }
   }
 
   void ReachSystemMultiInterfaceHardware::stop_background_work() noexcept
   {
+    arm_observer_worker_.reset();
     running_.store(false);
 
     if (state_request_worker_.joinable())
@@ -1110,6 +1264,18 @@ namespace ros2_control_blue_reach_5
 
     if (driver_started_)
     {
+      // Error/shutdown transitions need not pass through on_deactivate.
+      // Attempt disable while the port is still open, but always close/join
+      // even if the transport is already unavailable.
+      try
+      {
+        driver_.setMode(alpha::driver::Mode::MODE_DISABLE, alpha::driver::DeviceId::kAllJoints);
+      }
+      catch (const std::exception &e)
+      {
+        RCLCPP_WARN(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+          "Could not send disable during Reach cleanup: %s", e.what());
+      }
       try
       {
         driver_.stop();
@@ -1121,6 +1287,19 @@ namespace ros2_control_blue_reach_5
             "Exception while stopping Reach serial driver: %s", e.what());
       }
       driver_started_ = false;
+    }
+
+    // No RX callback or polling worker can access these after driver.stop().
+    for (auto &clock : feedback_clocks_) clock = JointFeedbackClock{};
+    for (auto &mode : claimed_modes_) mode.clear();
+    for (auto &level : control_level_) level = mode_level_t::MODE_STANDBY;
+    for (auto &joint : hw_joint_struct_)
+    {
+      joint.command_state_.effort = 0.;
+      joint.command_state_.current = 0.;
+      joint.command_state_.velocity = 0.;
+      joint.command_state_.acceleration = 0.;
+      joint.command_state_.computed_effort = 0.;
     }
 
     if (executor_)
