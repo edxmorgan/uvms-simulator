@@ -299,11 +299,37 @@ class SimCameraRendererNode(Node):
         self._add_open3d_water_surface()
 
     def _setup_pyvista_backend(self):
-        self.pyvista_plotter = pv.Plotter(off_screen=True, window_size=(self.width, self.height))
-        self.pyvista_plotter.set_background("#022032", top="#001018")
-        self.pyvista_plotter.enable_lightkit()
+        self.pyvista_plotter = pv.Plotter(off_screen=True, window_size=(self.width, self.height), lighting="none")
+        # self.pyvista_plotter.set_background("#022032", top="#001018")
+        # self.pyvista_plotter.enable_lightkit()
+        self.pyvista_plotter.set_background("#000000")
         self._load_pyvista_urdf_visual_meshes()
         self._add_pyvista_water_surface()
+
+        ######
+        light_positions = [
+            (0.2, 0.185, 0.10265),
+            (0.2, -0.185, 0.10265),
+            (0.21, 0.185, -0.058),
+            (0.21, -0.185, -0.058),
+        ]
+        self.rov_lights = []
+
+        for position in light_positions:
+            light = pv.Light(
+                position=position,
+                focal_point=(position[0] + 1.0, position[1], position[2]),
+                color="white",
+                light_type="scene light",
+                positional=True,
+                cone_angle=67.5,
+                intensity=10.0,
+                exponent=5.0,
+            )
+
+            light.attenuation_values = (1.0, 0.1, 0.05)
+            self.pyvista_plotter.add_light(light)
+            self.rov_lights.append((light, np.array(position, dtype=float)))
 
     def _create_passthrough_subscribers(self):
         for prefix in self.camera_prefixes:
@@ -453,7 +479,8 @@ class SimCameraRendererNode(Node):
             water,
             color="#2f9bbd",
             opacity=0.22,
-            ambient=0.65,
+            # ambient=0.65,
+            ambient=0.0,
             diffuse=0.25,
             specular=0.1,
         )
@@ -506,9 +533,12 @@ class SimCameraRendererNode(Node):
                 poly,
                 color="#c9b56d",
                 smooth_shading=True,
-                ambient=0.4,
-                diffuse=0.7,
-                specular=0.12,
+                # ambient=0.4,
+                # diffuse=0.7,
+                # specular=0.12,
+                ambient=0.0,
+                diffuse=0.25,
+                specular=0.1,
             )
             name = f"visual_{visual_index}_{frame}"
             visual_index += 1
@@ -687,6 +717,25 @@ class SimCameraRendererNode(Node):
         except TransformException:
             return None
 
+    def _update_rov_lights(self):
+        if self.renderer_backend != "pyvista":
+            return
+
+        base_pose = self._lookup_matrix("robot_1_base_link")
+        if base_pose is None:
+            return
+
+        rotation = base_pose[:3, :3]
+        translation = base_pose[:3, 3]
+
+        forward = np.array([1.0, 0.0, 0.0])
+        for light, local_position in self.rov_lights:
+            world_position = (rotation @ local_position + translation)
+            world_direction = rotation @ forward
+            light.position = tuple(world_position)
+            light.focal_point = tuple(world_position + world_direction)
+
+
     def _update_scene_transforms(self):
         for name, frame_or_actor in self.mesh_frames.items():
             frame = frame_or_actor[0] if self.renderer_backend == "pyvista" else frame_or_actor
@@ -703,6 +752,8 @@ class SimCameraRendererNode(Node):
                 entry["actor"].user_matrix = entry["matrix"]
             else:
                 self.scene.set_geometry_transform(name, entry["matrix"])
+        self._update_rov_lights()
+
 
     def camera_info(self, prefix, stamp):
         msg = CameraInfo()
