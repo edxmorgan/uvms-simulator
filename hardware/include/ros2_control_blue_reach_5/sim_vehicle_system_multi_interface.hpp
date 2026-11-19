@@ -168,6 +168,8 @@ namespace ros2_control_blue_reach_5
         rclcpp::Service<ros2_control_blue_reach_5::srv::SetSimDynamics>::SharedPtr dynamics_service_;
         bool commands_held_{false};
         bool use_coupled_dynamics_{false};
+        bool surface_mode_{false};
+        std::optional<ros2_control_blue_reach_5::msg::SimVehicleDynamics>surface_dynamics_;
 
         std::shared_ptr<tf2_ros::StaticTransformBroadcaster> static_tf_broadcaster_;
 

@@ -20,7 +20,23 @@ class NoAliasDumper(yaml.SafeDumper):
     def ignore_aliases(self, data):
         return True
     
-def modify_controller_config(use_vehicle_hardware, use_manipulator_hardware, config_path,new_config_path,sim_robot_count:int=1):
+def parse_sim_robot_types(value: str, count: int) -> list[str]:
+    robot_types = [item.strip() for item in value.split(',')]
+
+    if len(robot_types) == 1:
+        robot_types *= count
+
+    if len(robot_types) != count:
+        raise ValueError(
+            'Provide one robot type or one type per simulated robot.'
+        )
+
+    if any(kind not in ('dory', 'blueboat') for kind in robot_types):
+        raise ValueError('Robot types must be dory or blueboat.')
+
+    return robot_types
+
+def modify_controller_config(use_vehicle_hardware, use_manipulator_hardware, config_path, new_config_path,sim_robot_count:int=1, sim_robot_types: str = "dory"):
     if not use_vehicle_hardware and not use_manipulator_hardware and sim_robot_count==0:
         raise Exception("Invalid configuration: No robots specified. Enable either vehicle or manipulator hardware, or specify at least one simulation robot.")
 
@@ -31,22 +47,26 @@ def modify_controller_config(use_vehicle_hardware, use_manipulator_hardware, con
     ix = []
     robot_prefixes = []
     robot_base_links = []
+    robot_types = parse_sim_robot_types(
+        sim_robot_types, sim_robot_count
+    )
 
     if use_manipulator_hardware or use_vehicle_hardware:
         i = 'real'
         new_param, robot_prefixes, robot_base_links, ix = add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_param, i, robot_prefixes, robot_base_links, ix)
 
     for i in range(1, sim_robot_count + 1):
-        new_param, robot_prefixes, robot_base_links, ix = add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_param, i, robot_prefixes, robot_base_links, ix)
+        new_param, robot_prefixes, robot_base_links, ix = add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_param, i, robot_prefixes, robot_base_links, ix, robot_type=robot_types[i - 1])
 
     with open(new_config_path,'w') as file:
         yaml.dump(new_param,file,Dumper=NoAliasDumper)
     no_robots = len(robot_prefixes)
     return robot_prefixes, robot_base_links, ix, no_robots
 
-def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_param, i, robot_prefixes, robot_base_links, ix):
+def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_param, i, robot_prefixes, robot_base_links, ix, robot_type="dory"):
     ix.append(i)
     prefix = f'robot_{i}_'
+    thruster_count = 2 if robot_type == 'blueboat' else 8
 
     robot_prefixes.append(prefix)
 
@@ -117,20 +137,16 @@ def add_uvms_model_control(use_vehicle_hardware, use_manipulator_hardware, new_p
     new_param[thruster_ctrl_name] = {
         'ros__parameters': {
             'joints': [
-                f'{prefix}thruster1_joint',
-                f'{prefix}thruster2_joint',
-                f'{prefix}thruster3_joint',
-                f'{prefix}thruster4_joint',
-                f'{prefix}thruster5_joint',
-                f'{prefix}thruster6_joint',
-                f'{prefix}thruster7_joint',
-                f'{prefix}thruster8_joint'
+                f'{prefix}thruster{thruster_i}_joint'
+                for thruster_i in range(1, thruster_count + 1)
             ],
             'interface_name': 'pwm'
         }
     }
 
     # Manipulation effort controller
+    if robot_type == 'blueboat':
+        return new_param, robot_prefixes, robot_base_links, ix
     manip_ctrl_name = f'manipulation_effort_controller_{prefix}'
     new_param['controller_manager']['ros__parameters'][manip_ctrl_name] = {
         'type': 'forward_command_controller/ForwardCommandController'
@@ -193,7 +209,7 @@ def parse_controller_list(controllers_list_str: str, no_robots: int) -> list[str
         )
     return controllers
 
-def controller_spawner_nodes(robot_i, robot_prefixes_k):
+def controller_spawner_nodes(robot_i, robot_prefixes_k, robot_type="dory"):
     fts_spawner_nodes = []
     fts_broadcaster_name = f'fts_broadcaster_{robot_i}'
 
@@ -223,6 +239,14 @@ def controller_spawner_nodes(robot_i, robot_prefixes_k):
         arguments=[vehicle_effort_ctrl_name, "--controller-manager", "/controller_manager", "--inactive"],
     )
     vehicle_effort_ctrl_spawner.controller_name = vehicle_effort_ctrl_name  # attach
+    
+    if robot_type == 'blueboat':
+        return (
+            fts_spawner_nodes,
+            thruster_pwm_ctrl_spawner,
+            vehicle_effort_ctrl_spawner,
+            None,
+        )
 
     manip_effort_ctrl_spawner = Node(
         package="controller_manager",

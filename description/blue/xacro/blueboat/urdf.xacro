@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="blueboat_urdf"
+      params="prefix attach_to_world:=false
+              x:=0.0 y:=0.0 z:=0.0
+              rot_r:=0.0 rot_p:=0.0 rot_y:=0.0">
+
+    <link name="${prefix}base_link">
+      <visual>
+        <origin xyz="-0.5 -0.5 0"
+                rpy="1.57079632679 0 1.57079632679"/>
+        <geometry>
+          <mesh
+              filename="package://ros2_control_blue_reach_5/blue/meshes/blueboat/blueboat_visual.glb"
+              scale="1 1 1"/>
+        </geometry>
+      </visual>
+    </link>
+
+    <link name="${prefix}thruster1_link"/>
+    <link name="${prefix}thruster2_link"/>
+
+    <joint name="${prefix}thruster1_joint" type="continuous">
+      <parent link="${prefix}base_link"/>
+      <child link="${prefix}thruster1_link"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+
+    <joint name="${prefix}thruster2_joint" type="continuous">
+      <parent link="${prefix}base_link"/>
+      <child link="${prefix}thruster2_link"/>
+      <axis xyz="1 0 0"/>
+    </joint>
+
+    <!-- Optional attachment for the combined robot description.
+         Keep disabled for the local robot_state_publisher tree. -->
+    <xacro:if value="${attach_to_world}">
+      <joint name="${prefix}base_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="${prefix}base_link"/>
+        <origin xyz="${x} ${y} ${z}"
+                rpy="${rot_r} ${rot_p} ${rot_y}"/>
+      </joint>
+    </xacro:if>
+
+  </xacro:macro>
+
+</robot>

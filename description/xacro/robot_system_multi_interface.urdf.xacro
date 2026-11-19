@@ -6,6 +6,7 @@
   <xacro:arg name="use_vehicle_hardware" default="false"/>
   <xacro:arg name="use_pwm" default="true"/>
   <xacro:arg name="sim_robot_count" default="1"/>
+  <xacro:arg name="sim_robot_types" default="dory"/>
   <xacro:arg name="same_initial_conditions" default="false"/>
   <xacro:arg name="serial_port" default="/dev/ttyUSB0"/>
   <xacro:arg name="state_update_frequency" default="250"/>
@@ -33,12 +34,21 @@
   <xacro:property name="dvl_port" value="$(arg dvl_port)"/>
   <xacro:property name="robot_name" value="$(arg robot_name)"/>
 
+  <xacro:property name="sim_robot_types" value="$(arg sim_robot_types)"/>
+  <xacro:property name="sim_robot_type_list"
+                  value="${sim_robot_types.split(',')}"/>
+
+  <xacro:if value="${len(sim_robot_type_list) not in (1, int(sim_robot_count))}">
+    ${xacro.fatal('sim_robot_types must contain one type or one type per simulated robot')}
+  </xacro:if>
+
   <!-- Define constants -->
   <xacro:property name="d_min" value="1.0"/>
 
   <!-- Imports -->
   <xacro:include filename="$(find ${description_package})/xacro/world.xacro"/>
   <xacro:include filename="$(find ${description_package})/xacro/urdf.xacro"/>
+  <xacro:include filename="$(find ${description_package})/blue/xacro/blueboat/urdf.xacro"/>
   <!-- Import RRBot ros2_control description -->
   <xacro:include filename="$(find ${description_package})/ros2_control/robot_system_multi_interface.ros2_control.xacro" />
   <!-- Import RRBot ros2_control description -->
@@ -53,6 +63,13 @@
       <!-- Generate prefix for the current robot -->
       <xacro:property name="prefix" value="robot_${index + 1}_"/>
 
+      <xacro:property name="robot_type"
+                value="${sim_robot_type_list[0 if len(sim_robot_type_list) == 1 else index].strip()}"/>
+
+      <xacro:if value="${robot_type not in ('dory', 'blueboat')}">
+        ${xacro.fatal('Each simulated robot type must be dory or blueboat')}
+      </xacro:if>
+
       <!-- Compute positions and orientations -->
       <xacro:property name="angle" value="${2 * pi * index / count}"/>
       <!-- Compute circumference and radius -->
@@ -61,6 +78,8 @@
       <xacro:property name="x_pos" value="${0.0 if same_initial_conditions else radius * cos(angle)}"/>
       <xacro:property name="y_pos" value="${0.0 if same_initial_conditions else radius * sin(angle)}"/>
       <xacro:property name="yaw_pos" value="${0.0 if same_initial_conditions else angle}"/>
+
+      <xacro:if value="${robot_type == 'dory'}">
 
       <!-- Instantiate the robot -->
       <xacro:bluerov2_heavy_alpha_urdf
@@ -81,6 +100,20 @@
       state_update_frequency="${state_update_frequency}"
       use_hardware="false"/>
 
+          </xacro:if>
+
+      <xacro:if value="${robot_type == 'blueboat'}">
+        <xacro:blueboat_urdf
+          prefix="${prefix}"
+          attach_to_world="true"
+          x="${x_pos}"
+          y="${y_pos}"
+          z="0.0"
+          rot_r="0.0"
+          rot_p="0.0"
+          rot_y="${yaw_pos}"/>
+      </xacro:if>
+
     <xacro:vehicle_system_multi_interface
       name="${prefix}BlueSystemMultiInterface"
       prefix="${prefix}"
@@ -91,11 +124,13 @@
       body_frame_id="${prefix}base_link"
       map_frame_id="${prefix}map"
       same_initial_conditions="${same_initial_conditions}"
-      use_pwm="${use_pwm}"
+      use_pwm="${False if robot_type == 'blueboat' else use_pwm}"
       use_dvl="${use_dvl}"
       dvl_host="${dvl_host}"
-      dvl_port="${dvl_port}"/>
-      
+      dvl_port="${dvl_port}"
+      thruster_count="${2 if robot_type == 'blueboat' else 8}"
+      dynamics_mode="${'surface' if robot_type == 'blueboat' else 'underwater'}"/>
+            
       <!-- Recursively call the macro for the next robot -->
       <xacro:instantiate_robots index="${index + 1}" count="${count}"/>
     </xacro:if>

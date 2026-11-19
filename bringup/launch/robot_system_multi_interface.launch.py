@@ -31,8 +31,12 @@ from launch_ros.substitutions import FindPackageShare
 
 import launch.logging
 from bringup.utils.rviz_utils import rviz_file_configure
-from bringup.utils.controller_config import modify_controller_config, parse_controller_list, controller_spawner_nodes
-
+from bringup.utils.controller_config import (
+    modify_controller_config,
+    parse_controller_list,
+    controller_spawner_nodes,
+    parse_sim_robot_types,
+)
 # Create a logger for the launch file
 logger = launch.logging.get_logger('robot_system_multi_interface_launch')
 
@@ -173,6 +177,13 @@ def _camera_topic_base(robot_prefix: str) -> str:
 def generate_launch_description():
     # Declare arguments
     declared_arguments = []
+    declared_arguments.append(
+        DeclareLaunchArgument(
+            "sim_robot_types",
+            default_value="dory",
+            description="One simulated robot type, or a comma-separated type per robot: dory, blueboat.",
+        )
+    )
     declared_arguments.append(
         DeclareLaunchArgument(
             "prefix",
@@ -495,6 +506,11 @@ def launch_setup(context, *args, **kwargs):
     gui = LaunchConfiguration("gui").perform(context)
     launch_rviz = LaunchConfiguration("launch_rviz").perform(context)
     sim_robot_count = LaunchConfiguration("sim_robot_count").perform(context)
+    sim_robot_types = LaunchConfiguration("sim_robot_types").perform(context)
+    sim_robot_type_list = parse_sim_robot_types(
+        sim_robot_types, int(sim_robot_count)
+    )
+    sim_robot_types_arg = ",".join(sim_robot_type_list) or "dory"
     same_initial_conditions = LaunchConfiguration("same_initial_conditions").perform(context)
     record_data = LaunchConfiguration("record_data").perform(context)
     record_data_bool = IfCondition(record_data).evaluate(context)
@@ -516,6 +532,10 @@ def launch_setup(context, *args, **kwargs):
     launch_voxelviz = LaunchConfiguration("launch_voxelviz").perform(context)
     launch_planner_action_server = LaunchConfiguration("launch_planner_action_server").perform(context)
     task = task.lower()
+    if task == "direct_thrusters" and "blueboat" in sim_robot_type_list:
+        raise RuntimeError(
+            "BlueBoat currently supports wrench commands; direct_thrusters PWM mode is unavailable."
+        )
     use_pwm = str(task in {'direct_thrusters'})
     valid_tasks = {'interactive', 'manual', 'joint', 'direct_thrusters'}
     use_manipulator_hardware_bool = IfCondition(use_manipulator_hardware).evaluate(context)
@@ -564,6 +584,9 @@ def launch_setup(context, *args, **kwargs):
             "sim_robot_count:=",
             sim_robot_count,
             " ",
+            "sim_robot_types:=",
+            sim_robot_types_arg,
+            " ",
             "same_initial_conditions:=",
             same_initial_conditions,
             " ",
@@ -601,15 +624,28 @@ def launch_setup(context, *args, **kwargs):
 
     use_mocap_bool = IfCondition(use_mocap).evaluate(context)
     launch_planner_action_server_bool = IfCondition(launch_planner_action_server).evaluate(context)
-    robot_prefixes, robot_base_links, robot_ix, no_robots = modify_controller_config(use_vehicle_hardware_bool,
-                                                                                 use_manipulator_hardware_bool,
-                                                                                  robot_controllers_read_file,
-                                                                                    robot_controllers_modified_file,
-                                                                                      int(sim_robot_count))
+    robot_prefixes, robot_base_links, robot_ix, no_robots = modify_controller_config(
+        use_vehicle_hardware_bool,
+        use_manipulator_hardware_bool,
+        robot_controllers_read_file,
+        robot_controllers_modified_file,
+        sim_robot_count=int(sim_robot_count),
+        sim_robot_types=sim_robot_types_arg,
+    )
+
+    robot_types_by_prefix = {
+        f"robot_{i}_": kind
+        for i, kind in enumerate(sim_robot_type_list, start=1)
+    }
+
     has_real_robot = "robot_real_" in robot_prefixes
+    if has_real_robot:
+        robot_types_by_prefix["robot_real_"] = "dory"
+
     sim_camera_prefixes = [
         prefix for prefix in robot_prefixes
-        if prefix != "robot_real_" or not use_vehicle_hardware_bool
+        if robot_types_by_prefix[prefix] == "dory"
+        and (prefix != "robot_real_" or not use_vehicle_hardware_bool)
     ]
     has_simulated_camera_source = bool(sim_camera_prefixes)
     mixed_camera_prefixes = list(sim_camera_prefixes)
@@ -694,6 +730,8 @@ def launch_setup(context, *args, **kwargs):
             "bringup.sim_reset_coordinator",
             "--robots-prefix",
             ",".join(robot_prefixes),
+            "--robot-types",
+            ",".join(robot_types_by_prefix[prefix] for prefix in robot_prefixes),
         ],
         output="screen",
     )
@@ -740,6 +778,9 @@ def launch_setup(context, *args, **kwargs):
                         " ",
                         "prefix:=",
                         robot_prefix,
+                        " ",
+                        "robot_type:=",
+                        robot_types_by_prefix[robot_prefix],
                     ]
                 )
             }],
@@ -817,11 +858,23 @@ def launch_setup(context, *args, **kwargs):
 
     # Spawn fts and controllers
     for k, robot_i in enumerate(robot_ix):
-        robot_fts_spawner_nodes, thruster_pwm_ctrl_spawner, vehicle_effort_ctrl_spawner, manip_effort_ctrl_spawner = controller_spawner_nodes(robot_i, robot_prefixes[k])
+        (
+            robot_fts_spawner_nodes,
+            thruster_pwm_ctrl_spawner,
+            vehicle_effort_ctrl_spawner,
+            manip_effort_ctrl_spawner,
+        ) = controller_spawner_nodes(
+            robot_i,
+            robot_prefixes[k],
+            robot_type=robot_types_by_prefix[robot_prefixes[k]],
+        )
+
         fts_spawner_nodes.extend(robot_fts_spawner_nodes)
         thruster_pwm_spawner_nodes.append(thruster_pwm_ctrl_spawner)
         vehicle_effort_spawner_nodes.append(vehicle_effort_ctrl_spawner)
-        manip_effort_spawner_nodes.append(manip_effort_ctrl_spawner)
+
+        if manip_effort_ctrl_spawner is not None:
+            manip_effort_spawner_nodes.append(manip_effort_ctrl_spawner)
 
     # Define other nodes if needed
     run_plotjuggler = ExecuteProcess(
@@ -834,6 +887,7 @@ def launch_setup(context, *args, **kwargs):
     mode = OpaqueFunction(function=lambda context: [])
     mode_params = {
         'robots_prefix': robot_prefixes,
+        'robot_types': [robot_types_by_prefix[prefix] for prefix in robot_prefixes],
         'no_robot': len(robot_prefixes),
         'no_efforts': 11,
         "use_vehicle_hardware": use_vehicle_hardware_bool,

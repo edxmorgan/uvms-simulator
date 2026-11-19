@@ -4,21 +4,37 @@
   <xacro:arg name="description_package" default="ros2_control_blue_reach_5"/>
   <xacro:arg name="robot_name" default="dory"/>
   <xacro:arg name="prefix" default="robot_1_"/>
+  <xacro:arg name="robot_type" default="dory"/>
 
   <xacro:property name="description_package" value="$(arg description_package)"/>
   <xacro:property name="robot_name" value="$(arg robot_name)"/>
   <xacro:property name="prefix" value="$(arg prefix)"/>
 
+  <xacro:property name="robot_type" value="$(arg robot_type)"/>
+
+  <xacro:if value="${robot_type not in ('dory', 'blueboat')}">
+    ${xacro.fatal('robot_type must be dory or blueboat')}
+  </xacro:if>
+
   <xacro:include filename="$(find ${description_package})/xacro/urdf.xacro"/>
+  <xacro:include filename="$(find ${description_package})/blue/xacro/blueboat/urdf.xacro"/>
 
   <!--
     TF-only robot description.
     The vehicle hardware interface owns the global map->base_link transform, so
     this tree is rooted at ${prefix}base_link and publishes only local robot links.
   -->
-  <xacro:bluerov2_heavy_alpha_urdf
-    robot_name="${robot_name}"
+  <xacro:if value="${robot_type == 'dory'}">
+    <xacro:bluerov2_heavy_alpha_urdf
+      robot_name="${robot_name}"
+      prefix="${prefix}"
+      attach_to_world="false"/>
+  </xacro:if>
+
+  <xacro:if value="${robot_type == 'blueboat'}">
+  <xacro:blueboat_urdf
     prefix="${prefix}"
     attach_to_world="false"/>
+</xacro:if>
 
 </robot>

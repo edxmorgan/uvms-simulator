@@ -34,6 +34,9 @@
 //   #pragma message("Fallback parameters used")
 #endif
 
+#include <array>
+#include <optional>
+
 using namespace casadi;
 
 namespace ros2_control_blue_reach_5
@@ -68,6 +71,138 @@ namespace ros2_control_blue_reach_5
                 }
             }
             return result;
+        }
+
+        struct SurfaceThrustAllocation
+        {
+            std::array<double, 2> thrusts{};
+            std::array<double, 6> wrench{};
+        };
+
+        [[maybe_unused]] std::optional<SurfaceThrustAllocation> allocate_surface_thrust(
+            const double requested_fx,
+            const double requested_tz,
+            const std::array<double, 2> &thruster_y,
+            const std::array<double, 2> &min_thrust,
+            const std::array<double, 2> &max_thrust)
+        {
+            if (!std::isfinite(requested_fx) || !std::isfinite(requested_tz))
+            {
+                return std::nullopt;
+            }
+
+            for (std::size_t i = 0; i < 2; ++i)
+            {
+                if (!std::isfinite(thruster_y[i]) ||
+                    !std::isfinite(min_thrust[i]) ||
+                    !std::isfinite(max_thrust[i]) ||
+                    min_thrust[i] > 0.0 || max_thrust[i] < 0.0)
+                {
+                    return std::nullopt;
+                }
+            }
+
+            const double separation = thruster_y[1] - thruster_y[0];
+            if (!std::isfinite(separation) || std::abs(separation) < 1.0e-9)
+            {
+                return std::nullopt;
+            }
+
+            SurfaceThrustAllocation result;
+
+            // Both thrusters point along body +x:
+            // Fx = T0 + T1, Tz = -y0*T0 - y1*T1.
+            result.thrusts[0] =
+                (requested_tz + thruster_y[1] * requested_fx) / separation;
+            result.thrusts[1] = requested_fx - result.thrusts[0];
+
+            for (std::size_t i = 0; i < 2; ++i)
+            {
+                if (!std::isfinite(result.thrusts[i]))
+                {
+                    return std::nullopt;
+                }
+                result.thrusts[i] =
+                    std::clamp(result.thrusts[i], min_thrust[i], max_thrust[i]);
+            }
+
+            // Recompute the applied wrench AFTER individual thrust limits.
+            result.wrench[0] = result.thrusts[0] + result.thrusts[1];
+            result.wrench[5] = -thruster_y[0] * result.thrusts[0]
+                            -thruster_y[1] * result.thrusts[1];
+
+            if (!std::isfinite(result.wrench[0]) || !std::isfinite(result.wrench[5]))
+            {
+                return std::nullopt;
+            }
+            return result;
+        }
+
+        using SurfaceState = std::array<double, 6>;  // [x, y, yaw, u, v, r]
+
+        bool valid_surface_inputs(
+            const SurfaceState &state,
+            const std::array<double, 6> &applied_wrench,
+            const ros2_control_blue_reach_5::msg::SimVehicleDynamics &dynamics,
+            const double dt)
+        {
+            const auto finite = [](const auto &values)
+            {
+                return std::all_of(values.begin(), values.end(),
+                    [](double value) { return std::isfinite(value); });
+            };
+
+            const std::array<double, 9> parameters{
+                dynamics.m_x_du, dynamics.m_y_dv, dynamics.i_z_n_dr,
+                dynamics.x_u, dynamics.y_v, dynamics.n_r,
+                dynamics.x_uu, dynamics.y_vv, dynamics.n_rr};
+
+            if (!finite(state) || !finite(applied_wrench) || !finite(parameters) ||
+                !std::isfinite(dt) || dt < 0.0 || dt > 1.0)
+            {
+                return false;
+            }
+
+            for (std::size_t i = 0; i < parameters.size(); ++i)
+            {
+                if ((i < 3 && parameters[i] <= 0.0) ||
+                    (i >= 3 && parameters[i] > 0.0))
+                {
+                    return false;
+                }
+            }
+
+            // The current planar model supports still water only.
+            return std::all_of(
+                dynamics.current_velocity.begin(), dynamics.current_velocity.end(),
+                [](double current)
+                {
+                    return std::isfinite(current) && current == 0.0;
+                });
+        }
+
+        bool valid_surface_profile(
+            const ros2_control_blue_reach_5::msg::SimVehicleDynamics &dynamics)
+        {
+            const auto &matrix = dynamics.thrust_configuration_matrix;
+
+            // Two +x thrusters in columns 0 and 1; only surge and yaw are actuated.
+            for (std::size_t i = 0; i < matrix.size(); ++i)
+            {
+                if (i == 40 || i == 41)
+                {
+                    if (!std::isfinite(matrix[i]))
+                    {
+                        return false;
+                    }
+                }
+                else if (matrix[i] != (i < 2 ? 1.0 : 0.0))
+                {
+                    return false;
+                }
+            }
+
+            return std::abs(matrix[40] - matrix[41]) >= 1.0e-9 && valid_surface_inputs(SurfaceState{}, {}, dynamics, 0.0);
         }
 
         double camera_mount_pwm_to_pitch(const double pwm)
@@ -343,6 +478,15 @@ namespace ros2_control_blue_reach_5
             requested_state.Ty = request.vehicle_wrench[4];
             requested_state.Tz = request.vehicle_wrench[5];
 
+            if (surface_mode_)
+            {
+                requested_state.position_z = hw_vehicle_struct.default_state_.position_z;
+                requested_state.setEuler(0.0, 0.0, requested_state.yaw);
+                requested_state.w = requested_state.p = requested_state.q = 0.0;
+                requested_state.Fx = requested_state.Fy = requested_state.Fz = 0.0;
+                requested_state.Tx = requested_state.Ty = requested_state.Tz = 0.0;
+            }
+
             hw_vehicle_struct.current_state_ = requested_state;
             hw_vehicle_struct.async_state_ = requested_state;
             hw_vehicle_struct.estimate_state_ = requested_state;
@@ -363,7 +507,13 @@ namespace ros2_control_blue_reach_5
             use_coupled_dynamics_ = request.use_coupled_dynamics;
             vehicle_parameters_new = to_dm_vector(pack_vehicle_dynamics(request.vehicle_dynamics));
             thrust_configuration_matrix_ = request.vehicle_dynamics.thrust_configuration_matrix;
+        
+            if (surface_mode_)
+        {
+            surface_dynamics_ = request.vehicle_dynamics;
         }
+        }
+
         RCLCPP_INFO(
             rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
             "[%s] reset simulated vehicle with requested state; hold=%s pose=[%.3f, %.3f, %.3f, %.3f, %.3f, %.3f]",
@@ -445,6 +595,45 @@ namespace ros2_control_blue_reach_5
         {
             return hardware_interface::CallbackReturn::ERROR;
         }
+
+        const auto &hardware_params =
+            get_hardware_info().hardware_parameters;
+
+        const auto mode_it = hardware_params.find("dynamics_mode");
+
+        const std::string dynamics_mode =
+            mode_it == hardware_params.end()
+                ? "underwater"
+                : mode_it->second;
+
+        if (dynamics_mode != "underwater" && dynamics_mode != "surface")
+        {
+            RCLCPP_ERROR(
+                rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                "Unsupported dynamics_mode '%s'; expected 'underwater' or 'surface'.",
+                dynamics_mode.c_str());
+
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
+        surface_mode_ = (dynamics_mode == "surface");
+
+       
+        const std::size_t expected_thrusters = surface_mode_ ? 2 : 8;
+        const std::size_t actual_thrusters = get_hardware_info().joints.size();
+
+        if (actual_thrusters != expected_thrusters)
+        {
+            RCLCPP_ERROR(
+                rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                "dynamics_mode '%s' requires %zu thrusters, but %zu were declared.",
+                dynamics_mode.c_str(),
+                expected_thrusters,
+                actual_thrusters);
+
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
         // Access the name from the HardwareInfo
         system_name = get_hardware_info().name;
         RCLCPP_INFO(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"), "System name: %s", system_name.c_str());
@@ -456,8 +645,15 @@ namespace ros2_control_blue_reach_5
 
         // Use CasADi's "external" to load the compiled functions
         utils_service.usage_cplusplus_checks("test", "libtest.so", "vehicle");
-        utils_service.vehicle_dynamics = utils_service.load_casadi_fun("Vnext_reg", "libUV_xnext.so");
-        utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
+        utils_service.vehicle_dynamics = utils_service.load_casadi_fun(
+            surface_mode_ ? "BlueBoatNext_reg" : "Vnext_reg",
+            surface_mode_ ? "libBlueBoat_xnext.so" : "libUV_xnext.so");
+
+        RCLCPP_INFO(
+            rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+            "Loaded %s vehicle dynamics from %s",
+            surface_mode_ ? "surface" : "underwater",
+            surface_mode_ ? "libBlueBoat_xnext.so" : "libUV_xnext.so");        utils_service.genForces2propThrust = utils_service.load_casadi_fun("F_thrusters", "libF_thrust.so");
         utils_service.thrust2rads = utils_service.load_casadi_fun("thrusts_to_rads", "libTHRUST_RAD.so");
         utils_service.uv_Exkalman_update = utils_service.load_casadi_fun("ekf_update", "libEKF_next.so");
         // utils_service.uv_dynamic_Exkalman_update = utils_service.load_casadi_fun("mb_ekf_update", "libmodelbasedEKF_next.so");
@@ -510,6 +706,15 @@ namespace ros2_control_blue_reach_5
         const std::string use_pwm_str = get_hardware_info().hardware_parameters.at("use_pwm"); // e.g., "true", "false", "1", "0"
         hw_vehicle_struct.use_pwm =
             use_pwm_str == "true" || use_pwm_str == "True" || use_pwm_str == "1";
+
+        if (surface_mode_ && hw_vehicle_struct.use_pwm)
+        {
+            RCLCPP_ERROR(
+                rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                "Surface simulation requires use_pwm=false");
+            return hardware_interface::CallbackReturn::ERROR;
+        }
+
         const auto default_dynamics = default_vehicle_dynamics();
         vehicle_parameters_new = to_dm_vector(pack_vehicle_dynamics(default_dynamics));
         thrust_configuration_matrix_ = default_dynamics.thrust_configuration_matrix;
@@ -735,6 +940,16 @@ namespace ros2_control_blue_reach_5
                 response->message = "vehicle_dynamics.thrust_configuration_matrix must contain a nonzero 6x8 row-major matrix";
                 return;
             }
+
+            if (surface_mode_ && request->set_vehicle_dynamics &&
+                (request->use_coupled_dynamics ||
+                !valid_surface_profile(request->vehicle_dynamics)))
+            {
+                response->success = false;
+                response->message = "Invalid or coupled surface dynamics profile";
+                return;
+            }
+
             std::unique_lock<std::mutex> request_lock(reset_request_mutex_);
             pending_reset_request_ = *request;
             const auto sequence = ++reset_request_sequence_;
@@ -803,10 +1018,24 @@ namespace ros2_control_blue_reach_5
                     response->message = "vehicle.thrust_configuration_matrix must contain a nonzero 6x8 row-major matrix";
                     return;
                 }
+                
+                if (surface_mode_ &&
+                    (request->use_coupled_dynamics ||
+                    !valid_surface_profile(request->vehicle)))
+                {
+                    response->success = false;
+                    response->message = "Invalid or coupled surface dynamics profile";
+                    return;
+                }
+                
                 std::lock_guard<std::mutex> lock(simulation_state_mutex_);
                 use_coupled_dynamics_ = request->use_coupled_dynamics;
                 vehicle_parameters_new = to_dm_vector(pack_vehicle_dynamics(request->vehicle));
                 thrust_configuration_matrix_ = request->vehicle.thrust_configuration_matrix;
+                if (surface_mode_)
+                {
+                    surface_dynamics_ = request->vehicle;
+                }
                 response->success = true;
                 response->message = "updated simulated vehicle dynamics parameters";
                 RCLCPP_INFO(
@@ -1078,23 +1307,15 @@ namespace ros2_control_blue_reach_5
     {
         std::vector<hardware_interface::CommandInterface> command_interfaces;
 
-        command_interfaces.emplace_back(hardware_interface::CommandInterface(
-            get_hardware_info().joints[0].name, custom_hardware_interface::HW_IF_PWM, &hw_vehicle_struct.hw_thrust_structs_[0].command_state_.command_pwm));
-        command_interfaces.emplace_back(hardware_interface::CommandInterface(
-            get_hardware_info().joints[1].name, custom_hardware_interface::HW_IF_PWM, &hw_vehicle_struct.hw_thrust_structs_[1].command_state_.command_pwm));
-        command_interfaces.emplace_back(hardware_interface::CommandInterface(
-            get_hardware_info().joints[2].name, custom_hardware_interface::HW_IF_PWM, &hw_vehicle_struct.hw_thrust_structs_[2].command_state_.command_pwm));
-        command_interfaces.emplace_back(hardware_interface::CommandInterface(
-            get_hardware_info().joints[3].name, custom_hardware_interface::HW_IF_PWM, &hw_vehicle_struct.hw_thrust_structs_[3].command_state_.command_pwm));
-
-        command_interfaces.emplace_back(hardware_interface::CommandInterface(
-            get_hardware_info().joints[4].name, custom_hardware_interface::HW_IF_PWM, &hw_vehicle_struct.hw_thrust_structs_[4].command_state_.command_pwm));
-        command_interfaces.emplace_back(hardware_interface::CommandInterface(
-            get_hardware_info().joints[5].name, custom_hardware_interface::HW_IF_PWM, &hw_vehicle_struct.hw_thrust_structs_[5].command_state_.command_pwm));
-        command_interfaces.emplace_back(hardware_interface::CommandInterface(
-            get_hardware_info().joints[6].name, custom_hardware_interface::HW_IF_PWM, &hw_vehicle_struct.hw_thrust_structs_[6].command_state_.command_pwm));
-        command_interfaces.emplace_back(hardware_interface::CommandInterface(
-            get_hardware_info().joints[7].name, custom_hardware_interface::HW_IF_PWM, &hw_vehicle_struct.hw_thrust_structs_[7].command_state_.command_pwm));
+        for (std::size_t i = 0; i < get_hardware_info().joints.size(); ++i)
+        {
+            command_interfaces.emplace_back(
+                hardware_interface::CommandInterface(
+                    get_hardware_info().joints[i].name,
+                    custom_hardware_interface::HW_IF_PWM,
+                    &hw_vehicle_struct.hw_thrust_structs_[i]
+                         .command_state_.command_pwm));
+        }
 
         command_interfaces.emplace_back(hardware_interface::CommandInterface(
             get_hardware_info().gpios[0].name, get_hardware_info().gpios[0].command_interfaces[0].name, &hw_vehicle_struct.command_state_.position_x));
@@ -1200,6 +1421,13 @@ namespace ros2_control_blue_reach_5
         std::lock_guard<std::mutex> lock(simulation_state_mutex_);
         delta_seconds = period.seconds();
         apply_pending_reset_request();
+
+        if (surface_mode_)
+        {
+            hw_vehicle_struct.estimate_state_ = hw_vehicle_struct.current_state_;
+            return hardware_interface::return_type::OK;
+        }
+
         // measurements
         casadi::DM y_k = casadi::DM::zeros(7, 1);
         {
@@ -1278,6 +1506,136 @@ namespace ros2_control_blue_reach_5
         delta_seconds = period.seconds();
         time_seconds = time.seconds();
         apply_pending_reset_request();
+
+        if (surface_mode_)
+        {
+            // Reset can clear the cached timing values. Use this cycle's period.
+            const double dt = period.seconds();
+            auto &state = hw_vehicle_struct.current_state_;
+            const auto &command = hw_vehicle_struct.command_state_;
+            std::array<double, 6> applied{};
+
+            state.position_z = hw_vehicle_struct.default_state_.position_z;
+            state.setEuler(0.0, 0.0, state.yaw);
+            state.w = state.p = state.q = 0.0;
+            state.du = state.dv = state.dr = 0.0;
+            state.dw = state.dp = state.dq = 0.0;
+
+            if (surface_dynamics_)
+            {
+                const auto &profile = *surface_dynamics_;
+                const auto &matrix = profile.thrust_configuration_matrix;
+
+                // Temporary simulation-only limits, in newtons.
+                constexpr std::array<double, 2> min_thrust{-10.0, -10.0};
+                constexpr std::array<double, 2> max_thrust{10.0, 10.0};
+
+                // Tz = -y*T, so the yaw-row coefficients are -y.
+                const std::array<double, 2> thruster_y{-matrix[40], -matrix[41]};
+                const auto allocation = allocate_surface_thrust(
+                    commands_held_ ? 0.0 : command.Fx,
+                    commands_held_ ? 0.0 : command.Tz,
+                    thruster_y, min_thrust, max_thrust);
+
+                if (!allocation)
+                {
+                    RCLCPP_ERROR(rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                                "Surface thrust allocation failed");
+                    return hardware_interface::return_type::ERROR;
+                }
+                applied = allocation->wrench;
+
+                std::array<double, 6> external_wrench{};
+                {
+                    std::lock_guard<std::mutex> wrench_lock(contact_wrench_mutex_);
+                    external_wrench[0] = contact_wrench_body_[0];
+                    external_wrench[1] = contact_wrench_body_[1];
+                    external_wrench[5] = contact_wrench_body_[5];
+                }
+
+                auto net_wrench = applied;
+                for (std::size_t i = 0; i < net_wrench.size(); ++i)
+                {
+                    net_wrench[i] += external_wrench[i];
+                }
+
+                const SurfaceState before{
+                    state.position_x, state.position_y, state.yaw,
+                    state.u, state.v, state.r};
+
+                if (!valid_surface_inputs(before, net_wrench, profile, dt))
+                {
+                    RCLCPP_ERROR(
+                        rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                        "Invalid surface dynamics inputs");
+                    return hardware_interface::return_type::ERROR;
+                }
+
+                std::vector<double> next;
+                try
+                {
+                    const std::vector<double> state_values{
+                        state.position_x, state.position_y, state.position_z,
+                        0.0, 0.0, state.yaw,
+                        state.u, state.v, 0.0, 0.0, 0.0, state.r};
+
+                    const std::vector<casadi::DM> model_arguments{
+                        casadi::DM(state_values),
+                        casadi::DM(std::vector<double>(applied.begin(), applied.end())),
+                        casadi::DM::vertcat(vehicle_parameters_new),
+                        casadi::DM(dt),
+                        casadi::DM(std::vector<double>(
+                            external_wrench.begin(), external_wrench.end()))};
+
+                    const auto result = utils_service.vehicle_dynamics(model_arguments);
+                    next = dense_vector(result.at(0), 12);
+
+                    if (!std::all_of(next.begin(), next.end(),
+                            [](double value) { return std::isfinite(value); }))
+                    {
+                        throw std::runtime_error("non-finite state returned by CasADi");
+                    }
+                }
+                catch (const std::exception &error)
+                {
+                    RCLCPP_ERROR(
+                        rclcpp::get_logger("SimVehicleSystemMultiInterfaceHardware"),
+                        "Surface CasADi integration failed: %s", error.what());
+                    return hardware_interface::return_type::ERROR;
+                }
+
+                state.position_x = next[0];
+                state.position_y = next[1];
+                state.setEuler(0.0, 0.0, next[5]);
+                state.u = next[6];
+                state.v = next[7];
+                state.r = next[11];
+
+                if (dt > 0.0)
+                {
+                    state.du = (state.u - before[3]) / dt;
+                    state.dv = (state.v - before[4]) / dt;
+                    state.dr = (state.r - before[5]) / dt;
+                }
+            }
+
+            state.Fx = applied[0];
+            state.Tz = applied[5];
+            state.Fy = state.Fz = state.Tx = state.Ty = 0.0;
+            hw_vehicle_struct.sim_time = time.seconds();
+            hw_vehicle_struct.sim_period = dt;
+            control_power_ = std::abs(state.Fx * state.u) +
+                            std::abs(state.Tz * state.r);
+            if (surface_dynamics_)
+            {
+                control_energy_ += control_power_ * dt;
+            }
+
+            hw_vehicle_struct.estimate_state_ = state;
+            seed_vehicle_sensor_state_from_state(state);
+            publishRealtimePoseTransform();
+            return hardware_interface::return_type::OK;
+        }
 
         if (commands_held_)
         {

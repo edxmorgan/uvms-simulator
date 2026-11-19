@@ -1,8 +1,11 @@
 <?xml version="1.0"?>
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id same_initial_conditions use_pwm use_dvl dvl_host dvl_port">
+  <xacro:macro name="vehicle_system_multi_interface" params="name prefix serial_port state_update_frequency use_hardware world_frame_id body_frame_id map_frame_id same_initial_conditions use_pwm use_dvl dvl_host dvl_port thruster_count:=8 dynamics_mode:=underwater">
 
+    <xacro:if value="${int(thruster_count) not in (2, 8)}">
+      ${xacro.fatal('thruster_count must be 2 or 8')}
+    </xacro:if>
     <ros2_control name="${name}" type="system">
 
       <hardware>
@@ -21,6 +24,7 @@
 
         <xacro:unless value="${use_hardware}">
           <plugin>ros2_control_blue_reach_5/SimVehicleSystemMultiInterfaceHardware</plugin>
+          <param name="dynamics_mode">${dynamics_mode}</param>
           <param name="prefix">${prefix}</param>
           <param name="world_frame_id">${world_frame_id}</param>
           <param name="body_frame_id">${body_frame_id}</param>
@@ -63,6 +67,7 @@
         <command_interface name="pwm"/>
       </joint>
 
+      <xacro:if value="${int(thruster_count) == 8}">
        <joint name="${prefix}thruster3_joint">
         <param name="param_name">SERVO3_FUNCTION</param>
         <param name="default_param_value">35</param>
@@ -157,7 +162,7 @@
         <state_interface name="sim_period"/>
         <command_interface name="pwm"/>
       </joint>
-
+      </xacro:if>
       <gpio name="${prefix}IOs">
         <param name="Light1_channel">13</param>
         <param name="Light2_channel">14</param>

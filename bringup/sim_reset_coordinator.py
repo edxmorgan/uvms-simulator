@@ -1,6 +1,7 @@
 import argparse
 import threading
 from typing import Dict
+from bringup.utils.controller_config import parse_sim_robot_types
 
 import rclpy
 from rclpy.callback_groups import ReentrantCallbackGroup
@@ -11,10 +12,16 @@ from std_srvs.srv import Trigger
 
 
 class SimResetCoordinator(Node):
-    def __init__(self, robot_prefixes: list[str]) -> None:
+    def __init__(self, robot_prefixes: list[str], robot_types: str = "dory") -> None:
         super().__init__("sim_reset_coordinator")
         self._callback_group = ReentrantCallbackGroup()
         self._robot_prefixes = [prefix.strip() for prefix in robot_prefixes if prefix.strip()]
+
+        kinds = parse_sim_robot_types(robot_types, len(self._robot_prefixes))
+        self._has_manipulator = {
+            prefix: kind == "dory"
+            for prefix, kind in zip(self._robot_prefixes, kinds)
+        }
 
         self._reset_vehicle_clients: Dict[str, rclpy.client.Client] = {}
         self._reset_manipulator_clients: Dict[str, rclpy.client.Client] = {}
@@ -160,10 +167,17 @@ class SimResetCoordinator(Node):
         request: ResetSimUvms.Request,
         response: ResetSimUvms.Response,
     ) -> ResetSimUvms.Response:
+        if not self._has_manipulator[prefix] and (
+            request.set_manipulator_dynamics
+            or (request.set_vehicle_dynamics and request.use_coupled_dynamics)
+        ):
+            response.success = False
+            response.message = "BlueBoat requires vehicle-only, uncoupled dynamics."
+            return response
         self.get_logger().info(f"[{prefix}] combined state reset requested")
         messages = []
 
-        if request.reset_manipulator:
+        if request.reset_manipulator and self._has_manipulator[prefix]:
             service_name = f"/{prefix}reset_sim_manipulator"
             ok, message = self._call_reset_state(
                 self._reset_manipulator_clients[prefix],
@@ -198,10 +212,14 @@ class SimResetCoordinator(Node):
 
     def _handle_release(self, prefix: str, response: Trigger.Response) -> Trigger.Response:
         self.get_logger().info(f"[{prefix}] combined release requested")
-        steps = [
-            (self._release_manipulator_clients[prefix], f"/{prefix}release_sim_manipulator"),
-            (self._release_vehicle_clients[prefix], f"/{prefix}release_sim_vehicle"),
-        ]
+        steps = []
+        if self._has_manipulator[prefix]:
+            steps.append(
+                (self._release_manipulator_clients[prefix], f"/{prefix}release_sim_manipulator")
+            )
+        steps.append(
+            (self._release_vehicle_clients[prefix], f"/{prefix}release_sim_vehicle")
+        )
 
         messages = []
         for client, service_name in steps:
@@ -224,6 +242,12 @@ class SimResetCoordinator(Node):
         request: SetSimDynamics.Request,
         response: SetSimDynamics.Response,
     ) -> SetSimDynamics.Response:
+        if not self._has_manipulator[prefix] and (
+            request.set_manipulator_dynamics or request.use_coupled_dynamics
+        ):
+            response.success = False
+            response.message = "BlueBoat requires vehicle-only, uncoupled dynamics."
+            return response
         self.get_logger().info(f"[{prefix}] combined dynamics update requested")
         messages = []
 
@@ -272,12 +296,17 @@ class SimResetCoordinator(Node):
 def main() -> None:
     parser = argparse.ArgumentParser(description="Combined reset/release coordinator for simulated UVMS robots.")
     parser.add_argument("--robots-prefix", default="", help="Comma-separated list of robot prefixes.")
+    parser.add_argument(
+        "--robot-types",
+        default="dory",
+        help="One robot type or one per prefix.",
+    )
     args = parser.parse_args()
 
     prefixes = [prefix.strip() for prefix in args.robots_prefix.split(",") if prefix.strip()]
 
     rclpy.init()
-    node = SimResetCoordinator(prefixes)
+    node = SimResetCoordinator(prefixes, robot_types=args.robot_types)
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
 
