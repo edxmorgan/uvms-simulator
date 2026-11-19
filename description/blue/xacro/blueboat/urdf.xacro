@@ -8,7 +8,7 @@
 
     <link name="${prefix}base_link">
       <visual>
-        <origin xyz="-0.5 -0.5 0"
+        <origin xyz="-0.56 -0.60 -0.27"
                 rpy="1.57079632679 0 1.57079632679"/>
         <geometry>
           <mesh
