@@ -87,7 +87,10 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
             vessel['Name'] = 'Selected Vessel'
             vessel['Description Topic']['Value'] = '/rviz/selected_robot_description'
             displays.append(vessel)
-            rviz_marker_array_display(new_rviz_config, '/rviz/selected_vessel_axes', 'Selected Vessel Axes')
+            rviz_marker_array_display(
+                new_rviz_config, '/rviz/selected_vessel_axes', 'Selected Vessel Axes',
+                namespaces={'blueboat/base_link': False, 'blueboat/dvl_link': False},
+            )
 
         rviz_interactive_marker('controller_interactiveMarker', '/uvms_interactive_controls', new_rviz_config, True)
         rviz_point_cloud2('uvms_taskspace',"/workspace_pointcloud",new_rviz_config, True, "255; 255; 255",
@@ -432,12 +435,13 @@ def rviz_contact_markers_display(rviz_config,
 def rviz_marker_array_display(rviz_config,
                               topic,
                               name,
-                              enabled=True):
+                              enabled=True,
+                              namespaces=None):
     marker_array_cfg = {
         "Class": "rviz_default_plugins/MarkerArray",
         "Enabled": enabled,
         "Name": name,
-        "Namespaces": {},
+        "Namespaces": namespaces or {},
         "Queue Size": 100,
         "Topic": {
             "Depth": 5,
@@ -481,11 +485,12 @@ def rviz_robots_path_configure(robot_prefixes, rviz_config):
 
 def rviz_states_axes_configure(robot_prefixes, rviz_config, robot_types_by_prefix=None, enabled=True):
     for prefix in robot_prefixes:
+        body_axes_enabled = enabled and (robot_types_by_prefix is None or robot_types_by_prefix[prefix] != 'blueboat')
         base_link = f'{prefix}base_link'
         robot_map_frame = f'{prefix}map'
-        rviz_axes_display(base_link, base_link, rviz_config, 0.1, 0.01, enabled)
+        rviz_axes_display(base_link, base_link, rviz_config, 0.1, 0.01, body_axes_enabled)
         rviz_axes_display(robot_map_frame, f'{prefix}map', rviz_config, 0.1, 0.01, enabled)
-        rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, enabled)
+        rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, body_axes_enabled)
         rviz_axes_display(f'{prefix}mocap_frame', f"{prefix}mocap_link", rviz_config, 0.1, 0.01, False)
         if robot_types_by_prefix is None or robot_types_by_prefix[prefix] == 'dory':
             for i in range(5):

@@ -24,12 +24,14 @@
     <joint name="${prefix}thruster1_joint" type="continuous">
       <parent link="${prefix}base_link"/>
       <child link="${prefix}thruster1_link"/>
+      <origin xyz="-0.47612 0.28763 -0.16555"/>
       <axis xyz="1 0 0"/>
     </joint>
 
     <joint name="${prefix}thruster2_joint" type="continuous">
       <parent link="${prefix}base_link"/>
       <child link="${prefix}thruster2_link"/>
+      <origin xyz="-0.47612 -0.30116 -0.16555"/>
       <axis xyz="1 0 0"/>
     </joint>
 
