@@ -75,6 +75,17 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
 
 
     if task == 'interactive':
+        displays = visualization_manager['Displays']
+        model = next(d for d in displays if d['Class'] == 'rviz_default_plugins/RobotModel')
+        model['Description Topic']['Durability Policy'] = 'Transient Local'
+        if len(robot_prefixes) > 1:
+            model['Name'] = 'Environment'
+            model['Description Topic']['Value'] = '/robot_state_publisher_world/robot_description'
+            vessel = copy.deepcopy(model)
+            vessel['Name'] = 'Selected Vessel'
+            vessel['Description Topic']['Value'] = '/rviz/selected_robot_description'
+            displays.append(vessel)
+
         rviz_interactive_marker('controller_interactiveMarker', '/uvms_interactive_controls', new_rviz_config, True)
         rviz_point_cloud2('uvms_taskspace',"/workspace_pointcloud",new_rviz_config, True, "255; 255; 255",
                           custom_properties={"Decay Time": 0.0, "Size (Pixels)": 1.5})

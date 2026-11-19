@@ -763,7 +763,6 @@ def launch_setup(context, *args, **kwargs):
                 ("robot_description", f"{robot_prefix.rstrip('_')}/robot_description"),
             ],
             parameters=[{
-                "publish_robot_description": False,
                 "robot_description": Command(
                     [
                         PathJoinSubstitution([FindExecutable(name="xacro")]),
@@ -798,7 +797,6 @@ def launch_setup(context, *args, **kwargs):
             ("robot_description", "robot_state_publisher_world/robot_description"),
         ],
         parameters=[{
-            "publish_robot_description": False,
             "robot_description": world_state_description_content,
         }],
     )
