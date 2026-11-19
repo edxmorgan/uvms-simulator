@@ -721,6 +721,7 @@ def launch_setup(context, *args, **kwargs):
         task,
         launch_camera=launch_camera_bool,
         world_frame=world_frame,
+        robot_types_by_prefix=robot_types_by_prefix,
     )
 
     reset_coordinator_proc = ExecuteProcess(

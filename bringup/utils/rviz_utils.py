@@ -23,7 +23,7 @@ class NoAliasDumper(yaml.SafeDumper):
 def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_prefixes,
                          robot_base_links, ix, rviz_config_path,
                          new_rviz_config_path, task, launch_camera=False,
-                         world_frame="world")->None:
+                         world_frame="world", robot_types_by_prefix=None)->None:
     # Load the RViz configuration file
     with open(rviz_config_path,'r') as file:
         rviz_config = yaml.load(file,yaml.SafeLoader)
@@ -38,7 +38,7 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         task,
     )
     rviz_robot_metrics_overlay_configure(robot_prefixes, new_rviz_config)
-    rviz_states_axes_configure(robot_prefixes, new_rviz_config)
+    rviz_states_axes_configure(robot_prefixes, new_rviz_config, robot_types_by_prefix)
     rviz_robots_path_configure(robot_prefixes, new_rviz_config)
 
     rviz_add_mocap_pose_and_path(
@@ -476,7 +476,7 @@ def rviz_robots_path_configure(robot_prefixes, rviz_config):
             traj_color = generate_random_color()
         rviz_path_display(f"{prefix}/robotPath", f"/{prefix}robotPath", rviz_config, traj_color, enabled)
 
-def rviz_states_axes_configure(robot_prefixes, rviz_config):
+def rviz_states_axes_configure(robot_prefixes, rviz_config, robot_types_by_prefix=None):
     for prefix in robot_prefixes:
         base_link = f'{prefix}base_link'
         robot_map_frame = f'{prefix}map'
@@ -484,8 +484,9 @@ def rviz_states_axes_configure(robot_prefixes, rviz_config):
         rviz_axes_display(robot_map_frame, f'{prefix}map', rviz_config, 0.1, 0.01, True)
         rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, True)
         rviz_axes_display(f'{prefix}mocap_frame', f"{prefix}mocap_link", rviz_config, 0.1, 0.01, False)
-        for i in range(5):
-            rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
+        if robot_types_by_prefix is None or robot_types_by_prefix[prefix] == 'dory':
+            for i in range(5):
+                rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
         
 def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task, add_camera_views=False):
     rviz_config['Visualization Manager']['Views']['Saved'] = []
