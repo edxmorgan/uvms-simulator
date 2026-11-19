@@ -38,7 +38,9 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         task,
     )
     rviz_robot_metrics_overlay_configure(robot_prefixes, new_rviz_config)
-    rviz_states_axes_configure(robot_prefixes, new_rviz_config, robot_types_by_prefix)
+    selected_vessel = task == 'interactive' and len(robot_prefixes) > 1
+    rviz_states_axes_configure(robot_prefixes, new_rviz_config, robot_types_by_prefix,
+                               enabled=not selected_vessel)
     rviz_robots_path_configure(robot_prefixes, new_rviz_config)
 
     rviz_add_mocap_pose_and_path(
@@ -78,13 +80,14 @@ def rviz_file_configure(use_vehicle_hardware, use_manipulator_hardware, robot_pr
         displays = visualization_manager['Displays']
         model = next(d for d in displays if d['Class'] == 'rviz_default_plugins/RobotModel')
         model['Description Topic']['Durability Policy'] = 'Transient Local'
-        if len(robot_prefixes) > 1:
+        if selected_vessel:
             model['Name'] = 'Environment'
             model['Description Topic']['Value'] = '/robot_state_publisher_world/robot_description'
             vessel = copy.deepcopy(model)
             vessel['Name'] = 'Selected Vessel'
             vessel['Description Topic']['Value'] = '/rviz/selected_robot_description'
             displays.append(vessel)
+            rviz_marker_array_display(new_rviz_config, '/rviz/selected_vessel_axes', 'Selected Vessel Axes')
 
         rviz_interactive_marker('controller_interactiveMarker', '/uvms_interactive_controls', new_rviz_config, True)
         rviz_point_cloud2('uvms_taskspace',"/workspace_pointcloud",new_rviz_config, True, "255; 255; 255",
@@ -256,7 +259,7 @@ def rviz_axes_display(name, reference_frame, rviz_config, length, radius, enable
         'Name': name,
         'Radius': str(radius),
         'Reference Frame': reference_frame,
-        'Value': True}
+        'Value': enabled}
     rviz_config['Visualization Manager']['Displays'].append(added_axes)
     
 def rviz_point_cloud2(name, topic, rviz_config, enabled, color="255; 255; 255", custom_properties=None):
@@ -476,17 +479,17 @@ def rviz_robots_path_configure(robot_prefixes, rviz_config):
             traj_color = generate_random_color()
         rviz_path_display(f"{prefix}/robotPath", f"/{prefix}robotPath", rviz_config, traj_color, enabled)
 
-def rviz_states_axes_configure(robot_prefixes, rviz_config, robot_types_by_prefix=None):
+def rviz_states_axes_configure(robot_prefixes, rviz_config, robot_types_by_prefix=None, enabled=True):
     for prefix in robot_prefixes:
         base_link = f'{prefix}base_link'
         robot_map_frame = f'{prefix}map'
-        rviz_axes_display(base_link, base_link, rviz_config, 0.1, 0.01, True)
-        rviz_axes_display(robot_map_frame, f'{prefix}map', rviz_config, 0.1, 0.01, True)
-        rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, True)
+        rviz_axes_display(base_link, base_link, rviz_config, 0.1, 0.01, enabled)
+        rviz_axes_display(robot_map_frame, f'{prefix}map', rviz_config, 0.1, 0.01, enabled)
+        rviz_axes_display(f'{prefix}dvl_frame', f"{prefix}dvl_link", rviz_config, 0.1, 0.01, enabled)
         rviz_axes_display(f'{prefix}mocap_frame', f"{prefix}mocap_link", rviz_config, 0.1, 0.01, False)
         if robot_types_by_prefix is None or robot_types_by_prefix[prefix] == 'dory':
             for i in range(5):
-                rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, True)
+                rviz_axes_display(f'{prefix}joint_{i}', f"{prefix}joint_{i}", rviz_config, 0.1, 0.01, enabled)
         
 def rviz_view_configure(robot_prefixes, robot_base_links, rviz_config, task, add_camera_views=False):
     rviz_config['Visualization Manager']['Views']['Saved'] = []
