@@ -6,9 +6,9 @@ Exported package name: `ros2_control_blue_reach_5`
 
 ## 1. Install the BlueBoat simulator on a fresh computer
 
-There are two downloads. This **simulator** fork supplies the BlueBoat hull, thrusters, and simulated physics. The companion **SimLab** fork supplies the planner, controllers, and RViz menus. Together they already include the original Dory simulator. You’ll download both into one folder and build them together once. You can do this without a GitHub account, a branch of your own, or a separate Dory installation.
+There are two downloads. This **simulator** fork supplies the BlueBoat hull, thrusters, and simulated physics. The companion **SimLab** fork supplies the planner, controllers, and RViz menus. Together they already include the original Dory simulator. You’ll download both into one folder and build them together once.
 
-These steps are for Ubuntu **24.04 Desktop on x86-64**. Open Terminal with **Ctrl+Alt+T**. Use the same terminal for steps 1–8. Paste one block at a time and wait for it to finish. If a command reports an error, stop there. Commands beginning with `sudo` may ask for your Ubuntu password. The password stays invisible as you type.
+These steps are for Ubuntu **24.04 Desktop on x86-64**. Open Terminal with **Ctrl+Alt+T**. Use the same terminal for steps 1–8. Paste one block at a time and wait for it to finish.
 
 ### Step 1. Prepare Ubuntu
 
