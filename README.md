@@ -4,6 +4,57 @@ ROS 2 `ros2_control` package for simulating and interfacing a BlueROV2 Heavy + R
 
 Exported package name: `ros2_control_blue_reach_5`
 
+## 1. Install the BlueBoat simulator on a fresh computer
+
+This fork is the UVMS simulator with BlueBoat support already included. The complete source workspace consists of this simulator and the companion SimLab fork, both on `lance/blueboat`. Clone them side by side under `~/blueboat_ws/src` and build them together. [BlueBoat SimLab repository](https://github.com/Llong112/uvms-simlab_coral/tree/lance/blueboat)
+
+1. On a fresh Ubuntu 24.04 x86-64 computer, install ROS 2 Jazzy **Desktop** and the ROS development tools. Source `/opt/ros/jazzy/setup.bash` in Bash so the prerequisite commands have `ROS_DISTRO` set. [ROS 2 Jazzy desktop installation](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html)
+2. Follow **System Requirements** in the upstream UVMS guide for the system packages, including Git LFS. Build and install the CasADi C++ library from source and follow the guide’s linker-path instructions if it is installed in a custom location. [UVMS installation guide](https://edxmorgan.github.io/uvms-simulator/installation.html) · [CasADi source build](https://github.com/casadi/casadi/wiki/SourceBuild)
+3. Install `python3-venv`, create an environment with `/usr/bin/python3 -m venv --system-site-packages ~/.venvs/blueboat`, and activate it with `source ~/.venvs/blueboat/bin/activate`. In that shell, follow the upstream **Python Dependencies** and **OMPL Python Bindings** steps for the simulator and planner. Then return here for workspace setup and build. [Python dependencies](https://edxmorgan.github.io/uvms-simulator/installation.html#python-dependencies) · [OMPL Python bindings](https://edxmorgan.github.io/uvms-simulator/installation.html#ompl-python-bindings)
+
+Skip the stock simulator checkout and use the block below in place of the upstream **Workspace Setup** and **Build** steps. Also skip `vcs import`. The only active entry in this branch’s manifest fetches stock SimLab, and the second clone below supplies the BlueBoat version. The `rosdep` command skips the source-installed `casadi` and two manifest keys unused in this simulated launch (`uvms_controller` and `tf2_broadcaster`). [Dependency manifest](dependency_repos.repos)
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/.venvs/blueboat/bin/activate
+git lfs install
+mkdir -p ~/blueboat_ws/src
+cd ~/blueboat_ws/src
+git clone --branch lance/blueboat https://github.com/Llong112/uvms-simulator_coral.git uvms-simulator
+git clone --branch lance/blueboat https://github.com/Llong112/uvms-simlab_coral.git uvms-simlab
+
+cd ~/blueboat_ws
+if [ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]; then
+  sudo rosdep init
+fi
+rosdep update
+rosdep install --from-paths src --ignore-src -y --skip-keys 'casadi uvms_controller tf2_broadcaster'
+colcon build
+source install/setup.bash
+```
+
+## 2. Run BlueBoat, switch vessels, and choose a controller
+
+Run this in the shell used for the build. In a new Bash terminal, first source `/opt/ros/jazzy/setup.bash`, `~/.venvs/blueboat/bin/activate`, and `~/blueboat_ws/install/setup.bash`, in that order.
+
+```bash
+ros2 launch ros2_control_blue_reach_5 robot_system_multi_interface.launch.py \
+  task:=interactive sim_robot_count:=2 sim_robot_types:=dory,blueboat \
+  use_vehicle_hardware:=false use_manipulator_hardware:=false
+```
+
+1. RViz starts with Dory selected. With the **Interact** tool, right-click the vehicle target marker and choose **Robots → `robot_2_`** to show BlueBoat. Both vessels stay loaded when you switch.
+2. Open the marker menu again. Under **Robot Control → Controller**, choose **Surface** or **SurfaceInvDyn**. The checkmark and the `robot_2_` row in the **Robot Control Status** overlay show which controller is active.
+3. For a straight run, start with the target heading aligned with BlueBoat’s bow. Drag the target about 1 m straight ahead, keeping its heading unchanged, then choose **Plan & Execute** from the marker menu. BlueBoat should move toward the target. A goal that changes only yaw currently produces a warning because turns in place have no timing policy.
+4. Choose **Robots → `robot_1_`** to show Dory again. Dory’s own default controller is **PID**.
+
+BlueBoat moves on the surface in surge (forward/back), sway (sideways), and yaw (turning). Its two thrusters produce forward force and yaw torque. Sway is part of the simulated motion, but the thrusters cannot command an independent sideways force. Both controllers send their wrench through the same thruster allocator, and the same CasADi forward dynamics model advances the boat. [Dynamics generator](scripts/generate_blueboat_dynamics.py) · [BlueBoat dynamics profile](https://github.com/Llong112/uvms-simlab_coral/blob/lance/blueboat/resource/dynamics_profiles/blueboat.json) · [Controller source](https://github.com/Llong112/uvms-simlab_coral/blob/lance/blueboat/simlab/controllers/blueboat.py)
+
+| BlueBoat controller | Controls classification | How it decides what to command |
+|---|---|---|
+| Surface (default) | Closed-loop position guidance, proportional forward-speed control, and PD-like heading control | Position error helps choose a course back toward the path. Speed error sets forward force; heading and turn-rate errors set yaw torque. |
+| SurfaceInvDyn (selectable) | Pure model-based feedforward inverse dynamics | Planned body velocities and accelerations, together with the active boat model, determine forward force and yaw torque. For the same plan and time, a measured position error does not add corrective thrust. |
+
 ![UVMS environment](doc/uvms_env.png)
 
 ## Features
