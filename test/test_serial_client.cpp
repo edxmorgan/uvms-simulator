@@ -281,3 +281,25 @@ TEST(SerialClient, IndependentDevicesRemainReceivableAfterSelectiveOutage)
   client.disconnect();
   close(master);close(slave);
 }
+
+TEST(SerialTrace, DistinguishesSelectiveReplyLossFromRequestAndCallbackStalls)
+{
+  SerialTrace trace;
+  const auto packet = PacketId::PacketID_POSITION;
+  constexpr std::int64_t now = 2000000000;
+  trace.record(1, packet, SerialTrace::Stage::requested, now-10000000);
+  trace.record(1, packet, SerialTrace::Stage::decoded, now-600000000);
+  trace.record(1, packet, SerialTrace::Stage::dispatched, now-600000000);
+  trace.record(2, packet, SerialTrace::Stage::requested, now-600000000);
+  trace.record(3, packet, SerialTrace::Stage::decoded, now-10000000);
+  trace.record(5, packet, SerialTrace::Stage::decoded, now-10000000);
+  trace.record(5, packet, SerialTrace::Stage::dispatched, now-10000000);
+  const auto report = trace.report(now);
+  EXPECT_NE(report.find("device=1/position observation=requests_written_without_recent_decoded_reply"), std::string::npos);
+  EXPECT_NE(report.find("device=2/position observation=no_recent_request_or_decoded_reply"), std::string::npos);
+  EXPECT_NE(report.find("device=3/position observation=decoded_without_recent_callback"), std::string::npos);
+  EXPECT_NE(report.find("device=5/position observation=callback_recent"), std::string::npos);
+  trace.record(1, packet, SerialTrace::Stage::decoded, now);
+  trace.record(1, packet, SerialTrace::Stage::dispatched, now);
+  EXPECT_NE(trace.report(now).find("device=1/position observation=callback_recent"), std::string::npos);
+}

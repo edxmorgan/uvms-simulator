@@ -613,8 +613,8 @@ namespace ros2_control_blue_reach_5
     arm_observer_.reset();
     { std::lock_guard<std::mutex> lock(access_async_states_); identification_.reset(); }
     serial_budget_.reset();
-    activated_at_ = JointFeedbackClock::Clock::now();
-    feedback_fault_ = false;
+    command_fault_ = false;
+    feedback_dropout_ = false;
     RCLCPP_INFO(
         rclcpp::get_logger("ReachSystemMultiInterfaceHardware"), "Activating... please wait...");
     try
@@ -822,55 +822,47 @@ namespace ros2_control_blue_reach_5
     {
       const auto transport_failed = [this]() {
         if (!driver_.write_failed() && !driver_.read_failed()) return false;
-        if (!feedback_fault_)
+        if (!command_fault_)
           RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
             "Serial transport failed; hardware write cannot confirm command delivery.");
-        feedback_fault_ = true;
+        command_fault_ = true;
         return true;
       };
       if (transport_failed()) return hardware_interface::return_type::ERROR;
+      if (command_fault_) return hardware_interface::return_type::ERROR;
       const auto now = JointFeedbackClock::Clock::now();
       bool fresh = true;
-      std::ostringstream stale_signals;
       {
         const std::lock_guard<std::mutex> lock(access_async_states_);
         for (std::size_t i = 0; i < feedback_clocks_.size(); ++i)
           if (!claimed_modes_[i].empty() && !feedback_clocks_[i].fresh(now)) fresh = false;
-        // Snapshot every device on a fault: the first expired field alone cannot
-        // distinguish a device outage from a common receive/polling delay.
-        if (!fresh) for (std::size_t i = 0; i < feedback_clocks_.size(); ++i) {
-            static const char *fields[] = {"position", "velocity", "current"};
-            for (std::size_t field = 0; field < 3; ++field) {
-              const auto &clock = feedback_clocks_[i];
-              stale_signals << joint_names_[i] << '/' << fields[field] << '=';
-              if (!clock.seen[field]) stale_signals << "missing/invalid";
-              else stale_signals << std::chrono::duration<double, std::milli>(
-                now - clock.received[field]).count() << "ms";
-              stale_signals << ' ';
-            }
-          }
       }
-      if (feedback_fault_) return hardware_interface::return_type::ERROR;
-      if (!fresh) {
-        if (now - activated_at_ <= std::chrono::milliseconds(500))
-          return hardware_interface::return_type::OK;  // no motion until all signals arrive
-        feedback_fault_ = true;
-        const auto now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-          now.time_since_epoch()).count();
-        stale_signals << "poll_start_age_ms=" << (now_ns - poll_started_ns_.load()) / 1e6
-                      << " poll_finish_age_ms=" << (now_ns - poll_finished_ns_.load()) / 1e6;
-        for (const auto &joint : hw_joint_struct_) {
-          const auto device = static_cast<alpha::driver::DeviceId>(joint.device_id);
-          driver_.setCurrent(0.0, device);
-          driver_.setVelocity(0.0, device);
-        }
-        RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
-          "Feedback fault (>500ms or missing/invalid): %s; zero commands sent, hardware fault latched",
-          stale_signals.str().c_str());
-        RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
-          "Serial fault trace (request_written is not device acknowledgement): %s",
+      // Restore the original last-received-state behavior. Feedback age is
+      // diagnostic only; a missing reply must not trigger lifecycle teardown.
+      // Transport/command failures still return ERROR below.
+      const bool dropout_started = !fresh && !feedback_dropout_;
+      const bool dropout_recovered = fresh && feedback_dropout_;
+      if (dropout_started) {
+        feedback_dropout_start_ = now;
+        feedback_dropout_ = true;
+      }
+      if (!fresh && (dropout_started ||
+          now-feedback_dropout_report_ >= std::chrono::seconds(5))) {
+        feedback_dropout_report_ = now;
+        const double duration = std::chrono::duration<double>(now-feedback_dropout_start_).count();
+        RCLCPP_WARN(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+          "Reach feedback dropout %s: claimed-joint feedback missing/invalid or older than 500ms; "
+          "seconds_since_detection=%.3f; continuing with last received state. "
+          "Host observations only: request_written is not device acknowledgement. %s",
+          dropout_started ? "START" : "ONGOING", duration,
           driver_.serial_diagnostics().c_str());
-        return hardware_interface::return_type::ERROR;
+      } else if (dropout_recovered) {
+        feedback_dropout_ = false;
+        RCLCPP_INFO(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
+          "Reach feedback dropout END: all claimed-joint feedback fresh; "
+          "seconds_since_detection=%.3f. %s",
+          std::chrono::duration<double>(now-feedback_dropout_start_).count(),
+          driver_.serial_diagnostics().c_str());
       }
       if (!serial_budget_.command_due(SerialBudget::Clock::now()))
       {
@@ -999,7 +991,7 @@ namespace ros2_control_blue_reach_5
     }
     catch (const std::exception &error)
     {
-      feedback_fault_ = true;
+      command_fault_ = true;
       RCLCPP_ERROR(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),
         "Hardware command failed: %s", error.what());
       return hardware_interface::return_type::ERROR;
@@ -1211,8 +1203,6 @@ namespace ros2_control_blue_reach_5
     while (running_.load())
     {
       const auto started = std::chrono::steady_clock::now();
-      poll_started_ns_.store(std::chrono::duration_cast<std::chrono::nanoseconds>(
-        started.time_since_epoch()).count());
       try
       {
         driver_.request(alpha::driver::PacketId::PacketID_VELOCITY, alpha::driver::DeviceId::kLinearJaws);
@@ -1242,8 +1232,6 @@ namespace ros2_control_blue_reach_5
       }
 
       const auto finished = std::chrono::steady_clock::now();
-      poll_finished_ns_.store(std::chrono::duration_cast<std::chrono::nanoseconds>(
-        finished.time_since_epoch()).count());
       const auto elapsed_ms = std::chrono::duration<double, std::milli>(finished - started).count();
       if (elapsed_ms > 100.)
         RCLCPP_WARN(rclcpp::get_logger("ReachSystemMultiInterfaceHardware"),

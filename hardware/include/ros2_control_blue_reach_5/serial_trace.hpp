@@ -38,7 +38,18 @@ public:
       for (unsigned field=0; field<3; ++field) {
         const auto &channel=channels_[device][field];
         if (!channel[0].count.load() && !channel[1].count.load()) continue;
-        out << " device=" << device << '/' << fields[field];
+        // These labels identify observations at the host, not device acknowledgement
+        // or the physical cause. Incoming telemetry may also be unsolicited.
+        const auto recent = [&](unsigned stage) {
+          return channel[stage].count.load(std::memory_order_relaxed) != 0 &&
+            now-channel[stage].time.load(std::memory_order_relaxed) <= 500000000;
+        };
+        const char *observation = recent(2) ? "callback_recent" :
+          recent(1) ? "decoded_without_recent_callback" :
+          recent(0) ? "requests_written_without_recent_decoded_reply" :
+          "no_recent_request_or_decoded_reply";
+        out << " device=" << device << '/' << fields[field]
+            << " observation=" << observation;
         for (unsigned stage=0; stage<3; ++stage) {
           const auto count=channel[stage].count.load(std::memory_order_relaxed);
           const auto stamp=channel[stage].time.load(std::memory_order_relaxed);

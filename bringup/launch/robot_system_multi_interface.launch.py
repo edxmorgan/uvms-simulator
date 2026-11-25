@@ -354,7 +354,7 @@ def generate_launch_description():
     declared_arguments.append(
         DeclareLaunchArgument(
             "sim_camera_rate",
-            default_value="5.0",
+            default_value="10.0",
             description="Rendered simulated camera frame rate in Hz.",
         )
     )

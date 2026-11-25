@@ -138,8 +138,10 @@ namespace ros2_control_blue_reach_5
     std::vector<std::string> joint_names_;
     std::vector<std::string> claimed_modes_;
     std::vector<JointFeedbackClock> feedback_clocks_;
-    JointFeedbackClock::Clock::time_point activated_at_{};
-    bool feedback_fault_{false};
+    bool command_fault_{false};
+    bool feedback_dropout_{false};
+    JointFeedbackClock::Clock::time_point feedback_dropout_start_{};
+    JointFeedbackClock::Clock::time_point feedback_dropout_report_{};
     HardwareArmObserver arm_observer_;
     std::unique_ptr<HardwareArmObserverWorker> arm_observer_worker_;
     uvms::arm_identification::HardwareMeasurements identification_;
@@ -238,7 +240,6 @@ namespace ros2_control_blue_reach_5
     // Driver things
     alpha::driver::Driver driver_;
     std::thread state_request_worker_;
-    mutable std::atomic<int64_t> poll_started_ns_{0}, poll_finished_ns_{0};
     std::atomic<bool> running_{false};
     bool driver_started_{false};
     bool feedback_callbacks_registered_{false};

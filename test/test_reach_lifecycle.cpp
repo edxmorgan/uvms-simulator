@@ -21,9 +21,43 @@ struct ReachLifecycleTestAccess {
     for(auto &clock:h.feedback_clocks_)
       for(unsigned field=0;field<3;++field)
         clock.update(field,JointFeedbackClock::Clock::now());
-    h.feedback_fault_=true;
+    h.command_fault_=true;
     h.running_=true;
     h.state_request_worker_=std::thread([&h] {h.pollState(20);});
+  }
+  static void check_stale_feedback_does_not_latch(Hardware &h) {
+    h.command_fault_ = false;
+    // Reproduce a selective reply outage: devices 1/2 stale, others fresh.
+    {
+      const std::lock_guard<std::mutex> lock(h.access_async_states_);
+      for(unsigned joint=0; joint<2; ++joint)
+        for(unsigned field=0; field<3; ++field)
+          h.feedback_clocks_[joint].update(field,
+            JointFeedbackClock::Clock::now()-std::chrono::seconds(1));
+    }
+    // Exercise the real write callback without sending movement commands.
+    h.serial_budget_.command_due(SerialBudget::Clock::now());
+    EXPECT_EQ(h.write(rclcpp::Time(0),rclcpp::Duration::from_seconds(.005)),
+      hardware_interface::return_type::OK);
+    EXPECT_FALSE(h.command_fault_);
+    EXPECT_TRUE(h.driver_started_);
+    EXPECT_TRUE(h.running_.load());
+    for(auto &mode:h.claimed_modes_) EXPECT_EQ(mode,"effort");
+    EXPECT_TRUE(h.feedback_dropout_);
+    const auto detection = h.feedback_dropout_start_;
+    h.write(rclcpp::Time(0),rclcpp::Duration::from_seconds(.005));
+    EXPECT_EQ(h.feedback_dropout_start_, detection);
+    {
+      const std::lock_guard<std::mutex> lock(h.access_async_states_);
+      for (auto &clock : h.feedback_clocks_)
+        for (unsigned field=0; field<3; ++field)
+          clock.update(field, JointFeedbackClock::Clock::now());
+    }
+    EXPECT_EQ(h.write(rclcpp::Time(0),rclcpp::Duration::from_seconds(.005)),
+      hardware_interface::return_type::OK);
+    EXPECT_FALSE(h.feedback_dropout_);
+    // Preserve the explicit transport-fault case for the lifecycle test.
+    h.command_fault_ = true;
   }
   static void check_stopped(Hardware &h) {
     EXPECT_FALSE(h.running_.load());
@@ -32,7 +66,7 @@ struct ReachLifecycleTestAccess {
     EXPECT_FALSE(h.arm_observer_worker_);
     EXPECT_FALSE(h.spin_thread_.joinable());
     // A latched fault is only cleared by explicit activation.
-    EXPECT_TRUE(h.feedback_fault_);
+    EXPECT_TRUE(h.command_fault_);
     for(auto &clock:h.feedback_clocks_)
       EXPECT_FALSE(clock.fresh(JointFeedbackClock::Clock::now()));
     for(auto &mode:h.claimed_modes_) EXPECT_TRUE(mode.empty());
@@ -52,6 +86,7 @@ TEST(ReachLifecycle, FaultAndShutdownStopWorkersAndPermitSerialReconfiguration) 
   {
     ReachSystemMultiInterfaceHardware hardware;
     ReachLifecycleTestAccess::start(hardware,name);
+    ReachLifecycleTestAccess::check_stale_feedback_does_not_latch(hardware);
     EXPECT_EQ(hardware.on_error(rclcpp_lifecycle::State()),
       hardware_interface::CallbackReturn::SUCCESS);
     ReachLifecycleTestAccess::check_stopped(hardware);

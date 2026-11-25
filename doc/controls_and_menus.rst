@@ -15,7 +15,7 @@ Interactive Task
 Launch as described in :doc:`userdoc`.
 
 Select the active robot once from ``Robots``. Tool menus such as ``Path
-Planner``, ``Cmd Replay``, ``Grasper``, ``Waypoints``, and ``Plan & Execute``
+Planner``, ``Cmd Replay``, ``Robot Control → Grasper``, ``Waypoints``, and ``Plan & Execute``
 then operate on that selected robot.
 
 Main menu groups:
@@ -35,7 +35,7 @@ Main menu groups:
   simulation.
 - ``Data Recording``: start or stop MCAP recording for the configured robot,
   reference, performance, camera, and dynamic obstacle topics.
-- ``Grasper``: open/close the active robot's grasper through feedback
+- ``Robot Control → Grasper``: open/close the active robot's grasper through feedback
   controllers only.
 - ``Reset Manager``: simulator state reset and release controls. Reset clears
   the selected robot's waypoint/path state and the global dynamic obstacle set.
@@ -43,6 +43,48 @@ Main menu groups:
 - ``Robot Control``: select controller, control space, and IK settings for the
   active robot.
 - ``Environment``: switch static scenes in simulation; see :doc:`environment_scenes`.
+
+Controller tuning
+-----------------
+
+Open ``Robot Control → Controller → Tune controller…``, or run
+``ros2 run simlab controller_tuning``. Select a robot, controller and component.
+Edit the numeric arrays and click ``Apply`` during execution; no stop or rebuild
+is needed. The panel verifies the effective values and shows which controller is
+actually selected for execution. Editing another controller does not select it
+or start motion.
+
+PID, InvDyn and SMC declare their editable parameters in the controller API.
+When the private Namor dependency is available, OGES (``Ours``) and DR-OGES
+(``DR-Ours``) also appear in the same editor with weights, scales and gripper gains.
+Weights use a table with one row per joint/vehicle axis and columns for a1, a2,
+a12 (cross) and ac; each cell edits one native weight without reordering the vector.
+The editor uses that schema, including array dimensions, rather than assuming
+PID gains. Updates are validated as a whole between control callbacks. For PID
+and InvDyn, changing Ki resets only the changed integral axes; other gain edits
+preserve accumulated error. Scene/reset/release transitions must finish before
+applying parameters. Model and actuator limits are not tuning fields.
+
+``Undo`` restores the last applied values for that robot/controller/component.
+``Refresh`` reads effective values. ``Save applied`` saves all declared parameters
+of the chosen controller to YAML, excluding unsent edits. ``Load YAML`` fills the
+selected component's editor; click ``Apply`` to send it.
+
+Startup defaults have a single source:
+``simlab/resource/controller_profiles/defaults.yaml``. This contains the common
+nominal model, limits and home poses, plus simulation/hardware controller gains.
+The loader reads it once and gives each controller independent arrays. These
+nominal controller models are separate from the simulation plant profiles.
+
+A saved tuning YAML can also be loaded at startup using the interactive
+controller's ROS string parameter ``<robot_prefix><controller_lowercase>_profile``;
+for example ``robot_real_pid_profile: /absolute/path/pid.yaml`` or
+``robot_1_smc_profile: /absolute/path/smc.yaml``. The same validation is used at
+startup and during live tuning. Without this parameter, YAML defaults apply.
+
+Arm arrays follow axis_e, axis_d, axis_c, axis_b, axis_a (grasper); vehicle arrays
+follow surge, sway, heave, roll, pitch, yaw. Use PlotJuggler to compare tracking
+error and effort during each trial.
 
 Use the obstacle marker's menu to edit obstacles. Scripts use
 ``/dynamic_obstacle_sim_node/edit_dynamic_obstacles``; no active path is required.
